@@ -171,6 +171,8 @@ typedef struct {
 	unsigned int diSamples;
 	unsigned int giSamples;
 	unsigned int maxLights;
+	unsigned int tonemapMode;
+	float tonemapExposure;
 	unsigned char dlssMode;
 	bool denoiserEnabled;
 } RT64_VIEW_DESC;

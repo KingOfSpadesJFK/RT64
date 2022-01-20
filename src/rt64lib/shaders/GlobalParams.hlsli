@@ -37,6 +37,8 @@ cbuffer gParams : register(b0) {
 	uint giReproject;
 	uint maxLights;
 	uint motionBlurSamples;
+    uint tonemapMode;
+	float tonemapExposure;
 	uint visualizationMode;
 	uint frameCount;
 }
