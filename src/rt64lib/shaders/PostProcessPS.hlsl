@@ -5,6 +5,10 @@
 #include "Constants.hlsli"
 #include "GlobalParams.hlsli"
 
+#define TONEMAP_MODE_CLAMP 0
+#define TONEMAP_MODE_REINHARD 1
+#define TONEMAP_MODE_REINHARD_LUMA 2
+
 Texture2D<float4> gOutput : register(t0);
 Texture2D<float4> gFlow : register(t1);
 
