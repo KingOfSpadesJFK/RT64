@@ -183,12 +183,6 @@ void RT64::Inspector::renderViewParams(View *view) {
 
     ImGui::Checkbox("Denoiser", &denoiser);
     ImGui::Checkbox("Volumetrics", &volumetricEnabled);
-    ImGui::Checkbox("Experimental Specular Lighting", &alternateSpecularLight);
-    if (giSamples > 0) {
-        bool alternateIndirect = view->getAlternateIndirectFlag();
-        ImGui::Checkbox("Experimental Indirect Lighting", &alternateIndirect);
-        view->setAlternateIndirectFlag(alternateIndirect);
-    }
 
     if (volumetricEnabled)
     {
