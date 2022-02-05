@@ -134,9 +134,8 @@ void ReflectionRayGen() {
 	if (resInstanceId >= 0) {
         float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, false);
         float3 directLight = lightMatrix._11_12_13 + instanceMaterials[resInstanceId].selfLight;
-        float3 specularLight = lightMatrix._21_22_23 * RGBtoLuminance(directLight);
-        resColor.rgb *= (gIndirectLightAccum[launchIndex].rgb + directLight);
-        resColor.rgb += specularLight;
+        float3 specularLight = lightMatrix._21_22_23;
+        resColor.rgb *= (gIndirectLightAccum[launchIndex].rgb + directLight + specularLight);
 		gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
 		gViewDirection[launchIndex] = float4(rayDirection, 0.0f);
 		gShadingNormal[launchIndex] = float4(resNormal, 0.0f);

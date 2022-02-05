@@ -109,22 +109,9 @@ void IndirectRayGen() {
             if (resInstanceId >= 0) {
                 float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, true);
                 float3 directLight = lightMatrix._11_12_13 + instanceMaterials[resInstanceId].selfLight;
-                float3 specularLight = lightMatrix._21_22_23 * RGBtoLuminance(directLight);
-                if ((processingFlags & 0x8) == 0x8)
-                {
-                    specularLight *= RGBtoLuminance(directLight);
-                    specularLight.r = MetalAmount(specularLight.r, resColor.r, instanceMaterials[resInstanceId].metallicFactor);
-                    specularLight.g = MetalAmount(specularLight.g, resColor.g, instanceMaterials[resInstanceId].metallicFactor);
-                    specularLight.b = MetalAmount(specularLight.b, resColor.b, instanceMaterials[resInstanceId].metallicFactor);
-                }
-				
-                if ((processingFlags & 0x4) == 0x4) {
-                    float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * directLight + specularLight) * giDiffuseStrength;
-                    resIndirect = indirectLight;
-                } else {
-                    float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) + specularLight) * giDiffuseStrength;
-                    resIndirect += indirectLight;
-                }
+                float3 specularLight = lightMatrix._21_22_23;
+                float3 indirectLight = (resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) + specularLight) * giDiffuseStrength;
+                resIndirect += indirectLight;
             }
 			
             resIndirect += bgColor * giSkyStrength * resColor.a;
