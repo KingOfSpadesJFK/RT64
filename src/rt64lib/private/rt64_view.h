@@ -86,6 +86,9 @@ namespace RT64 {
 			unsigned int volumetricMaxSamples;
 			float volumetricIntensity;
 			float eyeAdaptionBrightnessFactor;
+			float bloomExposure;
+			float bloomThreshold;
+			float bloomAmount;
 		};
 
 		Scene *scene;
@@ -131,7 +134,8 @@ namespace RT64 {
 		AllocatedResource rtOutputDownscaled;
 		AllocatedResource rtLumaHistogram;
 		AllocatedResource rtLumaAvg;
-		AllocatedResource rtBloom;
+		AllocatedResource rtBloom[2];
+		AllocatedResource rtBloomDownscaled;
 
 		// Eye adaption parameters
 		float minLogLuminance;
@@ -169,6 +173,8 @@ namespace RT64 {
 		ID3D12DescriptorHeap *indirectFilterHeaps[2];
 		ID3D12DescriptorHeap* volumetricHeap;
 		ID3D12DescriptorHeap *bloomHeap[2];
+		ID3D12DescriptorHeap *bloomDownscaleHeap;
+		ID3D12DescriptorHeap *downscaleHeap;
 		nv_helpers_dx12::ShaderBindingTableGenerator sbtHelper;
 		AllocatedResource sbtStorage;
 		UINT64 sbtStorageSize;
@@ -191,6 +197,8 @@ namespace RT64 {
 		uint32_t bloomBlurParamBufferSize;
 		AllocatedResource hdrDownscaleParamBufferResource;
 		uint32_t hdrDownscaleParamBufferSize;
+		AllocatedResource bloomDownscaleParamBufferResource;
+		uint32_t bloomDownscaleParamBufferSize;
 		AllocatedResource activeInstancesBufferTransforms;
 		uint32_t activeInstancesBufferTransformsSize;
 		AllocatedResource activeInstancesBufferMaterials;
@@ -242,6 +250,8 @@ namespace RT64 {
 		void updateBloomBlurParamsBuffer();
 		void createHDRDownsampleParamsBuffer();
 		void updateHDRDownsampleParamsBuffer();
+		void createBloomDownsampleParamsBuffer();
+		void updateBloomDownsampleParamsBuffer();
 	public:
 		View(Scene *scene);
 		virtual ~View();
@@ -283,6 +293,8 @@ namespace RT64 {
 		void setEyeAdaptionEnabledFlag(bool v);
 		bool getEyeAdaptionEnabledFlag() const;
 		void setAlternateIndirectFlag(bool v);
+		bool getBloomEnabledFlag() const;
+		void setBloomEnabledFlag(bool v);
 		bool getAlternateIndirectFlag() const;
 		void setVolumetricIntensity(float v);
 		float getVolumetricIntensity() const;
@@ -312,6 +324,12 @@ namespace RT64 {
 		void setLogLuminanceRange(float v);
 		float getLuminanceUpdateTime() const;
 		void setLuminanceUpdateTime(float v);
+		float getBloomExposure() const;
+		void setBloomExposure(float v);
+		float getBloomThreshold() const;
+		void setBloomThreshold(float v);
+		float getBloomAmount() const;
+		void setBloomAmount(float v);
 
 #ifdef RT64_DLSS
 		void setDlssQualityMode(RT64::DLSS::QualityMode v);

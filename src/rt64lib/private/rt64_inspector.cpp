@@ -239,15 +239,16 @@ void RT64::Inspector::renderPostInspector(View* view) {
     float tonemapSaturation = view->getToneMapSaturation();
     float tonemapGamma = view->getToneMapGamma();
     bool eyeAdaption = view->getEyeAdaptionEnabledFlag();
+    bool bloomEnabled = view->getBloomEnabledFlag();
 
-    ImGui::Combo("Tonemapping Mode", &tonemapMode, "Raw Image\0Reinhard Tonemapper\0Reinhard-Luma\0Reinhard-Jodie\0Uncharted 2\0ACES Filmic\0Simple\0");
+    ImGui::Combo("Tonemapping Mode", &tonemapMode, "Raw Image\0Reinhard Tonemapper\0Reinhard-Luma\0Reinhard-Jodie\0Uncharted 2\0ACES Filmic\0Simple\0Bloom Only\0");
     ImGui::DragFloat("Exposure", &tonemapExposure, 0.01f, 0.0f, 20.0f);
     ImGui::DragFloat("White Point", &tonemapWhite, 0.01f, 0.0f, 10.0f);
     ImGui::DragFloat("Black Level", &tonemapBlack, 0.01f, 0.0f, 10.0f);
     ImGui::DragFloat("Saturation", &tonemapSaturation, 0.001f, 0.0f, 5.0f);
     ImGui::DragFloat("Gamma", &tonemapGamma, 0.001f, 0.0f, 2.0f);
-    ImGui::Checkbox("Eye Adaption", &eyeAdaption);
 
+    ImGui::Checkbox("Eye Adaption", &eyeAdaption);
     if (eyeAdaption)
     {
         float minLogLuminance = view->getMinLogLuminance();
@@ -266,6 +267,23 @@ void RT64::Inspector::renderPostInspector(View* view) {
         view->setEyeAdaptionBrightnessFactor(eyeAdaptionBrightnessFactor);
     }
 
+    ImGui::Checkbox("Bloom", &bloomEnabled);
+    if (bloomEnabled)
+    {
+        float bloomExposure = view->getBloomExposure();
+        float bloomThreshold = view->getBloomThreshold();
+        float bloomAmount = view->getBloomAmount();
+
+        ImGui::DragFloat("Bloom Exposure", &bloomExposure, 0.01f, 0.0f, 5.0f);
+        ImGui::DragFloat("Bloom Threshold", &bloomThreshold, 0.01f, 0.0f, 5.0f);
+        ImGui::DragFloat("Bloom Amount", &bloomAmount, 0.01f, 0.0f, 5.0f);
+
+        view->setBloomExposure(bloomExposure);
+        view->setBloomThreshold(bloomThreshold);
+        view->setBloomAmount(bloomAmount);
+    }
+
+    view->setBloomEnabledFlag(bloomEnabled);
     view->setToneMappingMode(tonemapMode);
     view->setTonemapperValues(tonemapExposure, tonemapWhite, tonemapBlack, tonemapSaturation, tonemapGamma);
     view->setEyeAdaptionEnabledFlag(eyeAdaption);
