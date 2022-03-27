@@ -58,9 +58,12 @@ namespace RT64 {
 			RT64_VECTOR4 skyHSLModifier;
 			RT64_VECTOR4 ambientFogColor;
 			RT64_VECTOR4 groundFogColor;
+			RT64_VECTOR4 volumetricFogColor;
 			RT64_VECTOR2 ambientFogFactors;
 			RT64_VECTOR2 groundFogFactors;
 			RT64_VECTOR2 groundFogHeightFactors;
+			RT64_VECTOR2 volumetricFogFactors;
+			RT64_VECTOR2 volumetricFogHeightFactors;
 			RT64_VECTOR2 pixelJitter;
 			float skyYawOffset;
 			float giDiffuseStrength;

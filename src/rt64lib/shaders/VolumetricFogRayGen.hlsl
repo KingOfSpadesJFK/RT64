@@ -38,7 +38,7 @@ float4 CalculateVolumetrics(float3 rayOrigin, float3 rayDirection, float3 vertex
     while (sampleDistance + r < vertexDistance) {
 	    // Get the light level at each sample 
         float3 samplePosition = rayOrigin + rayDirection * (sampleDistance + r);
-        resColor.rgb += ComputeLightRandomNoNormal(launchIndex, samplePosition, maxLights, lightGroupMaskBits, true) * weight;
+        resColor += ComputeLightRandomNoNormal(launchIndex, samplePosition, maxLights, lightGroupMaskBits, true) * weight;
         
         // Exponentially increase the sample distance
         samples += weight;
@@ -47,9 +47,10 @@ float4 CalculateVolumetrics(float3 rayOrigin, float3 rayDirection, float3 vertex
         r = getBlueNoise(launchIndex, samples + frameCount).x * (weight - 1.0f); 
     }
     
-    resColor.rgb /= max(samples, EPSILON);
-    resColor.rgb *= volumetricIntensity;
-    resColor.a = RGBtoLuminance(resColor.rgb);
+    resColor /= max(samples, EPSILON);
+    float4 fogFactor = SceneGroundFogFromOrigin(vertexPosition, rayOrigin, volumetricFogFactors.x, volumetricFogFactors.y, volumetricFogHeightFactors.x, volumetricFogHeightFactors.y, volumetricFogColor);
+    resColor.rgb *= fogFactor.rgb;
+    resColor.a = saturate(resColor.a * volumetricIntensity * fogFactor.a * volumetricFogColor.a);
 	
     return resColor;
 }
@@ -59,6 +60,10 @@ void VolumetricFogRayGen()
 {
     uint2 launchIndex = DispatchRaysIndex().xy;
     uint2 launchDims = DispatchRaysDimensions().xy;
+    if (volumetricIntensity * volumetricFogColor.a < EPSILON) {
+        gVolumetrics[launchIndex] = float4(0, 0, 0, 0);
+        return;
+    }
     float2 d = (((launchIndex.xy + 0.5f + pixelJitter) / float2(launchDims)) * 2.f - 1.f);
     float3 nonNormRayDir = d.x * cameraU.xyz + d.y * cameraV.xyz + cameraW.xyz;
     float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));

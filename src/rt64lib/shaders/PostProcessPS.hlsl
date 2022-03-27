@@ -186,11 +186,10 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         return bloom;
     }
     
-    // Saturation is weird. Might have to put that off for a later time
-    //color.xyz = ModRGBWithHSL(color.xyz, float3(0.0, tonemapSaturation - 1.0f, 0.0));
+    // Post-tonemapping
+    // TODO: Saturation is weird. Might reimplement it when I find something better
     color.rgb = WhiteBlackPoint(tonemapBlack, tonemapWhite, color.rgb);
     color.rgb = pow(color.rgb, tonemapGamma);
-    color.rgb += bloom.rgb * bloom.a;
     
     return color;
 }

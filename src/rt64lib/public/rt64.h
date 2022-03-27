@@ -184,9 +184,13 @@ typedef struct {
 	float ambientFogAlpha;
 	RT64_VECTOR3 groundFogColor;
 	float groundFogAlpha;
+	RT64_VECTOR3 volumetricFogColor;
+	float volumetricFogAlpha;
 	RT64_VECTOR2 ambientFogFactors;
 	RT64_VECTOR2 groundFogFactors;
 	RT64_VECTOR2 groundFogHeightFactors;
+	RT64_VECTOR2 volumetricFogFactors;
+	RT64_VECTOR2 volumetricFogHeightFactors;
 	float skyYawOffset;
 	float giDiffuseStrength;
 	float giSkyStrength;

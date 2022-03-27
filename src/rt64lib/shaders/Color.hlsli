@@ -42,6 +42,22 @@ float3 ModRGBWithHSL(in float3 rgb, in float3 hslMod) {
     return HSLtoRGB(RGBtoHSL(rgb) + hslMod);
 }
 
+float3 LinearToSrgb(in float3 lin) {
+    return pow(lin, 1. / 2.2);
+}
+
+float3 SrgbToLinear(in float3 srgb) {
+    return pow(srgb.rgb, 2.2);
+}
+
+float4 LinearToSrgb(in float4 lin) {
+    return float4(LinearToSrgb(lin.rgb), lin.a);
+}
+
+float4 SrgbToLinear(in float4 srgb) {
+    return float4(SrgbToLinear(srgb.rgb), srgb.a);
+} 
+
 // Taken from https://64.github.io/tonemapping/
 float RGBtoLuminance(float3 rgb) {
     // RGB [0...1] to Luminance [0...1]

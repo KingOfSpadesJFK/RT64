@@ -132,7 +132,7 @@ void ReflectionRayGen() {
                 resEmissive.rgb += emissive;
             }
 			else {
-                resTransparent += hitColor.rgb * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + emissive);
+                resTransparent += LinearToSrgb(SrgbToLinear(hitColor.rgb) * alphaContrib * (ambientBaseColor.rgb + ambientNoGIColor.rgb + emissive));
             }
 
 			resPosition = vertexPosition;
@@ -152,8 +152,7 @@ void ReflectionRayGen() {
         float2x3 lightMatrix = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, resRoughness, shadingPosition, 1, instanceMaterials[instanceId].lightGroupMaskBits, instanceMaterials[instanceId].ignoreNormalFactor, false);
         float3 directLight = lightMatrix._11_12_13;
         float3 specularLight = lightMatrix._21_22_23;
-        resColor.rgb *= (gIndirectLightAccum[launchIndex].rgb + directLight);
-        resColor.rgb += specularLight;
+        resColor.rgb = LinearToSrgb(SrgbToLinear(resColor).rgb * (gIndirectLightAccum[launchIndex].rgb + directLight) + specularLight);
 		gShadingPosition[launchIndex] = float4(resPosition, 0.0f);
 		gViewDirection[launchIndex] = float4(rayDirection, 0.0f);
 		gShadingNormal[launchIndex] = float4(resNormal, 0.0f);

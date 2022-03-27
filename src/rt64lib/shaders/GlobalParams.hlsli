@@ -26,9 +26,12 @@ cbuffer gParams : register(b0) {
     float4 skyHSLModifier;
     float4 ambientFogColor;
     float4 groundFogColor;
+    float4 volumetricFogColor;
     float2 ambientFogFactors;
     float2 groundFogFactors;
     float2 groundFogHeightFactors;
+    float2 volumetricFogFactors;
+    float2 volumetricFogHeightFactors;
 	float2 pixelJitter;
 	float skyYawOffset;
 	float giDiffuseStrength;
