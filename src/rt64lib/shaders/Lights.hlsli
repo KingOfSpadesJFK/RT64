@@ -228,7 +228,7 @@ float2x3 ComputeLightsRandom(uint2 launchIndex, float3 rayDirection, uint instan
 	return resultLight;
 }
 
-float3 ComputeLightNoNormal(uint2 launchIndex, uint lightIndex, float3 position, const bool checkShadows)
+float4 ComputeLightNoNormal(uint2 launchIndex, uint lightIndex, float3 position, const bool checkShadows)
 {
     float3 lightPosition = SceneLights[lightIndex].position;
     float3 lightDirection = normalize(lightPosition - position);
@@ -266,7 +266,7 @@ float3 ComputeLightNoNormal(uint2 launchIndex, uint lightIndex, float3 position,
         samples--;
     }
 
-    return float3(SceneLights[lightIndex].diffuseColor * lIntensityFactor * lShadowFactor);
+    return float4(SceneLights[lightIndex].diffuseColor * lIntensityFactor * lShadowFactor, lIntensityFactor * lShadowFactor);
 }
 
 float CalculateLightIntensityNoNormal(uint l, float3 position)
@@ -280,9 +280,9 @@ float CalculateLightIntensityNoNormal(uint l, float3 position)
     return sampleIntensityFactor * dot(SceneLights[l].diffuseColor, float3(1.0f, 1.0f, 1.0f));
 }
 
-float3 ComputeLightRandomNoNormal(uint2 launchIndex, float3 position, uint maxLightCount, uint lightGroupMaskBits, const bool checkShadows)
+float4 ComputeLightRandomNoNormal(uint2 launchIndex, float3 position, uint maxLightCount, uint lightGroupMaskBits, const bool checkShadows)
 {
-    float3 resultLight = float3(0.0f, 0.0f, 0.0f);
+    float4 resultLight = float4(0.0f, 0.0f, 0.0f, 0.0f);
     if (lightGroupMaskBits > 0)
     {
         uint sLightCount = 0;

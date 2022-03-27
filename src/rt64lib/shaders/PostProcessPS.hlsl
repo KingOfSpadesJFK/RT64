@@ -173,18 +173,11 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
     // Post-tonemapping
     if (tonemapMode != TONEMAP_MODE_RAW_IMAGE)
     {
-        // Saturation is weird. Might have to put that off for a later time
-        //color.xyz = ModRGBWithHSL(color.xyz, float3(0.0, tonemapSaturation - 1.0f, 0.0));
+        // TODO: Saturation is weird. Might reimplement it when I find something better
         color.rgb = WhiteBlackPoint(tonemapBlack, tonemapWhite, color.rgb);
         color.rgb = pow(color.rgb, tonemapGamma);
-        //float4 bloom = Bloom(exposure, 0.250, 1.0, uv);
-        //color.rgb += bloom.rgb * bloom.a;
 
     }
     
-    /*
-    if ((color.x + color.y + color.z) / 3.0f > 1.0f) {
-        return float4(1.0f, 1.0f, 0.0f, 1.0f);
-    } */
     return color;
 }

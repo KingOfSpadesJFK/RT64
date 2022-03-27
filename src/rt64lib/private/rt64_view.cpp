@@ -1414,9 +1414,12 @@ void RT64::View::updateGlobalParamsBuffer() {
 	// My additions
 	globalParamsBufferData.ambientFogColor = ToVector4(desc.ambientFogColor, desc.ambientFogAlpha);
 	globalParamsBufferData.groundFogColor = ToVector4(desc.groundFogColor, desc.groundFogAlpha);
+	globalParamsBufferData.volumetricFogColor = ToVector4(desc.volumetricFogColor, desc.volumetricFogAlpha);
 	globalParamsBufferData.ambientFogFactors = desc.ambientFogFactors;
 	globalParamsBufferData.groundFogFactors = desc.groundFogFactors;
 	globalParamsBufferData.groundFogHeightFactors = desc.groundFogHeightFactors;
+	globalParamsBufferData.volumetricFogFactors = desc.volumetricFogFactors;
+	globalParamsBufferData.volumetricFogHeightFactors = desc.volumetricFogHeightFactors;
 
 	// Previous and current view and projection matrices and their inverse.
 	if (perspectiveCanReproject) {

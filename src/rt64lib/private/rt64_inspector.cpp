@@ -303,6 +303,10 @@ void RT64::Inspector::renderSceneInspector() {
         ImGui::DragFloat("Ground Fog Alpha", &sceneDesc->groundFogAlpha, 0.01f, 0.0f, 1.0f);
         ImGui::DragFloat2("Ground Fog Factors", &sceneDesc->groundFogFactors.x, 1.00f, -1000000.0f, 1000000.0f);
         ImGui::DragFloat2("Ground Fog Height Factors", &sceneDesc->groundFogHeightFactors.x, 1.00f, -1000000.0f, 1000000.0f);
+        ImGui::DragFloat3("Volumetric Fog Color", &sceneDesc->volumetricFogColor.x, 0.01f, -1.0f, 1.0f);
+        ImGui::DragFloat("Volumetric Fog Alpha", &sceneDesc->volumetricFogAlpha, 0.01f, 0.0f, 1.0f);
+        ImGui::DragFloat2("Volumetric Fog Factors", &sceneDesc->volumetricFogFactors.x, 1.00f, -1000000.0f, 1000000.0f);
+        ImGui::DragFloat2("Volumetric Fog Height Factors", &sceneDesc->volumetricFogHeightFactors.x, 1.00f, -1000000.0f, 1000000.0f);
         ImGui::End();
     }
 }

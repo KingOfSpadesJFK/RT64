@@ -33,34 +33,28 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         float3 refraction = gRefraction.SampleLevel(gSampler, uv, 0).rgb;
         float3 transparent = gTransparent.SampleLevel(gSampler, uv, 0).rgb;
         float4 fog = gFog.SampleLevel(gSampler, uv, 0);
-        float4 result = float4(diffuse.rgb, 1.f);
-        
-        result.rgb *= (directLight + indirectLight);
-        result.rgb += specularLight;
-        result.rgb = lerp(diffuse.rgb, result.rgb, diffuse.a);
+        float3 result = lerp(LinearToSrgb(diffuse.rgb), LinearToSrgb(diffuse.rgb * (directLight + indirectLight) + specularLight), diffuse.a);
         result.rgb += reflection;
         result.rgb += refraction;
         result.rgb += transparent;
         // TODO: Change how the volumetrics and fog blend together
         if (processingFlags & RT64_VIEW_VOLUMETRICS_FLAG) {
             float4 volumetrics = BicubicFilter(gVolumetrics, gSampler, uv * volumetricResolution, resolution.xy);
-            fog.rgb += BlendAOverB(fog, volumetrics).rgb;
-            fog.a *= volumetrics.a;
+            fog = BlendAOverB(volumetrics, fog);
         }
-        result = BlendAOverB(fog, result);
-        return result;
+        result = BlendAOverB(fog, float4(result, 1.0f)).rgb;
+        return float4(result, 1.0f);
     }
     else
     {
         float4 fog = gFog.SampleLevel(gSampler, uv, 0);
         if (processingFlags & RT64_VIEW_VOLUMETRICS_FLAG) {
             float4 volumetrics = BicubicFilter(gVolumetrics, gSampler, uv * volumetricResolution, resolution.xy);
-            fog.rgb += BlendAOverB(fog, volumetrics).rgb;
-            fog.a *= volumetrics.a;
+            fog = BlendAOverB(volumetrics, fog);
         }
-        float4 result = float4(diffuse.rgb, 1.f);
-        result = BlendAOverB(fog, result);
-        return result;
+        float3 result = LinearToSrgb(diffuse.rgb);
+        result = BlendAOverB(fog, float4(result, 1.0f)).rgb;
+        return float4(result, 1.0f);
 
     }
 }

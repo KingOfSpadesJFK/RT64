@@ -156,8 +156,8 @@ void PrimaryRayGen() {
 			float3 resColorAdd = hitColor.rgb * alphaContrib;
 			if (applyLighting) {
 				storeHit = true;
-				resColor.rgb += resColorAdd;
-			}
+                resColor.rgb += resColorAdd;
+            }
 			// Expensive case: transparent geometry that is not solid enough to act as the main
 			// instance in the deferred pass and it also needs lighting to work correctly.
 			// We sample one light at random and use it for any other transparent geometry that
@@ -169,12 +169,12 @@ void PrimaryRayGen() {
 					resTransparentLightComputed = true;
 				}
 
-                resTransparent += resColorAdd * (ambientBaseColor.rgb + ambientNoGIColor.rgb + emissive + resTransparentLight);
+                resTransparent += LinearToSrgb(SrgbToLinear(resColorAdd) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + emissive + resTransparentLight));
             }
 			// Cheap case: we ignore the geometry entirely from the lighting pass and just add
 			// it to the transparency buffer directly.
 			else {
-                resTransparent += resColorAdd * (ambientBaseColor.rgb + ambientNoGIColor.rgb + emissive);
+                resTransparent += LinearToSrgb(SrgbToLinear(resColorAdd) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + emissive));
             }
 
 			resColor.a *= (1.0 - hitColor.a);
@@ -226,7 +226,7 @@ void PrimaryRayGen() {
     gShadingRoughness[launchIndex] = resRoughness;
 	gShadingMetalness[launchIndex] = resMetalness;
     gShadingAmbient[launchIndex] = resAmbient;
-	gDiffuse[launchIndex] = resColor;
+    gDiffuse[launchIndex] = SrgbToLinear(resColor);
 	gInstanceId[launchIndex] = resInstanceId;
 	gTransparent[launchIndex] = float4(resTransparent, 1.0f);
 	gFlow[launchIndex] = float2(-resFlow.x, resFlow.y);

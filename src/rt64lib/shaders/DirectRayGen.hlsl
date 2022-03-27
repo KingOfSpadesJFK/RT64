@@ -66,7 +66,7 @@ void DirectRayGen() {
         float3 eyeLightReflected = reflect(rayDirection, normal.xyz);
         float2 eyeLightSpecularFactor = pow(CalculateSpecularity(normal, position.xyz, rayOrigin, rayOrigin, max(roughness, 0.1f), fresnelFactor), max(specularExponent, EPSILON));
         resDirect += eyeLightDiffuseColor.rgb * eyeLightLambertFactor * (1.0 - eyeLightSpecularFactor.y);
-        resSpecular += specular.rgb * eyeLightSpecularColor.rgb * eyeLightSpecularFactor.x * eyeLightSpecularFactor.y * M_PI;
+        resSpecular += specular.rgb * eyeLightSpecularColor.rgb * eyeLightLambertFactor * eyeLightSpecularFactor.x * eyeLightSpecularFactor.y * M_PI;
     } else {
 		float specularExponent = instanceMaterials[instanceId].specularExponent;
 		float eyeLightLambertFactor = saturate(dot(normal.xyz, -(rayDirection)));
