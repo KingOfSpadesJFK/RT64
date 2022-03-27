@@ -219,9 +219,6 @@ typedef struct {
 	bool alternateIndirectLight;
 	bool alternateSpecularEnabled;
 	float eyeAdaptionBrightnessFactor;
-	float bloomExposure;
-	float bloomThreshold;
-	float bloomAmount;
 } RT64_VIEW_DESC;
 
 typedef struct {

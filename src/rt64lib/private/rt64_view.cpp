@@ -93,11 +93,6 @@ RT64::View::View(Scene *scene) {
 	deltaTime = 0.333f;
 	globalParamsBufferData.eyeAdaptionBrightnessFactor = 1.0f;
 
-	// Bloom parameters
-	globalParamsBufferData.bloomExposure = 1.0f;
-	globalParamsBufferData.bloomThreshold = 1.0f;
-	globalParamsBufferData.bloomAmount = 1.0f;
-
 	globalParamsBufferSize = 0;
 	rtSwap = false;
 	rtWidth = 0;
@@ -138,7 +133,6 @@ RT64::View::View(Scene *scene) {
 	createFilterParamsBuffer();
 	createVolumetricsBlurParamsBuffer();
 	createHDRDownsampleParamsBuffer();
-	createBloomDownsampleParamsBuffer();
 	createBloomBlurParamsBuffer();
 
 	scene->addView(this);
@@ -303,12 +297,7 @@ void RT64::View::createOutputBuffers() {
 	resDesc.Width = rtWidth / 8;
 	resDesc.Height = rtHeight / 8;
 	rtOutputDownscaled = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-
-	resDesc.Width = rtWidth / 32;
-	resDesc.Height = rtHeight / 32;
-	rtBloom[0] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-	rtBloom[1] = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
-	rtBloomDownscaled = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
+	rtBloom = scene->getDevice()->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr);
 
 	resDesc.Format = DXGI_FORMAT_R32_FLOAT;
 	resDesc.Width = 1;
@@ -390,9 +379,7 @@ void RT64::View::createOutputBuffers() {
 	rtLumaHistogram.SetName(L"rtLumaHistogram");
 	rtLumaAvg.SetName(L"rtLumaAvg");
 	rtOutputDownscaled.SetName(L"rtOutputDownscaled");
-	rtBloomDownscaled.SetName(L"rtBloomDownscaled");
-	rtBloom[0].SetName(L"rtBloom[0]");
-	rtBloom[1].SetName(L"rtBloom[1]");
+	rtBloom.SetName(L"rtBloom");
 #endif
 
 	// Create the RTVs.
@@ -462,9 +449,6 @@ void RT64::View::releaseOutputBuffers() {
 	rtOutputSharpened.Release();
 	rtLumaHistogram.Release();
 	rtLumaAvg.Release();
-	rtBloom[0].Release();
-	rtBloom[1].Release();
-	rtBloomDownscaled.Release();
 }
 
 void RT64::View::createInstanceTransformsBuffer() {
@@ -1090,7 +1074,7 @@ void RT64::View::createShaderResourceHeap() {
 
 		// SRV for bloom.
 		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtBloom[1].Get(), &textureSRVDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtBloom.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// CBV for global parameters.
@@ -1208,12 +1192,12 @@ void RT64::View::createShaderResourceHeap() {
 	// Create the downscaled HDR image heap for the downscaling shader.
 	{
 		// HDR downscaler heap
-		if (downscaleHeap == nullptr) {
+		if (bloomHeap[0] == nullptr) {
 			uint32_t handleCount = 3;
-			downscaleHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+			bloomHeap[0] = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 		}
 
-		D3D12_CPU_DESCRIPTOR_HANDLE handle = downscaleHeap->GetCPUDescriptorHandleForHeapStart();
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = bloomHeap[0]->GetCPUDescriptorHandleForHeapStart();
 
 		// SRV for input image.
 		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
@@ -1240,15 +1224,15 @@ void RT64::View::createShaderResourceHeap() {
 		handle.ptr += handleIncrement;
 	}
 
-	// Create the downscaled HDR image heap for the bloom shader.
+	// Create the bloom heap for the gaussian blur filter
 	{
-		// HDR downscaler heap
-		if (bloomDownscaleHeap == nullptr) {
+		// Bloom gaussian blur heap
+		if (bloomHeap[1] == nullptr) {
 			uint32_t handleCount = 3;
-			bloomDownscaleHeap = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+			bloomHeap[1] = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 		}
 
-		D3D12_CPU_DESCRIPTOR_HANDLE handle = bloomDownscaleHeap->GetCPUDescriptorHandleForHeapStart();
+		D3D12_CPU_DESCRIPTOR_HANDLE handle = bloomHeap[1]->GetCPUDescriptorHandleForHeapStart();
 
 		// SRV for input image.
 		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
@@ -1257,53 +1241,17 @@ void RT64::View::createShaderResourceHeap() {
 		textureSRVDesc.Texture2D.MostDetailedMip = 0;
 		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutput[rtSwap ? 1 : 0].Get(), &textureSRVDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtOutputDownscaled.Get(), &textureSRVDesc, handle);
 		handle.ptr += handleIncrement;
 
 		// UAV for output image.
 		D3D12_UNORDERED_ACCESS_VIEW_DESC textureUAVDesc = {};
 		textureUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
 		textureUAVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtBloom[0].Get(), nullptr, &textureUAVDesc, handle);
+		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtBloom.Get(), nullptr, &textureUAVDesc, handle);
 		handle.ptr += handleIncrement;
 
-		// CBV for downscaling.
-		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-		cbvDesc.BufferLocation = bloomDownscaleParamBufferResource.Get()->GetGPUVirtualAddress();
-		cbvDesc.SizeInBytes = bloomDownscaleParamBufferSize;
-		scene->getDevice()->getD3D12Device()->CreateConstantBufferView(&cbvDesc, handle);
-		handle.ptr += handleIncrement;
-	}
-
-	// Create the bloom heap for the gaussian blur filter
-	for (int i = 0; i < 2; i++)
-	{
-		// Bloom gaussian blur heap
-		if (bloomHeap[i] == nullptr) {
-			uint32_t handleCount = 3;
-			bloomHeap[i] = nv_helpers_dx12::CreateDescriptorHeap(scene->getDevice()->getD3D12Device(), handleCount, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
-		}
-
-		D3D12_CPU_DESCRIPTOR_HANDLE handle = bloomHeap[i]->GetCPUDescriptorHandleForHeapStart();
-
-		// SRV for input image.
-		D3D12_SHADER_RESOURCE_VIEW_DESC textureSRVDesc = {};
-		textureSRVDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-		textureSRVDesc.Texture2D.MipLevels = 1;
-		textureSRVDesc.Texture2D.MostDetailedMip = 0;
-		textureSRVDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		textureSRVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		scene->getDevice()->getD3D12Device()->CreateShaderResourceView(rtBloom[(i) % 2].Get(), &textureSRVDesc, handle);
-		handle.ptr += handleIncrement;
-
-		// UAV for blurred bloom image.
-		D3D12_UNORDERED_ACCESS_VIEW_DESC textureUAVDesc = {};
-		textureUAVDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-		textureUAVDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		scene->getDevice()->getD3D12Device()->CreateUnorderedAccessView(rtBloom[(i + 1) % 2].Get(), nullptr, &textureUAVDesc, handle);
-		handle.ptr += handleIncrement;
-
-		// CBV for global parameters.
+		// CBV for blurring.
 		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
 		cbvDesc.BufferLocation = bloomBlurParamBufferResource.Get()->GetGPUVirtualAddress();
 		cbvDesc.SizeInBytes = bloomBlurParamBufferSize;
@@ -1667,8 +1615,8 @@ void RT64::View::createBloomBlurParamsBuffer() {
 
 void RT64::View::updateBloomBlurParamsBuffer() {
 	FilterCB cb;
-	cb.TextureSize[0] = rtWidth / 32;
-	cb.TextureSize[1] = rtHeight / 32;
+	cb.TextureSize[0] = rtWidth / 8;
+	cb.TextureSize[1] = rtHeight / 8;
 	cb.TexelSize.x = 1.0f / cb.TextureSize[0];
 	cb.TexelSize.y = 1.0f / cb.TextureSize[1];
 
@@ -1699,24 +1647,6 @@ void RT64::View::updateHDRDownsampleParamsBuffer() {
 	D3D12_CHECK(hdrDownscaleParamBufferResource.Get()->Map(0, nullptr, (void**)&pData));
 	memcpy(pData, &cb, sizeof(BicubicCB));
 	hdrDownscaleParamBufferResource.Get()->Unmap(0, nullptr);
-}
-
-void RT64::View::createBloomDownsampleParamsBuffer() {
-	bloomDownscaleParamBufferSize = ROUND_UP(sizeof(BicubicCB), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-	bloomDownscaleParamBufferResource = scene->getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, bloomDownscaleParamBufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
-}
-
-void RT64::View::updateBloomDownsampleParamsBuffer() {
-	BicubicCB cb;
-	cb.InputResolution[0] = rtWidth;
-	cb.InputResolution[1] = rtHeight;
-	cb.OutputResolution[0] = rtWidth / 32;
-	cb.OutputResolution[1] = rtHeight / 32;
-
-	uint8_t* pData;
-	D3D12_CHECK(bloomDownscaleParamBufferResource.Get()->Map(0, nullptr, (void**)&pData));
-	memcpy(pData, &cb, sizeof(BicubicCB));
-	bloomDownscaleParamBufferResource.Get()->Unmap(0, nullptr);
 }
 
 void RT64::View::update() {
@@ -1969,7 +1899,6 @@ void RT64::View::render() {
 		updateFilterParamsBuffer();
 		updateVolumetricsBlurParamsBuffer();
 		updateHDRDownsampleParamsBuffer();
-		updateBloomDownsampleParamsBuffer();
 		updateBloomBlurParamsBuffer();
 
 		// Update FSR buffers.
@@ -2306,8 +2235,8 @@ void RT64::View::render() {
 			int dispatchY = rtHeight / 8 / threadGroupWorkRegionDim + (((rtHeight / 8) % threadGroupWorkRegionDim) ? 1 : 0);
 			d3dCommandList->SetPipelineState(scene->getDevice()->getBicubicScalingPipelineState());
 			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getBicubicScalingRootSignature());
-			d3dCommandList->SetDescriptorHeaps(1, &downscaleHeap);
-			d3dCommandList->SetComputeRootDescriptorTable(0, downscaleHeap->GetGPUDescriptorHandleForHeapStart());
+			d3dCommandList->SetDescriptorHeaps(1, &bloomHeap[0]);
+			d3dCommandList->SetComputeRootDescriptorTable(0, bloomHeap[0]->GetGPUDescriptorHandleForHeapStart());
 			d3dCommandList->Dispatch(dispatchX, dispatchY, 1);
 
 			CD3DX12_RESOURCE_BARRIER afterDownscaleBarriers =
@@ -2452,77 +2381,29 @@ void RT64::View::render() {
 			}
 		}
 
-		RT64_LOG_PRINTF("Do the bloom downscaling shader");
-		{
-			// Switch output to UAV.
-			CD3DX12_RESOURCE_BARRIER beforeDownscaleBarrier = CD3DX12_RESOURCE_BARRIER::Transition(rtBloom[0].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			d3dCommandList->ResourceBarrier(1, &beforeDownscaleBarrier);
-
-			// Execute the compute shader for downscaling the HDR image.
-			static const int threadGroupWorkRegionDim = 8;
-			int dispatchX = rtWidth / 32 / threadGroupWorkRegionDim + (((rtWidth / 32) % threadGroupWorkRegionDim) ? 1 : 0);
-			int dispatchY = rtHeight / 32 / threadGroupWorkRegionDim + (((rtHeight / 32) % threadGroupWorkRegionDim) ? 1 : 0);
-			d3dCommandList->SetPipelineState(scene->getDevice()->getBicubicScalingPipelineState());
-			d3dCommandList->SetComputeRootSignature(scene->getDevice()->getBicubicScalingRootSignature());
-			d3dCommandList->SetDescriptorHeaps(1, &bloomDownscaleHeap);
-			d3dCommandList->SetComputeRootDescriptorTable(0, bloomDownscaleHeap->GetGPUDescriptorHandleForHeapStart());
-			d3dCommandList->Dispatch(dispatchX, dispatchY, 1);
-
-			CD3DX12_RESOURCE_BARRIER afterDownscaleBarriers =
-				CD3DX12_RESOURCE_BARRIER::Transition(rtBloom[0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-			d3dCommandList->ResourceBarrier(1, &afterDownscaleBarriers);
-		}
-
-		// Copy downscaled image for bloom to the first bloom buffer.
-		{
-			ID3D12Resource* source = rtBloom[0].Get();
-			ID3D12Resource* dest = rtBloom[1].Get();
-
-			CD3DX12_RESOURCE_BARRIER beforeCopyBarriers[] = {
-				CD3DX12_RESOURCE_BARRIER::Transition(source, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE),
-				CD3DX12_RESOURCE_BARRIER::Transition(dest, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST)
-			};
-
-			d3dCommandList->ResourceBarrier(_countof(beforeCopyBarriers), beforeCopyBarriers);
-
-			d3dCommandList->CopyResource(dest, source);
-
-			CD3DX12_RESOURCE_BARRIER afterCopyBarriers[] = {
-				CD3DX12_RESOURCE_BARRIER::Transition(source, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE),
-				CD3DX12_RESOURCE_BARRIER::Transition(dest, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
-			};
-
-			d3dCommandList->ResourceBarrier(_countof(afterCopyBarriers), afterCopyBarriers);
-		}
-
+		/*
 		RT64_LOG_PRINTF("Do the bloom blurring shader");
 		{
-			for (int i = 0; i < 15; i++)
+			for (int i = 0; i < 256; i++)
 			{
 				const int ThreadGroupWorkCount = 8;
 				int dispatchRes[2] = {
-					screenWidth / 32 / ThreadGroupWorkCount + (((screenWidth / 32) % ThreadGroupWorkCount) ? 1 : 0) ,
-					screenHeight / 32 / ThreadGroupWorkCount + (((screenHeight / 32) % ThreadGroupWorkCount) ? 1 : 0)
+					screenWidth / 8 / ThreadGroupWorkCount + (((screenWidth / 8) % ThreadGroupWorkCount) ? 1 : 0) ,
+					screenHeight / 8 / ThreadGroupWorkCount + (((screenHeight / 8) % ThreadGroupWorkCount) ? 1 : 0)
 				};
 				d3dCommandList->SetPipelineState(scene->getDevice()->getGaussianFilterRGB3x3PipelineState());
 				d3dCommandList->SetComputeRootSignature(scene->getDevice()->getGaussianFilterRGB3x3RootSignature());
-				d3dCommandList->SetDescriptorHeaps(1, &bloomHeap[i % 2]);
-				d3dCommandList->SetComputeRootDescriptorTable(0, bloomHeap[i % 2]->GetGPUDescriptorHandleForHeapStart());
+				d3dCommandList->SetDescriptorHeaps(1, &bloomHeap[1]);
+				d3dCommandList->SetComputeRootDescriptorTable(0, bloomHeap[1]->GetGPUDescriptorHandleForHeapStart());
 				d3dCommandList->Dispatch(dispatchRes[0], dispatchRes[1], 1);
-
-				CD3DX12_RESOURCE_BARRIER afterBlurBarriers[] = {
-					CD3DX12_RESOURCE_BARRIER::Transition(rtBloom[i % 2].Get(), D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-					CD3DX12_RESOURCE_BARRIER::Transition(rtBloom[(i + 1) % 2].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
-				};
-
-				d3dCommandList->ResourceBarrier(_countof(afterBlurBarriers), afterBlurBarriers);
+				scene->getDevice()->waitForGPU();
 			}
 
-			CD3DX12_RESOURCE_BARRIER afterBlurBarriers[] = {
-				CD3DX12_RESOURCE_BARRIER::Transition(rtBloom[0].Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE)
-			};
-			d3dCommandList->ResourceBarrier(_countof(afterBlurBarriers), afterBlurBarriers);
+			CD3DX12_RESOURCE_BARRIER afterDownscaleBarriers = 
+				CD3DX12_RESOURCE_BARRIER::Transition(rtBloom.Get(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			d3dCommandList->ResourceBarrier(1, &afterDownscaleBarriers);
 		}
+		*/
 
 		// Set the final render target.
 		CD3DX12_CPU_DESCRIPTOR_HANDLE finalRtvHandle = scene->getDevice()->getD3D12RTV();
@@ -2867,19 +2748,6 @@ void RT64::View::setAlternateIndirectFlag(bool v) {
 	}
 }
 
-bool RT64::View::getBloomEnabledFlag() const {
-	return (globalParamsBufferData.processingFlags & 0x10) == 0x10;
-}
-
-void RT64::View::setBloomEnabledFlag(bool v) {
-	if (v) {
-		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags | 0x10);
-	}
-	else {
-		globalParamsBufferData.processingFlags = (globalParamsBufferData.processingFlags & 0xFFFFFFEF);
-	}
-}
-
 bool RT64::View::getAlternateIndirectFlag() const {
 	return globalParamsBufferData.processingFlags & RT64_VIEW_CONTACT_SHADOWS_FLAG;
 }
@@ -3070,30 +2938,6 @@ float RT64::View::getLuminanceUpdateTime() const {
 
 void RT64::View::setLuminanceUpdateTime(float v) {
 	lumaUpdateTime = v;
-}
-
-float RT64::View::getBloomExposure() const {
-	return globalParamsBufferData.bloomExposure;
-}
-
-void RT64::View::setBloomExposure(float v) {
-	globalParamsBufferData.bloomExposure = v;
-}
-
-float RT64::View::getBloomThreshold() const {
-	return globalParamsBufferData.bloomThreshold;
-}
-
-void RT64::View::setBloomThreshold(float v) {
-	globalParamsBufferData.bloomThreshold = v;
-}
-
-float RT64::View::getBloomAmount() const {
-	return globalParamsBufferData.bloomAmount;
-}
-
-void RT64::View::setBloomAmount(float v) {
-	globalParamsBufferData.bloomAmount = v;
 }
 
 #ifdef RT64_DLSS

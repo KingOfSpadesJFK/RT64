@@ -173,23 +173,14 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
     }
     color.rgb = Tonemapper(max(color.rgb, 0.0f), tonemapExposure / avgLuma);
     
-    if (tonemapMode == TONEMAP_MODE_RAW_IMAGE) {
-        return color;
-    }
-    
-    // Add bloom to the image
-    float4 bloom = float4(0, 0, 0, 0);
-    if (processingFlags & 0x10) {
-        bloom = Bloom(tonemapExposure * bloomExposure / avgLuma, tonemapWhite * bloomThreshold, bloomAmount, uv);
-    }
-    if (tonemapMode == TONEMAP_MODE_BLOOM_ONLY) {
-        return bloom;
-    }
-    
     // Post-tonemapping
-    // TODO: Saturation is weird. Might reimplement it when I find something better
-    color.rgb = WhiteBlackPoint(tonemapBlack, tonemapWhite, color.rgb);
-    color.rgb = pow(color.rgb, tonemapGamma);
+    if (tonemapMode != TONEMAP_MODE_RAW_IMAGE)
+    {
+        // TODO: Saturation is weird. Might reimplement it when I find something better
+        color.rgb = WhiteBlackPoint(tonemapBlack, tonemapWhite, color.rgb);
+        color.rgb = pow(color.rgb, tonemapGamma);
+
+    }
     
     return color;
 }
