@@ -15,6 +15,7 @@
 #define TONEMAP_MODE_UNCHARTED_2 4
 #define TONEMAP_MODE_ACES 5
 #define TONEMAP_MODE_SIMPLE 6
+#define TONEMAP_MODE_BLOOM_ONLY 7
 
 // Reccommended settings for tonemapping
 // Tonemapper: Unchared 2
@@ -145,7 +146,9 @@ float4 MotionBlur(float2 uv)
 
 float4 Bloom(float bloomExposure, float bloomThreshold, float bloomAlpha, float2 uv)
 {
-    float4 bloom = BicubicFilter(gBloom, gSampler, uv, resolution.xy);
+    uint3 bloomResolution = uint3(0, 0, 0);
+    gBloom.GetDimensions(0, bloomResolution.x, bloomResolution.y, bloomResolution.z);
+    float4 bloom = BicubicFilter(gBloom, gSampler, uv, bloomResolution.xy);
     bloom.rgb *= bloomExposure;
     bloom.rgb = max(bloom.rgb - bloomThreshold, 0.0);
     bloom.a = RGBtoLuminance(bloom.rgb) * bloomAlpha;
@@ -170,21 +173,24 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
     }
     color.rgb = Tonemapper(max(color.rgb, 0.0f), tonemapExposure / avgLuma);
     
-    // Post-tonemapping
-    if (tonemapMode != TONEMAP_MODE_RAW_IMAGE)
-    {
-        // Saturation is weird. Might have to put that off for a later time
-        //color.xyz = ModRGBWithHSL(color.xyz, float3(0.0, tonemapSaturation - 1.0f, 0.0));
-        color.rgb = WhiteBlackPoint(tonemapBlack, tonemapWhite, color.rgb);
-        color.rgb = pow(color.rgb, tonemapGamma);
-        //float4 bloom = Bloom(exposure, 0.250, 1.0, uv);
-        //color.rgb += bloom.rgb * bloom.a;
-
+    if (tonemapMode == TONEMAP_MODE_RAW_IMAGE) {
+        return color;
     }
     
-    /*
-    if ((color.x + color.y + color.z) / 3.0f > 1.0f) {
-        return float4(1.0f, 1.0f, 0.0f, 1.0f);
-    } */
+    // Add bloom to the image
+    float4 bloom = float4(0, 0, 0, 0);
+    if (processingFlags & 0x10) {
+        bloom = Bloom(tonemapExposure * bloomExposure / avgLuma, tonemapWhite * bloomThreshold, bloomAmount, uv);
+    }
+    if (tonemapMode == TONEMAP_MODE_BLOOM_ONLY) {
+        return bloom;
+    }
+    
+    // Saturation is weird. Might have to put that off for a later time
+    //color.xyz = ModRGBWithHSL(color.xyz, float3(0.0, tonemapSaturation - 1.0f, 0.0));
+    color.rgb = WhiteBlackPoint(tonemapBlack, tonemapWhite, color.rgb);
+    color.rgb = pow(color.rgb, tonemapGamma);
+    color.rgb += bloom.rgb * bloom.a;
+    
     return color;
 }

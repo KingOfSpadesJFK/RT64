@@ -56,6 +56,9 @@ cbuffer gParams : register(b0) {
     float volumetricResolution;
     float volumetricIntensity;
     float eyeAdaptionBrightnessFactor;
+    float bloomExposure;
+    float bloomThreshold;
+    float bloomAmount;
 }
 
 #define VISUALIZATION_MODE_FINAL					0
