@@ -1,0 +1,7 @@
+[submodule "src/rt64vk/contrib/DLSS"]
+	path = src/rt64vk/contrib/DLSS
+	url = https://github.com/NVIDIA/DLSS
+
+[submodule "src/rt64vk/contrib/nvpro_core"]
+	path = src/rt64vk/contrib/nvpro_core
+	url = https://github.com/nvpro-samples/nvpro_core

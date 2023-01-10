@@ -1,6 +1,9 @@
 /bin
+/build
 /lib
 /install
+*/.vscode
+*/.ignore
 *.vs
 *.db
 *.log
@@ -17,6 +20,3 @@
 *.hlsl.h
 *.bat
 imgui.ini
-.ignore/*
-/src/rt64lib/x64
-/src/sample/x64

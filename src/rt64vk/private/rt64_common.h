@@ -1,0 +1,177 @@
+/*
+*   RT64VK
+*/
+
+#pragma once
+
+#include <fstream>
+#include <sstream>
+#include <string>
+
+#include <vector>
+
+#include "../public/rt64.h"
+
+#ifdef _WIN32
+	#define DLEXPORT extern "C" __declspec(dllexport)
+#else
+	#define DLEXPORT extern "C" __attribute__((visibility("default")))
+#endif
+
+#define HEAP_INDEX(x) (int)(RT64::HeapIndices::x)
+#define UAV_INDEX(x) (int)(RT64::UAVIndices::x)
+#define SRV_INDEX(x) (int)(RT64::SRVIndices::x)
+#define CBV_INDEX(x) (int)(RT64::CBVIndices::x)
+#define SRV_TEXTURES_MAX 512
+
+namespace RT64 {
+	// Matches order in heap used in shader binding table.
+	enum class HeapIndices : int {
+		gViewDirection,
+		gShadingPosition,
+		gShadingNormal,
+		gShadingSpecular,
+		gShadingEmissive,
+		gShadingRoughness,
+		gShadingMetalness,
+		gShadingAmbient,
+		gDiffuse,
+		gInstanceId,
+		gDirectLightAccum,
+		gSpecularLightAccum,
+		gIndirectLightAccum,
+		gReflection,
+		gRefraction,
+		gTransparent,
+		gVolumetricFog,
+		gFlow,
+		gNormal,
+		gDepth,
+		gPrevNormal,
+		gPrevDepth,
+		gPrevDirectLightAccum,
+		gPrevIndirectLightAccum,
+		gFilteredDirectLight,
+		gFilteredIndirectLight,
+		gFog,
+		gHitDistAndFlow,
+		gHitColor,
+		gHitNormal,
+		gHitSpecular,
+		gHitInstanceId,
+		gHitEmissive,
+		gHitRoughness,
+		gHitMetalness,
+		gHitAmbient,
+		gBackground,
+		gParams,
+		SceneBVH,
+		SceneLights,
+		instanceTransforms,
+		instanceMaterials,
+		gBlueNoise,
+		gTextures,
+		MAX
+	};
+
+	enum class UAVIndices : int {
+		gViewDirection,
+		gShadingPosition,
+		gShadingNormal,
+		gShadingSpecular,
+		gShadingEmissive,
+		gShadingRoughness,
+		gShadingMetalness,
+		gShadingAmbient,
+		gDiffuse,
+		gInstanceId,
+		gDirectLightAccum,
+		gSpecularLightAccum,
+		gIndirectLightAccum,
+		gReflection,
+		gRefraction,
+		gTransparent,
+		gVolumetricFog,
+		gFlow,
+		gNormal,
+		gDepth,
+		gPrevNormal,
+		gPrevDepth,
+		gPrevDirectLightAccum,
+		gPrevIndirectLightAccum,
+		gFilteredDirectLight,
+		gFilteredIndirectLight,
+		gFog,
+		gHitDistAndFlow,
+		gHitColor,
+		gHitNormal,
+		gHitSpecular,
+		gHitInstanceId,
+		gHitEmissive,
+		gHitRoughness,
+		gHitMetalness,
+		gHitAmbient,
+		MAX
+	};
+
+	enum class SRVIndices : int {
+		SceneBVH,
+		gBackground,
+		vertexBuffer,
+		indexBuffer,
+		SceneLights,
+		instanceTransforms,
+		instanceMaterials,
+		gBlueNoise,
+		gTextures
+	};
+
+	enum class CBVIndices : int {
+		gParams
+	};
+
+	enum class UpscaleMode {
+		Bilinear,
+		FSR,
+#ifdef RT64_DLSS
+		DLSS
+#endif
+	};
+
+	// Some shared shader constants.
+	static const unsigned int VisualizationModeFinal = 0;
+	static const unsigned int VisualizationModeShadingPosition = 1;
+	static const unsigned int VisualizationModeShadingNormal = 2;
+	static const unsigned int VisualizationModeShadingSpecular = 3;
+	static const unsigned int VisualizationModeDiffuse = 4;
+	static const unsigned int VisualizationModeInstanceID = 5;
+	static const unsigned int VisualizationModeDirectLightRaw = 6;
+	static const unsigned int VisualizationModeDirectLightFiltered = 7;
+	static const unsigned int VisualizationModeIndirectLightRaw = 8;
+	static const unsigned int VisualizationModeIndirectLightFiltered = 9;
+	static const unsigned int VisualizationModeReflection = 10;
+	static const unsigned int VisualizationModeRefraction = 11;
+	static const unsigned int VisualizationModeTransparent = 12;
+	static const unsigned int VisualizationModeMotionVectors = 13;
+	static const unsigned int VisualizationModeDepth = 14;
+
+	// Error string for last error or exception that was caught.
+	extern std::string GlobalLastError;
+
+#ifdef NDEBUG
+#	define RT64_LOG_OPEN(x)
+#	define RT64_LOG_CLOSE()
+#	define RT64_LOG_PRINTF(x, ...)
+#else
+	extern FILE *GlobalLogFile;
+#	define RT64_LOG_OPEN(x) do { GlobalLogFile = fopen(x, "wt"); } while (0)
+#	define RT64_LOG_CLOSE() do { fclose(GlobalLogFile); } while (0)
+#	define RT64_LOG_PRINTF(x, ...) do { fprintf(GlobalLogFile, x, __VA_ARGS__); fprintf(GlobalLogFile, " (%s in %s:%d)\n", __FUNCTION__, __FILE__, __LINE__); fflush(GlobalLogFile); } while (0)
+#endif
+
+#define RT64_CATCH_EXCEPTION()							\
+	catch (const std::runtime_error &e) {				\
+		RT64::GlobalLastError = std::string(e.what());	\
+		fprintf(stderr, "%s\n", e.what());				\
+	}
+}

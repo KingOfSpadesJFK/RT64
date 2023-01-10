@@ -9,16 +9,31 @@
 #include "rt64.h"
 
 #define WINDOW_TITLE "RT64 Sample"
+#include <GLFW/glfw3.h>
 
-#include <Windows.h>
+#ifndef _WIN32
+#define _countof(array) (sizeof(array) / sizeof(array[0]))
+#endif
 
-static void infoMessage(HWND hWnd, const char *message) {
-	MessageBox(hWnd, message, WINDOW_TITLE, MB_OK | MB_ICONINFORMATION);
+// #ifdef _WIN32
+// #include <Windows.h>
+// static void infoMessage(HWND hWnd, const char *message) {
+// 	MessageBox(hWnd, message, WINDOW_TITLE, MB_OK | MB_ICONINFORMATION);
+// }
+
+// static void errorMessage(HWND hWnd, const char *message) {
+// 	MessageBox(hWnd, message, WINDOW_TITLE " Error", MB_OK | MB_ICONERROR);
+// }
+// #else
+#include <iostream>
+static void infoMessage(void* hWnd, const char *message) {
+	std::cout << "[INFO]: " << message << "\n";
 }
 
-static void errorMessage(HWND hWnd, const char *message) {
-	MessageBox(hWnd, message, WINDOW_TITLE " Error", MB_OK | MB_ICONERROR);
+static void errorMessage(void* hWnd,const char *message) {
+	std::cout << "[ERROR]: " << message << "\n";
 }
+// #endif
 
 #ifndef RT64_MINIMAL
 
@@ -28,10 +43,10 @@ static void errorMessage(HWND hWnd, const char *message) {
 #include <math.h>
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
+#include "contrib/stb_image.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
-#include "tiny_obj_loader.h"
+#include "contrib/tiny_obj_loader.h"
 
 typedef struct {
 	RT64_VECTOR4 position;
@@ -64,91 +79,91 @@ struct {
 	std::vector<unsigned int> objIndices;
 } RT64;
 
-LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-	if ((RT64.inspector != nullptr) && RT64.lib.HandleMessageInspector(RT64.inspector, message, wParam, lParam)) {
-		return true;
-	}
+// LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+// 	if ((RT64.inspector != nullptr) && RT64.lib.HandleMessageInspector(RT64.inspector, message, wParam, lParam)) {
+// 		return true;
+// 	}
 
-	switch (message) {
-	case WM_CLOSE:
-		PostQuitMessage(0);
-		break;
-	case WM_RBUTTONDOWN: {
-		POINT cursorPos = {};
-		GetCursorPos(&cursorPos);
-		ScreenToClient(hWnd, &cursorPos);
-		RT64_INSTANCE *instance = RT64.lib.GetViewRaytracedInstanceAt(RT64.view, cursorPos.x, cursorPos.y);
-		fprintf(stdout, "GetViewRaytracedInstanceAt: %p\n", instance);
-		break;
-	}
-	case WM_KEYDOWN: {
-		if (wParam == VK_F1) {
-			if (RT64.inspector != nullptr) {
-				RT64.lib.DestroyInspector(RT64.inspector);
-				RT64.inspector = nullptr;
-			}
-			else {
-				RT64.inspector = RT64.lib.CreateInspector(RT64.device);
-			}
-		}
+// 	switch (message) {
+// 	case WM_CLOSE:
+// 		PostQuitMessage(0);
+// 		break;
+// 	case WM_RBUTTONDOWN: {
+// 		POINT cursorPos = {};
+// 		GetCursorPos(&cursorPos);
+// 		ScreenToClient(hWnd, &cursorPos);
+// 		RT64_INSTANCE *instance = RT64.lib.GetViewRaytracedInstanceAt(RT64.view, cursorPos.x, cursorPos.y);
+// 		fprintf(stdout, "GetViewRaytracedInstanceAt: %p\n", instance);
+// 		break;
+// 	}
+// 	case WM_KEYDOWN: {
+// 		if (wParam == VK_F1) {
+// 			if (RT64.inspector != nullptr) {
+// 				RT64.lib.DestroyInspector(RT64.inspector);
+// 				RT64.inspector = nullptr;
+// 			}
+// 			else {
+// 				RT64.inspector = RT64.lib.CreateInspector(RT64.device);
+// 			}
+// 		}
 
-		break;
-	}
-	case WM_PAINT: {
-		if (RT64.view != nullptr) {
-			RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 1000.0f, true);
+// 		break;
+// 	}
+// 	case WM_PAINT: {
+// 		if (RT64.view != nullptr) {
+// 			RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 1000.0f, true);
 
-			if (RT64.inspector != nullptr) {
-				RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");
-				RT64.lib.SetSceneInspector(RT64.inspector, &RT64.sceneDesc);
-				RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
-			}
+// 			if (RT64.inspector != nullptr) {
+// 				RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");
+// 				RT64.lib.SetSceneInspector(RT64.inspector, &RT64.sceneDesc);
+// 				RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
+// 			}
 
-			RT64.frameMaterial = RT64.baseMaterial;
-			RT64_ApplyMaterialAttributes(&RT64.frameMaterial, &RT64.materialMods);
+// 			RT64.frameMaterial = RT64.baseMaterial;
+// 			RT64_ApplyMaterialAttributes(&RT64.frameMaterial, &RT64.materialMods);
 
-			if (RT64.inspector != nullptr) {
-				RT64.lib.SetLightsInspector(RT64.inspector, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
-			}
+// 			if (RT64.inspector != nullptr) {
+// 				RT64.lib.SetLightsInspector(RT64.inspector, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
+// 			}
 
-			RT64_INSTANCE_DESC instDesc;
-			instDesc.scissorRect = { 0, 0, 0, 0 };
-			instDesc.viewportRect = { 0, 0, 0, 0 };
-			instDesc.mesh = RT64.mesh;
-			instDesc.transform = RT64.transform;
-			instDesc.previousTransform = RT64.transform;
-			instDesc.diffuseTexture = RT64.textureDif;
-			instDesc.normalTexture = RT64.textureNrm;
-			instDesc.specularTexture = RT64.textureSpc;
-			instDesc.material = RT64.frameMaterial;
-			instDesc.shader = RT64.shader;
-			instDesc.flags = 0;
+// 			RT64_INSTANCE_DESC instDesc;
+// 			instDesc.scissorRect = { 0, 0, 0, 0 };
+// 			instDesc.viewportRect = { 0, 0, 0, 0 };
+// 			instDesc.mesh = RT64.mesh;
+// 			instDesc.transform = RT64.transform;
+// 			instDesc.previousTransform = RT64.transform;
+// 			instDesc.diffuseTexture = RT64.textureDif;
+// 			instDesc.normalTexture = RT64.textureNrm;
+// 			instDesc.specularTexture = RT64.textureSpc;
+// 			instDesc.material = RT64.frameMaterial;
+// 			instDesc.shader = RT64.shader;
+// 			instDesc.flags = 0;
 
-			RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
-			RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
-			RT64.lib.DrawDevice(RT64.device, 1);
-			return 0;
-		}
-	}
-	default:
-		return DefWindowProc(hWnd, message, wParam, lParam);
-	}
+// 			RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
+// 			RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
+// 			RT64.lib.DrawDevice(RT64.device, 1);
+// 			return 0;
+// 		}
+// 	}
+// 	default:
+// 		return DefWindowProc(hWnd, message, wParam, lParam);
+// 	}
 
-	return 0;
-}
+// 	return 0;
+// }
 
-bool createRT64(HWND hwnd) {
+bool createRT64(GLFWwindow* glfwWindow) {
 	// Setup library.
 	RT64.lib = RT64_LoadLibrary();
 	if (RT64.lib.handle == 0) {
-		errorMessage(hwnd, "Failed to load RT64 library.");
+		errorMessage(nullptr, "Failed to load RT64 library.");
 		return false;
 	}
 
 	// Setup device.
-	RT64.device = RT64.lib.CreateDevice(hwnd);
+	RT64.device = RT64.lib.CreateDevice(glfwWindow);
 	if (RT64.device == nullptr) {
-		errorMessage(hwnd, RT64.lib.GetLastError());
+		errorMessage(nullptr, RT64.lib.GetLastError());
 		return false;
 	}
 
@@ -169,7 +184,7 @@ RT64_TEXTURE *loadTexturePNG(const char *path) {
 
 RT64_TEXTURE *loadTextureDDS(const char *path) {
 	RT64_TEXTURE *texture = nullptr;
-	FILE *ddsFp = stbi__fopen(path, "rb");
+	FILE *ddsFp = stbi__fopen("res/grass_dif.dds", "rb");
 	if (ddsFp != nullptr) {
 		fseek(ddsFp, 0, SEEK_END);
 		int ddsDataSize = ftell(ddsFp);
@@ -207,14 +222,6 @@ void setupRT64Scene() {
 	RT64.sceneDesc.skyYawOffset = 0.0f;
 	RT64.sceneDesc.giDiffuseStrength = 0.7f;
 	RT64.sceneDesc.giSkyStrength = 0.35f;
-
-	RT64.sceneDesc.ambientFogColor = { 0.1f, 0.25f, 2.0f };
-	RT64.sceneDesc.ambientFogAlpha = 0.2f;
-	RT64.sceneDesc.ambientFogFactors = { 1250.0f, 100.0f };
-	RT64.sceneDesc.groundFogColor = { 0.5f, 0.65f, 0.85f };
-	RT64.sceneDesc.groundFogAlpha = 0.375f;
-	RT64.sceneDesc.groundFogFactors = { 250.5f, 50.f };
-	RT64.sceneDesc.groundFogHeightFactors = { 75.0f, 50.0f };
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
 	// Setup shader.
@@ -242,7 +249,7 @@ void setupRT64Scene() {
 	RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
 	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
 	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
-	RT64_TEXTURE *textureSky = loadTextureDDS("res/sky_hdr.dds");
+	RT64_TEXTURE *textureSky = loadTexturePNG("res/clouds.png");
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
 	// Make initial transform with a 0.1f scale.
@@ -268,11 +275,9 @@ void setupRT64Scene() {
 	std::vector<tinyobj::material_t> materials;
 	std::string warn;
 	std::string err;
-	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/hires_sphere.obj", nullptr, true);
+	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/sphere.obj", NULL, true);
 	assert(loaded);
 	
-	float size = 4;
-	float yOffset = 0;
 	for (size_t i = 0; i < shapes.size(); i++) {
 		size_t index_offset = 0;
 		for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
@@ -280,7 +285,7 @@ void setupRT64Scene() {
 			for (size_t v = 0; v < fnum; v++) {
 				tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
 				VERTEX vertex;
-				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0] * size, attrib.vertices[3 * idx.vertex_index + 1] * size + yOffset, attrib.vertices[3 * idx.vertex_index + 2] * size, 1.0f };
+				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2], 1.0f };
 				vertex.normal = { attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2] };
 				vertex.uv = { acosf(vertex.normal.x), acosf(vertex.normal.y) };
 				vertex.input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
@@ -288,9 +293,9 @@ void setupRT64Scene() {
 				RT64.objIndices.push_back((unsigned int)(RT64.objVertices.size()));
 				RT64.objVertices.push_back(vertex);
 			}
+
 			index_offset += fnum;
 		}
-		// RT64.textureDif = materials[i];
 	}
 	
 	RT64.mesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT);
@@ -425,78 +430,74 @@ void destroyRT64() {
 int main(int argc, char *argv[]) {
 	// Show a basic message to the user so they know what the sample is meant to do.
 	infoMessage(NULL, 
-		"This sample application will test if your system has the required hardware to run RT64.\n\n"
-		"If you see some shapes in the screen after pressing OK, then you're good to go!");
-
-	// Register window class.
-	WNDCLASS wc;
-	memset(&wc, 0, sizeof(WNDCLASS));
-	wc.lpfnWndProc = WndProc;
-	wc.hInstance = GetModuleHandle(0);
-	wc.hbrBackground = (HBRUSH)(COLOR_BACKGROUND);
-	wc.lpszClassName ="RT64Sample";
-	RegisterClass(&wc);
+		"This sample application will test if your system has the required hardware to run RT64.\n"
+		"If you see some shapes on the screen after clicking the Enter key, then you're good to go!");
+	std::cin.get();
+	// Set-up window.
+    glfwInit();
+    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	// Create window.
 	const int Width = 1280;
 	const int Height = 720;
-	RECT rect;
-	UINT dwStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-	rect.left = (GetSystemMetrics(SM_CXSCREEN) - Width) / 2;
-	rect.top = (GetSystemMetrics(SM_CYSCREEN) - Height) / 2;
-	rect.right = rect.left + Width;
-	rect.bottom = rect.top + Height;
-	AdjustWindowRectEx(&rect, dwStyle, 0, 0);
-
-	HWND hwnd = CreateWindow(wc.lpszClassName, WINDOW_TITLE, dwStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, 0, 0, wc.hInstance, NULL);
+    GLFWwindow* window = glfwCreateWindow(Width, Height, "RT64VK Sample", nullptr, nullptr);
 
 	// Create RT64.
-	if (!createRT64(hwnd)) {
-		errorMessage(hwnd,
-			"Failed to initialize RT64.\n\n"
-			"Please make sure your GPU drivers are up to date and the Direct3D 12.1 feature level is supported.\n\n"
-			"Windows 10 version 2004 or newer is also required for this feature level to work properly.\n\n"
-			"If you're a mobile user, make sure that the high performance device is selected for this application on your system's settings.");
+	if (!createRT64(window)) {
+		errorMessage(nullptr,
+			"Failed to initialize RT64! \n"
+			"Please make sure your GPU drivers are up to date and the driver supports the Vulkan raytracing pipeline \n"
+#ifdef _WIN32
+			"Windows 10 version 2004 or newer is also required for this feature level to work properly\n"
+#else
+#endif
+			"If you're a mobile user, make sure that the high performance device is selected for this application on your system's settings");
 
 		return 1;
 	}
 
 	// Setup scene in RT64.
-	setupRT64Scene();
+	// setupRT64Scene();
 
-	// Window message loop.
-	MSG msg = {};
-	while (msg.message != WM_QUIT) {
-		// Process any messages in the queue.
+	// GLFW Window loop.
+	while (!glfwWindowShouldClose(window)) {
+		// Process any poll evenets.
+        glfwPollEvents();
+#ifdef WIN32
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}
+#endif
 	}
 
 	destroyRT64();
 
-	return static_cast<char>(msg.wParam);
+	// return static_cast<char>(msg.wParam);
 }
 
 #else
 
 // Minimal sample that only verifies if a raytracing device can be detected.
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
 	RT64_LIBRARY lib = RT64_LoadLibrary();
 	if (lib.handle == 0) {
 		errorMessage(NULL, "Failed to load RT64 library.");
 		return 1;
 	}
 
-	RT64_DEVICE *device = lib.CreateDevice(0);
+	RT64_DEVICE* device = lib.CreateDevice(0);
 	if (device == nullptr) {
 		errorMessage(NULL, lib.GetLastError());
 		return 1;
 	}
 
 	infoMessage(NULL, "Raytracing device was detected!");
+
+	lib.DestroyDevice(device);
+	RT64_UnloadLibrary(lib);
 	return 0;
 }
 
