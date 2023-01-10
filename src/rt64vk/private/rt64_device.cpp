@@ -45,7 +45,7 @@ namespace RT64
     }
 
     void Device::loadAssets() {
-	    //RT64_LOG_PRINTF("Asset load started");
+	    RT64_LOG_PRINTF("Asset load started");
 
         VkShaderModule vertShaderModule = createShaderModule(FullScreenVS_SPIRV, sizeof(FullScreenVS_SPIRV));
         VkShaderModule fragShaderModule = createShaderModule(ComposePS_SPIRV, sizeof(ComposePS_SPIRV));
@@ -75,9 +75,7 @@ namespace RT64
         createInfo.codeSize = size;
         createInfo.pCode = reinterpret_cast<const uint32_t*>(code);
         VkShaderModule shaderModule;
-        if (vkCreateShaderModule(vkDevice, &createInfo, nullptr, &shaderModule) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create shader module!");
-        }
+        VK_CHECK(vkCreateShaderModule(vkDevice, &createInfo, nullptr, &shaderModule));
         return shaderModule;
     }
 
@@ -121,9 +119,7 @@ namespace RT64
         createInfo.clipped = VK_TRUE;
         createInfo.oldSwapchain = VK_NULL_HANDLE;
 
-        if (vkCreateSwapchainKHR(vkDevice, &createInfo, nullptr, &swapChain) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create swap chain!");
-        }
+        VK_CHECK(vkCreateSwapchainKHR(vkDevice, &createInfo, nullptr, &swapChain));
 
         vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, nullptr);
         swapChainImages.resize(imageCount);
@@ -164,9 +160,7 @@ namespace RT64
             createInfo.pNext = nullptr;
         }
 
-        if (vkCreateInstance(&createInfo, nullptr, &vkInstance) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create instance!");
-        }
+        VK_CHECK(vkCreateInstance(&createInfo, nullptr, &vkInstance));
 
         hasGflwRequiredInstanceExtensions();
     }
@@ -182,9 +176,7 @@ namespace RT64
         createInfo.hinstance = GetModuleHandle(nullptr);
 #endif
 
-        if (glfwCreateWindowSurface(vkInstance, window, nullptr, &vkSurface) != VK_SUCCESS) {
-            throw std::runtime_error("Failed to create window surface");  
-        } 
+        VK_CHECK(glfwCreateWindowSurface(vkInstance, window, nullptr, &vkSurface));
     }
 #endif
 
@@ -244,9 +236,7 @@ namespace RT64
             createInfo.enabledLayerCount = 0;
         }
 
-        if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &vkDevice) != VK_SUCCESS) {
-            throw std::runtime_error("failed to create logical device!");
-        }
+        VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, nullptr, &vkDevice));
 
         vkGetDeviceQueue(vkDevice, indices.graphicsFamily.value(), 0, &graphicsQueue);
         vkGetDeviceQueue(vkDevice, indices.presentFamily.value(), 0, &presentQueue);
@@ -339,9 +329,7 @@ namespace RT64
             createInfo.subresourceRange.levelCount = 1;
             createInfo.subresourceRange.baseArrayLayer = 0;
             createInfo.subresourceRange.layerCount = 1;
-            if (vkCreateImageView(vkDevice, &createInfo, nullptr, &swapChainImageViews[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create image views!");
-            }
+            VK_CHECK(vkCreateImageView(vkDevice, &createInfo, nullptr, &swapChainImageViews[i]));
         }
 
     }
@@ -417,9 +405,7 @@ namespace RT64
         if (!enableValidationLayers) return;
         VkDebugUtilsMessengerCreateInfoEXT createInfo;
         populateDebugMessengerCreateInfo(createInfo);
-        if (CreateDebugUtilsMessengerEXT(vkInstance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS) {
-            throw std::runtime_error("failed to set up debug messenger!");
-        }
+        VK_CHECK(CreateDebugUtilsMessengerEXT(vkInstance, &createInfo, nullptr, &debugMessenger));
     }
 
     QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device)
@@ -484,7 +470,7 @@ namespace RT64
         for (const auto &required : requiredExtensions) {
             std::cout << "\t" << required << std::endl;
             if (available.find(required) == available.end()) {
-            throw std::runtime_error("Missing required glfw extension");
+                throw std::runtime_error("Missing required glfw extension");
             }
         }
     }

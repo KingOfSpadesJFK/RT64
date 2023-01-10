@@ -166,8 +166,22 @@ namespace RT64 {
 	extern FILE *GlobalLogFile;
 #	define RT64_LOG_OPEN(x) do { GlobalLogFile = fopen(x, "wt"); } while (0)
 #	define RT64_LOG_CLOSE() do { fclose(GlobalLogFile); } while (0)
-#	define RT64_LOG_PRINTF(x, ...) do { fprintf(GlobalLogFile, x, __VA_ARGS__); fprintf(GlobalLogFile, " (%s in %s:%d)\n", __FUNCTION__, __FILE__, __LINE__); fflush(GlobalLogFile); } while (0)
+#	define RT64_LOG_PRINTF(x, ...) do { fprintf(GlobalLogFile, (x), ##__VA_ARGS__); fprintf(GlobalLogFile, " (%s in %s:%d)\n", __FUNCTION__, __FILE__, __LINE__); fflush(GlobalLogFile); } while (0)
 #endif
+
+#define VK_CHECK( call )                                                            \
+    do                                                                              \
+    {                                                                               \
+		VkResult vr = call;															\
+        if (vr != VK_SUCCESS)														\
+        {																	        \
+			char errorMessage[512];													\
+			snprintf(errorMessage, sizeof(errorMessage), "Vulkan call " #call " "	    \
+				"failed with error code %X.", vr);									\
+																					\
+            throw std::runtime_error(errorMessage);                                 \
+        }                                                                           \
+    } while( 0 )
 
 #define RT64_CATCH_EXCEPTION()							\
 	catch (const std::runtime_error &e) {				\
