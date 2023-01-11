@@ -2,8 +2,8 @@
 /build
 /lib
 /install
-*/.vscode
-*/.ignore
+/.vscode
+/.ignore
 *.vs
 *.db
 *.log
