@@ -6,6 +6,8 @@
 
 #include "rt64_common.h"
 
+//#include "../contrib/nvpro_core/nvvk/raytraceKHR_vk.hpp"
+
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 #include <vector>
@@ -64,7 +66,7 @@ namespace RT64
             void createSwapChain();
             void createImageViews();
 
-		    void loadAssets();
+		    void createGraphicsPipeline();
 
             bool isDeviceSuitable(VkPhysicalDevice device);
             std::vector<const char*> getInstanceExtensions();

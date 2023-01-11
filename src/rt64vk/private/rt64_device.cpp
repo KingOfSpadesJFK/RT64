@@ -41,11 +41,11 @@ namespace RT64
         createSwapChain();
         createImageViews();
         
-        loadAssets();
+        createGraphicsPipeline();
     }
 
-    void Device::loadAssets() {
-	    RT64_LOG_PRINTF("Asset load started");
+    void Device::createGraphicsPipeline() {
+	    RT64_LOG_PRINTF("Pipeline creation started");
 
         VkShaderModule vertShaderModule = createShaderModule(FullScreenVS_SPIRV, sizeof(FullScreenVS_SPIRV));
         VkShaderModule fragShaderModule = createShaderModule(ComposePS_SPIRV, sizeof(ComposePS_SPIRV));
@@ -63,6 +63,17 @@ namespace RT64
         fragShaderStageInfo.pName = "main";
 
         VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+
+        std::vector<VkDynamicState> dynamicStates = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+
+        VkPipelineDynamicStateCreateInfo dynamicState{};
+        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+        dynamicState.pDynamicStates = dynamicStates.data();
+
 
         vkDestroyShaderModule(vkDevice, fragShaderModule, nullptr);
         vkDestroyShaderModule(vkDevice, vertShaderModule, nullptr);
