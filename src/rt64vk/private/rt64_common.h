@@ -4,11 +4,17 @@
 
 #pragma once
 
+#include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
-
 #include <vector>
+#include <vulkan/vulkan.h>
+#include <glm/glm.hpp>
+
+#include "../contrib/VulkanMemoryAllocator/vk_mem_alloc.h"
+#include "../contrib/nvpro_core/nvmath/nvmath.h"
+#include "../contrib/nvpro_core/nvvk/resourceallocator_vk.hpp"
 
 #include "../public/rt64.h"
 
@@ -157,6 +163,135 @@ namespace RT64 {
 
 	// Error string for last error or exception that was caught.
 	extern std::string GlobalLastError;
+
+#ifndef RT64_MINIMAL
+	class AllocatedResource {
+		private:
+			VmaAllocation* allocation = nullptr;
+			VmaAllocator* allocator = nullptr;
+			VkBuffer* buffer = nullptr;
+			VkImage* image = nullptr;
+			bool mapped = false;
+			bool isImage = false;
+		public:
+			AllocatedResource() { }
+
+			AllocatedResource(AllocatedResource& alre) {
+				copy(alre);
+			}
+
+			// Copies an outside Alre into this one
+			void copy(AllocatedResource& alre) {
+				allocator = alre.allocator;
+				allocation = alre.allocation;
+				buffer = alre.buffer;
+				image = alre.image;
+				isImage = alre.isImage;
+			}
+
+			void init(VmaAllocator* allocator, VmaAllocation* allocation, VkBuffer* buffer) {
+				assert(isNull());
+				this->allocation = allocation;
+				this->allocator = allocator;
+				this->buffer = buffer;
+			}
+
+			void init(VmaAllocator* allocator, VmaAllocation* allocation, VkImage* image) {
+				assert(isNull());
+				this->allocation = allocation;
+				this->allocator = allocator;
+				this->image = image;
+				isImage = true;
+			}
+			AllocatedResource(VmaAllocator* allocator, VmaAllocation* allocation, VkBuffer* buffer) {
+				init(allocator, allocation, buffer);
+			}
+			AllocatedResource(VmaAllocator* allocator, VmaAllocation* allocation, VkImage* image) {
+				init(allocator, allocation, image);
+			}
+
+			~AllocatedResource() { 
+				allocator = nullptr;
+				allocation = nullptr;
+				buffer = nullptr;
+				image = nullptr;
+			}
+
+			void* mapMemory(void** ppData) {
+				assert(!isNull() && !mapped);
+				vmaMapMemory(*allocator, *allocation, ppData);
+				vmaUnmapMemory(*allocator, *allocation);
+				mapped = true;
+				return *ppData;
+			}
+
+			void setAllocationName(const char* name) {
+				if (!isNull()) {
+					vmaSetAllocationName(*allocator, *allocation, name);
+				}
+			}
+
+			inline VkBuffer* getBuffer() const {
+				if (!isNull()) {
+					if (isImage) {
+						return nullptr;
+					}
+					return buffer;
+				}
+				return nullptr;
+			}
+
+			inline VkImage* getImage() const {
+				if (!isNull()) {
+					if (isImage) {
+						return image;
+					}
+					return nullptr;
+				}
+				return nullptr;
+			}
+
+			inline bool isNull() const {
+				return (allocation == nullptr && (buffer == nullptr || image == nullptr));
+			}
+
+			void destroyResource() {
+				if (!isNull()) {
+					if (isImage) {
+						vmaDestroyImage(*allocator, *image, *allocation);
+					} else {
+						vmaDestroyBuffer(*allocator, *buffer, *allocation);
+					} 
+				}
+			}
+	};
+
+	struct InstanceTransforms {
+		glm::mat4x4 objectToWorld;
+		glm::mat4x4 objectToWorldNormal;
+		glm::mat4x4 objectToWorldPrevious;
+	};
+
+	struct AccelerationStructureBuffers {
+		AllocatedResource scratch;
+		uint64_t scratchSize;
+		AllocatedResource result;
+		uint64_t resultSize;
+		AllocatedResource instanceDesc;
+		uint64_t instanceDescSize;
+
+		AccelerationStructureBuffers() {
+			scratchSize = resultSize = instanceDescSize = 0;
+		}
+
+		void destroyResource() {
+			scratch.destroyResource();
+			result.destroyResource();
+			instanceDesc.destroyResource();
+			scratchSize = resultSize = instanceDescSize = 0;
+		}
+	};
+#endif
 
 #ifdef NDEBUG
 #	define RT64_LOG_OPEN(x)

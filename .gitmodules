@@ -7,6 +7,3 @@
 [submodule "src/rt64vk/contrib/imgui"]
 	path = src/rt64vk/contrib/imgui
 	url = https://github.com/ocornut/imgui/
-[submodule "src/rt64vk/contrib/VulkanMemoryAllocator"]
-	path = src/rt64vk/contrib/VulkanMemoryAllocator
-	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator

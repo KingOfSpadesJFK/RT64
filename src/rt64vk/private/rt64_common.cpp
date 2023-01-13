@@ -4,7 +4,6 @@
 
 #include "rt64_common.h"
 
-
 namespace RT64 {
 	FILE* GlobalLogFile = nullptr;
 	std::string GlobalLastError = "";

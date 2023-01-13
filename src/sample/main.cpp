@@ -447,7 +447,7 @@ int main(int argc, char *argv[]) {
 	if (!createRT64(window)) {
 		errorMessage(nullptr,
 			"Failed to initialize RT64! \n"
-			"Please make sure your GPU drivers are up to date and the driver supports the Vulkan raytracing pipeline \n"
+			"Please make sure your GPU drivers are up to date and the driver supports the Vulkan 1.2 \n"
 #ifdef _WIN32
 			"Windows 10 version 2004 or newer is also required for this feature level to work properly\n"
 #else
@@ -464,6 +464,8 @@ int main(int argc, char *argv[]) {
 	while (!glfwWindowShouldClose(window)) {
 		// Process any poll evenets.
         glfwPollEvents();
+		// Remove when done
+		RT64.lib.DrawDevice(RT64.device, 1);
 #ifdef WIN32
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
 			TranslateMessage(&msg);
