@@ -52,31 +52,39 @@ namespace RT64
         std::vector<VkSurfaceFormatKHR> formats;
         std::vector<VkPresentModeKHR> presentModes;
     };
+
+    enum ShaderStage {
+        VertexStage,
+        FragmentStage,
+        ComputeStage,
+        GeometryStage,
+        RaytraceStage
+    };
     
-        // For the test shader
-        struct Vertex {
-            glm::vec2 pos;
-            glm::vec3 color;
-            static VkVertexInputBindingDescription getBindingDescription() {
-                VkVertexInputBindingDescription bindingDescription{};
-                bindingDescription.binding = 0;
-                bindingDescription.stride = sizeof(Vertex);
-                bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-                return bindingDescription;
-            }
-            static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-                std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
-                attributeDescriptions[0].binding = 0;   // You know that (location = 0) thing in the shaders? Yeah that's what
-                attributeDescriptions[0].location = 0;
-                attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
-                attributeDescriptions[0].offset = offsetof(Vertex, pos);
-                attributeDescriptions[1].binding = 0;
-                attributeDescriptions[1].location = 1;
-                attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-                attributeDescriptions[1].offset = offsetof(Vertex, color);
-                return attributeDescriptions;
-            }
-        };
+    // For the test shader
+    struct Vertex {
+        glm::vec2 pos;
+        glm::vec3 color;
+        static VkVertexInputBindingDescription getBindingDescription() {
+            VkVertexInputBindingDescription bindingDescription{};
+            bindingDescription.binding = 0;
+            bindingDescription.stride = sizeof(Vertex);
+            bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+            return bindingDescription;
+        }
+        static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
+            std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+            attributeDescriptions[0].binding = 0;   // You know that (location = 0) thing in the shaders? Yeah that's what
+            attributeDescriptions[0].location = 0;
+            attributeDescriptions[0].format = VK_FORMAT_R32G32_SFLOAT;
+            attributeDescriptions[0].offset = offsetof(Vertex, pos);
+            attributeDescriptions[1].binding = 0;
+            attributeDescriptions[1].location = 1;
+            attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+            attributeDescriptions[1].offset = offsetof(Vertex, color);
+            return attributeDescriptions;
+        }
+    };
     
     class Device
     {
@@ -123,20 +131,25 @@ namespace RT64
 		    void createGraphicsPipeline();
             void createFramebuffers();
             void createCommandPool();
-            void createVertexBuffer();
             void createCommandBuffers();
             void createSyncObjects();
 
             void initRayTracing();
             void recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex);
             void recreateSwapChain();
-            uint32_t findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties);
 
             std::vector<Vertex> vertices = {
-                {{0.0f, -0.5f}, {1.0f, 0.0f, 0.0f}},
-                {{0.5f, 0.5f}, {0.0f, 1.0f, 0.0f}},
-                {{-0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}}
+                {{-0.5f, -0.5f}, {1.0f, 0.0f, 0.0f}},
+                {{0.5f, -0.5f}, {0.0f, 1.0f, 0.0f}},
+                {{0.5f, 0.5f}, {0.0f, 0.0f, 1.0f}},
+                {{-0.5f, 0.5f}, {1.0f, 1.0f, 1.0f}}
             };
+            std::vector<uint16_t> indices = {
+                0, 1, 2, 2, 3, 0
+            };
+
+            void createVertexBuffer();
+            void createIndexBuffer();
 
             GLFWwindow* window;
             VkSurfaceKHR vkSurface;
@@ -162,6 +175,7 @@ namespace RT64
             std::vector<VkFence> inFlightFences;
             uint32_t currentFrame = 0;
             AllocatedResource vertexBuffer;
+            AllocatedResource indexBuffer;
             // VkDeviceMemory vertexBufferMemory;
 
             VkViewport vkViewport;
@@ -199,7 +213,7 @@ namespace RT64
             void draw();
 		    void addScene(Scene* scene);
 		    void removeScene(Scene* scene);
-            VkShaderModule createShaderModule(const void* arr, size_t size);
+            VkShaderModule createShaderModule(const void* arr, size_t size, ShaderStage stage , VkPipelineShaderStageCreateInfo& shaderStageInfo);
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }

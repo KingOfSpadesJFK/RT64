@@ -4,12 +4,13 @@ struct VSInput {
 };
 
 struct PSInput {
+    [[vk::location(0)]] float3 inColor : COLOR0;
     float4 position : SV_POSITION;
-    float3 inColor : COLOR0;
-}
+};
 
 PSInput main(VSInput input) {
     PSInput output;
     output.position = float4(input.inPosition, 0.0, 1.0);
     output.inColor = input.inColor;
+    return output;
 }

@@ -56,7 +56,10 @@ namespace RT64
         createGraphicsPipeline();
         createFramebuffers();
         createCommandPool();
+
         createVertexBuffer();
+        createIndexBuffer();
+
         createCommandBuffers();
         createSyncObjects();
         
@@ -170,6 +173,25 @@ namespace RT64
         }
     }
 
+    void Device::createIndexBuffer() {
+        AllocatedResource stagingBuffer;
+        VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
+        allocateBuffer(bufferSize, 
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VMA_MEMORY_USAGE_AUTO_PREFER_HOST, 
+            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
+            &stagingBuffer);
+
+        stagingBuffer.setData(indices.data(), bufferSize);
+        allocateBuffer(bufferSize, 
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
+            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
+            &indexBuffer);
+        copyBuffer(*stagingBuffer.getBuffer(), *indexBuffer.getBuffer(), bufferSize);
+        stagingBuffer.destroyResource();
+    }
+
     void Device::createVertexBuffer() {
         AllocatedResource stagingBuffer;
         VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
@@ -189,18 +211,6 @@ namespace RT64
             &vertexBuffer);
         copyBuffer(*stagingBuffer.getBuffer(), *vertexBuffer.getBuffer(), bufferSize);
         stagingBuffer.destroyResource();
-    }
-
-    uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
-        VkPhysicalDeviceMemoryProperties memProperties;
-        vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
-        for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-            if ((typeFilter & (1 << i)) && (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-                return i;
-            }
-        }
-
-        throw std::runtime_error("failed to find suitable memory type!");
     }
     
     // The function to write the commands we want into the command buffer
@@ -242,8 +252,9 @@ namespace RT64
         VkBuffer vertexBuffers[] = {*(vertexBuffer.getBuffer())};
         VkDeviceSize offsets[] = {0};
         vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+        vkCmdBindIndexBuffer(commandBuffer, *indexBuffer.getBuffer(), 0, VK_INDEX_TYPE_UINT16);
 
-        vkCmdDraw(commandBuffer, static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
         vkCmdEndRenderPass(commandBuffer);
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
@@ -338,23 +349,37 @@ namespace RT64
 
     #define PS_ENTRY "PSMain"
     #define VS_ENTRY "VSMain"
+    VkShaderModule Device::createShaderModule(const void* code, size_t size, ShaderStage stage, VkPipelineShaderStageCreateInfo& shaderStageInfo) {
+        VkShaderModuleCreateInfo createInfo{};
+        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        createInfo.codeSize = size;
+        createInfo.pCode = reinterpret_cast<const uint32_t*>(code);
+
+        VkShaderModule shaderModule;
+        VK_CHECK(vkCreateShaderModule(vkDevice, &createInfo, nullptr, &shaderModule));
+        // Create the shader stage info
+        shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStageInfo.module = shaderModule;
+        switch (stage) {
+            case VertexStage:
+                shaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
+                shaderStageInfo.pName = VS_ENTRY;
+                break;
+            case FragmentStage:
+                shaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+                shaderStageInfo.pName = PS_ENTRY;
+                break;
+        }
+        return shaderModule;
+    }
+
     void Device::createGraphicsPipeline() {
 	    RT64_LOG_PRINTF("Pipeline creation started");
 
-        VkShaderModule vertShaderModule = createShaderModule(HelloTriangleVS_SPIRV, sizeof(HelloTriangleVS_SPIRV));
-        VkShaderModule fragShaderModule = createShaderModule(HelloTrianglePS_SPIRV, sizeof(HelloTrianglePS_SPIRV));
-
         VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-        vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        vertShaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-        vertShaderStageInfo.module = vertShaderModule;
-        vertShaderStageInfo.pName = VS_ENTRY;
-
         VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-        fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        fragShaderStageInfo.module = fragShaderModule;
-        fragShaderStageInfo.pName = PS_ENTRY;
+        VkShaderModule vertShaderModule = createShaderModule(HelloTriangleVS_SPIRV, sizeof(HelloTriangleVS_SPIRV), VertexStage, vertShaderStageInfo);
+        VkShaderModule fragShaderModule = createShaderModule(HelloTrianglePS_SPIRV, sizeof(HelloTrianglePS_SPIRV), FragmentStage, fragShaderStageInfo);
 
         VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
 
@@ -466,17 +491,6 @@ namespace RT64
 
         vkDestroyShaderModule(vkDevice, fragShaderModule, nullptr);
         vkDestroyShaderModule(vkDevice, vertShaderModule, nullptr);
-    }
-
-    // Creates a shader module from a precompiled binary blob
-    VkShaderModule Device::createShaderModule(const void* code, size_t size) {
-        VkShaderModuleCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        createInfo.codeSize = size;
-        createInfo.pCode = reinterpret_cast<const uint32_t*>(code);
-        VkShaderModule shaderModule;
-        VK_CHECK(vkCreateShaderModule(vkDevice, &createInfo, nullptr, &shaderModule));
-        return shaderModule;
     }
 
     void Device::createSwapChain() {
@@ -959,6 +973,7 @@ namespace RT64
         }
 
         vertexBuffer.destroyResource();
+        indexBuffer.destroyResource();
 		vmaDestroyAllocator(allocator);
         // TODO: Actually delete stuff instead of just leaking everything.
 #endif
