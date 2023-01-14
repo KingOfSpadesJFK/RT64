@@ -170,16 +170,24 @@ namespace RT64
     }
 
     void Device::createVertexBuffer() {
-        VkBufferCreateInfo bufferInfo{};
-        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        bufferInfo.size = sizeof(vertices[0]) * vertices.size();
-        bufferInfo.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        // VK_CHECK(vkCreateBuffer(vkDevice, &bufferInfo, nullptr, &vertexBuffer));
-        AllocatedResource buffer = allocateBuffer(&bufferInfo, vertices.data());
-        vertexBuffer.copy(buffer);
-        void* data = vertices.data();
-        memcpy(vertexBuffer.mapMemory(&data), vertices.data(), (size_t)bufferInfo.size);
+        AllocatedResource stagingBuffer;
+        VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
+        allocateBuffer(bufferSize, 
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VMA_MEMORY_USAGE_AUTO_PREFER_HOST, 
+            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
+            &stagingBuffer);
+
+        stagingBuffer.setData(vertices.data(), bufferSize);
+        // void* data = vertices.data();
+        // memcpy(stagingBuffer.mapMemory(&data), vertices.data(), (size_t)bufferSize);
+        allocateBuffer(bufferSize, 
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
+            &vertexBuffer);
+        copyBuffer(*stagingBuffer.getBuffer(), *vertexBuffer.getBuffer(), bufferSize);
+        stagingBuffer.destroyResource();
     }
 
     uint32_t Device::findMemoryType(uint32_t typeFilter, VkMemoryPropertyFlags properties) {
@@ -932,10 +940,10 @@ namespace RT64
 #ifndef RT64_MINIMAL
         vkDeviceWaitIdle(vkDevice);
         // Destroy the scenes
-        // auto scenesCopy = scenes;
-        // for (Scene *scene : scenesCopy) {
-        //     delete scene;
-        // }
+        auto scenesCopy = scenes;
+        for (Scene *scene : scenesCopy) {
+            delete scene;
+        }
 
         cleanupSwapChain();
         vkDestroySurfaceKHR(vkInstance, vkSurface, nullptr);
@@ -966,22 +974,76 @@ namespace RT64
 
     // Public
 
-    #ifndef RT64_MINIMAL
+#ifndef RT64_MINIMAL
     VkDevice& Device::getVkDevice() { return vkDevice; }
     VkPhysicalDevice& Device::getPhysicalDevice() { return physicalDevice; }
     nvvk::RaytracingBuilderKHR& Device::getRTBuilder() { return rtBuilder; }
     nvvk::ResourceAllocatorDma& Device::getMemAllocator() { return memAlloc; }
 
-    AllocatedResource Device::allocateBuffer(VkBufferCreateInfo* bufferInfo, void* data) {
+    // Adds a scene to the device
+    void Device::addScene(Scene* scene) {
+        assert(scene != nullptr);
+        scenes.push_back(scene);
+    }
+    
+    // Removes a scene from the device
+    void Device::removeScene(Scene *scene) {
+        assert(scene != nullptr);
+        scenes.erase(std::remove(scenes.begin(), scenes.end(), scene), scenes.end());
+    }
+
+    // Creates an allocated buffer
+    VkResult Device::allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedResource* alre) {
+        VkResult res;
+        VkBufferCreateInfo bufferInfo = {};
+        bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        bufferInfo.size = bufferSize;
+        bufferInfo.usage = bufferUsage;
+        bufferInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
         VmaAllocationCreateInfo allocCreateInfo = {};
-        allocCreateInfo.usage = VMA_MEMORY_USAGE_AUTO;
-        allocCreateInfo.flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT;
+        allocCreateInfo.usage = memUsage;
+        allocCreateInfo.flags = allocProperties;
         VmaAllocationInfo allocInfo = {};
 
         VmaAllocation* allocation = new VmaAllocation;
         VkBuffer* buffer = new VkBuffer;
-        vmaCreateBuffer(allocator, bufferInfo, &allocCreateInfo, buffer, allocation, &allocInfo);
-        return AllocatedResource(&allocator, allocation, buffer);
+        res = vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, buffer, allocation, &allocInfo);
+        alre->init(&allocator, allocation, buffer);
+        return res;
+    }
+
+    // Copies a buffer into another
+    void Device::copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size) {
+        VkCommandBufferAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+        allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+        allocInfo.commandPool = commandPool;
+        allocInfo.commandBufferCount = 1;
+        VkCommandBuffer commandBuffer;
+        vkAllocateCommandBuffers(vkDevice, &allocInfo, &commandBuffer);
+
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+        vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+        VkBufferCopy copyRegion{};
+        copyRegion.srcOffset = 0; // Optional
+        copyRegion.dstOffset = 0; // Optional
+        copyRegion.size = size;
+        vkCmdCopyBuffer(commandBuffer, src, dest, 1, &copyRegion);
+
+        vkEndCommandBuffer(commandBuffer);
+
+        VkSubmitInfo submitInfo{};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffer;
+
+        vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(graphicsQueue);
+        vkFreeCommandBuffers(vkDevice, commandPool, 1, &commandBuffer);
     }
     #endif
 

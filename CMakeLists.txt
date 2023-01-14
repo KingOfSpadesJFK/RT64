@@ -106,6 +106,7 @@ add_library(rt64vk SHARED
     ${LIBRT64VK_DIR}/private/rt64_common.cpp 
     ${LIBRT64VK_DIR}/private/rt64_device.cpp
     ${LIBRT64VK_DIR}/private/rt64_mesh.cpp
+    ${LIBRT64VK_DIR}/private/rt64_scene.cpp
     ${NVHELPERS_SOURCE}
     ${NVHELPERSVK_SOURCE}
     ${NVPWINDOW_SOURCE}

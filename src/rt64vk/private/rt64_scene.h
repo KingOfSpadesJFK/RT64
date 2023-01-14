@@ -17,7 +17,7 @@ namespace RT64 {
 		Device *device;
 		std::vector<Instance *> instances;
 		std::vector<View *> views;
-		nvvk::ResourceAllocator lightsBuffer;
+		AllocatedResource lightsBuffer;
 		size_t lightsBufferSize;
 		int lightsCount;
 		RT64_SCENE_DESC description;

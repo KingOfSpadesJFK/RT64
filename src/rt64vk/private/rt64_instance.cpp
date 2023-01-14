@@ -10,22 +10,24 @@
 
 const RT64_MATERIAL DefaultMaterial;
 
-RT64::Instance::Instance(Scene *scene) {
-	assert(scene != nullptr);
+namespace RT64{
+	Instance::Instance(Scene *scene) {
+		assert(scene != nullptr);
 
-	this->scene = scene;
-	mesh = nullptr;
-	diffuseTexture = nullptr;
-	normalTexture = nullptr;
-	specularTexture = nullptr;
-	transform = nvmath::matrix4(1);
-	previousTransform = nvmath::matrix4(1);
-	material = DefaultMaterial;
-	shader = nullptr;
-	scissorRect = { 0, 0, 0, 0 };
-	viewportRect = { 0, 0, 0, 0 };
-	flags = 0;
+		this->scene = scene;
+		mesh = nullptr;
+		diffuseTexture = nullptr;
+		normalTexture = nullptr;
+		specularTexture = nullptr;
+		transform = glm::mat4(1);
+		previousTransform = glm::mat4(1);
+		material = DefaultMaterial;
+		shader = nullptr;
+		scissorRect = { 0, 0, 0, 0 };
+		viewportRect = { 0, 0, 0, 0 };
+		flags = 0;
 
-	scene->addInstance(this);
-}
+		scene->addInstance(this);
+	}
+};
 #endif

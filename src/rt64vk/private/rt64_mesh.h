@@ -16,8 +16,8 @@ namespace RT64
     {
         private:
             Device *device;
-            AllocatedResource vertexBuffer;
-            AllocatedResource vertexBufferUpload;
+            AllocatedResource vertexBuffer;             // The actual one; the one optimized for the GPU
+            AllocatedResource stagingVertexBuffer;      // The temporary one used for like doing stuff on the CPU
             VkBufferView vkVertexBufferView;
             AllocatedResource indexBuffer;
             AllocatedResource indexBufferUpload;

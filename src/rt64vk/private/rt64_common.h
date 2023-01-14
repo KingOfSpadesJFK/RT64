@@ -7,14 +7,13 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <cstring>
 #include <string>
 #include <vector>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 
 #include "../contrib/VulkanMemoryAllocator/vk_mem_alloc.h"
-#include "../contrib/nvpro_core/nvmath/nvmath.h"
-#include "../contrib/nvpro_core/nvvk/resourceallocator_vk.hpp"
 
 #include "../public/rt64.h"
 
@@ -182,8 +181,8 @@ namespace RT64 {
 
 			// Copies an outside Alre into this one
 			void copy(AllocatedResource& alre) {
-				allocator = alre.allocator;
 				allocation = alre.allocation;
+				allocator = alre.allocator;
 				buffer = alre.buffer;
 				image = alre.image;
 				isImage = alre.isImage;
@@ -217,12 +216,32 @@ namespace RT64 {
 				image = nullptr;
 			}
 
+			// Maps a portion of memory to the allocation
+			// Returns the pointer to the first byte in memory
 			void* mapMemory(void** ppData) {
 				assert(!isNull() && !mapped);
 				vmaMapMemory(*allocator, *allocation, ppData);
-				vmaUnmapMemory(*allocator, *allocation);
 				mapped = true;
+				// vmaUnmapMemory(*allocator, *allocation);
 				return *ppData;
+			}
+
+			// Unmaps that portion of memory
+			void unmapMemory() {
+				assert(!isNull() && mapped);
+				vmaUnmapMemory(*allocator, *allocation);
+				mapped = false;
+			}
+
+			// Copies a portion of memory into the mapped memory
+			// Returns the pointer to the first byte in memory
+			void* setData(void* pData, size_t size) {
+				assert(!isNull() && !mapped);
+				void* ppData = pData;		// Make a new reference that's just a pointer to a pointer to the data
+				vmaMapMemory(*allocator, *allocation, &ppData);
+				memcpy(ppData, pData, size);
+				vmaUnmapMemory(*allocator, *allocation);
+				return ppData;
 			}
 
 			void setAllocationName(const char* name) {
@@ -252,16 +271,26 @@ namespace RT64 {
 			}
 
 			inline bool isNull() const {
-				return (allocation == nullptr && (buffer == nullptr || image == nullptr));
+				return (allocation == nullptr);
 			}
 
 			void destroyResource() {
 				if (!isNull()) {
+					if (mapped) {
+						vmaUnmapMemory(*allocator, *allocation);
+					}
 					if (isImage) {
 						vmaDestroyImage(*allocator, *image, *allocation);
 					} else {
 						vmaDestroyBuffer(*allocator, *buffer, *allocation);
 					} 
+					// vmaFreeMemory(*allocator, *allocation);
+					allocation = nullptr;
+					allocator = nullptr;
+					buffer = nullptr;
+					image = nullptr;
+					isImage = false;
+					mapped = false;
 				}
 			}
 	};
@@ -324,3 +353,5 @@ namespace RT64 {
 		fprintf(stderr, "%s\n", e.what());				\
 	}
 }
+
+#define ROUND_UP(v, powerOf2Alignment) (((v) + (powerOf2Alignment)-1) & ~((powerOf2Alignment)-1))

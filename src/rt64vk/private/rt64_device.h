@@ -6,9 +6,9 @@
 
 #include "rt64_common.h"
 
-#include "nvvk/raytraceKHR_vk.hpp"
-#include "nvvk/memallocator_dma_vk.hpp"
-#include "nvvk/resourceallocator_vk.hpp"
+#include "../contrib/nvpro_core/nvvk/raytraceKHR_vk.hpp"
+#include "../contrib/nvpro_core/nvvk/memallocator_dma_vk.hpp"
+#include "../contrib/nvpro_core/nvvk/resourceallocator_vk.hpp"
 
 #include <GLFW/glfw3.h>
 #include <vector>
@@ -192,8 +192,11 @@ namespace RT64
 		    VkPhysicalDevice& getPhysicalDevice();
 		    nvvk::RaytracingBuilderKHR& getRTBuilder();
 		    nvvk::ResourceAllocatorDma& getMemAllocator();
-            AllocatedResource allocateBuffer(VkBufferCreateInfo* bufferInfo, void* data);
+            VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedResource* alre);
+            void copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size);
             void draw();
+		    void addScene(Scene* scene);
+		    void removeScene(Scene* scene);
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }

@@ -23,59 +23,44 @@ namespace RT64
 
     Mesh::~Mesh() {
         vertexBuffer.destroyResource();
-        vertexBufferUpload.destroyResource();
+        stagingVertexBuffer.destroyResource();
         indexBuffer.destroyResource();
         indexBufferUpload.destroyResource();
         blasBuffers.destroyResource();
     }
 
-    // This method copies the passed in vertex array into  
-    void Mesh::updateVertexBuffer(void *vertexArray, int vertexCount, int vertexStride) {
-        const uint32_t vertexBufferSize = vertexCount * vertexStride;
+    // This method copies the passed in vertex array into the buffer
+    void Mesh::updateVertexBuffer(void *vertices, int vertexCount, int vertexStride) {
+        const VkDeviceSize vertexBufferSize = vertexCount * vertexStride;
 
-        if (vertexBuffer.isNull() && ((this->vertexCount != vertexCount) || (this->vertexStride != vertexStride))) {
+        // Delete if the vertex buffers are out of date
+        if (!vertexBuffer.isNull() && ((this->vertexCount != vertexCount) || (this->vertexStride != vertexStride))) {
             vertexBuffer.destroyResource();
-            vertexBufferUpload.destroyResource();
+            stagingVertexBuffer.destroyResource();
             // Discard the BLAS since it won't be compatible anymore even if it's updatable.
-            blasBuffers.destroyResource();
+            // blasBuffers.destroyResource();
         }
 
         if (vertexBuffer.isNull()) {
-            // CD3DX12_RESOURCE_DESC uploadBufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-            // vertexBufferUpload = device->allocateResource(D3D12_HEAP_TYPE_UPLOAD, &uploadBufferDesc, D3D12_RESOURCE_STATE_GENERIC_READ, nullptr);
-            
-            // CD3DX12_RESOURCE_DESC bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(vertexBufferSize);
-            // vertexBuffer = device->allocateResource(D3D12_HEAP_TYPE_DEFAULT, &bufferDesc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr);
-            VkBufferCreateInfo bufferInfo {}; bufferInfo.size = vertexBufferSize;
-            // vertexBufferUpload = device->allocateBuffer(new VkBuffer, &bufferInfo);
-            // vertexBuffer = device->allocateBuffer(new VkBuffer, &bufferInfo);
+            device->allocateBuffer(vertexBufferSize, 
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VMA_MEMORY_USAGE_AUTO_PREFER_HOST, 
+                VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
+                &stagingVertexBuffer);
+            device->allocateBuffer(vertexBufferSize, 
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+                VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
+                &vertexBuffer);
         }
 
         // Copy data to upload heap.
-        uint8_t* dataBegin;
-        VkBufferCopy bufferCopy = {};
-        bufferCopy.srcOffset = (VkDeviceSize)vertexBuffer.getBuffer();
-        // CD3DX12_RANGE readRange(0, 0);
-        // D3D12_CHECK(vertexBufferUpload.Get()->Map(0, &readRange, reinterpret_cast<void**>(&pDataBegin)));
-        // memcpy(pDataBegin, vertexArray, vertexBufferSize);
-        // vertexBufferUpload.Get()->Unmap(0, nullptr);
-        // vertexBufferUpload.getResource()->
+        stagingVertexBuffer.setData(vertices, vertexBufferSize);
         
-        // // Copy resource to the real default resource.
-        // device->getD3D12CommandList()->CopyResource(vertexBuffer.Get(), vertexBufferUpload.Get());
-
-        // // Wait for the resource to finish copying before switching to generic read.
-        // CD3DX12_RESOURCE_BARRIER transition = CD3DX12_RESOURCE_BARRIER::Transition(vertexBuffer.Get(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_GENERIC_READ);
-        // device->getD3D12CommandList()->ResourceBarrier(1, &transition);
-
-        // // Configure vertex buffer view.
-        // d3dVertexBufferView.BufferLocation = vertexBuffer.Get()->GetGPUVirtualAddress();
-        // d3dVertexBufferView.StrideInBytes = vertexStride;
-        // d3dVertexBufferView.SizeInBytes = vertexBufferSize;
-
-        // // Store the new vertex count and stride.
-        // this->vertexCount = vertexCount;
-        // this->vertexStride = vertexStride;
+        device->copyBuffer(*stagingVertexBuffer.getBuffer(), *vertexBuffer.getBuffer(), vertexBufferSize);
+        
+        this->vertexCount = vertexCount;
+        this->vertexStride = vertexStride;
     }
 
     // vVertexBuffers is a tuple vector, with the 1st thing being a vertex 
