@@ -19,7 +19,8 @@
 
 // Test shaders
 //static unsigned int helloTriangleVS[] = 
-#include "shaders/shader.vert.h"
+#include "shaders/HelloTriangleVS.hlsl.h"
+#include "shaders/HelloTrianglePS.hlsl.h"
 #include "shaders/shader.frag.h"
 
 // Pixel shaders
@@ -335,13 +336,13 @@ namespace RT64
         VK_CHECK(vkCreateRenderPass(vkDevice, &renderPassInfo, nullptr, &renderPass));
     }
 
-    #define PS_ENTRY "main"
-    #define VS_ENTRY "main"
+    #define PS_ENTRY "PSMain"
+    #define VS_ENTRY "VSMain"
     void Device::createGraphicsPipeline() {
 	    RT64_LOG_PRINTF("Pipeline creation started");
 
-        VkShaderModule vertShaderModule = createShaderModule(helloTriangleVS, sizeof(helloTriangleVS));
-        VkShaderModule fragShaderModule = createShaderModule(helloTriangleFS, sizeof(helloTriangleFS));
+        VkShaderModule vertShaderModule = createShaderModule(HelloTriangleVS_SPIRV, sizeof(HelloTriangleVS_SPIRV));
+        VkShaderModule fragShaderModule = createShaderModule(HelloTrianglePS_SPIRV, sizeof(HelloTrianglePS_SPIRV));
 
         VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
         vertShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
@@ -467,8 +468,8 @@ namespace RT64
         vkDestroyShaderModule(vkDevice, vertShaderModule, nullptr);
     }
 
-    // Creates a shader module from the precombiled binary blob
-    VkShaderModule Device::createShaderModule(const unsigned int* code, size_t size) {
+    // Creates a shader module from a precompiled binary blob
+    VkShaderModule Device::createShaderModule(const void* code, size_t size) {
         VkShaderModuleCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         createInfo.codeSize = size;

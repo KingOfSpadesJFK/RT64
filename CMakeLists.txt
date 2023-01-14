@@ -104,6 +104,7 @@ include_directories(
 add_library(rt64vk SHARED 
     ${LIBRT64VK_DIR}/private/rt64_vma.cpp
     ${LIBRT64VK_DIR}/private/rt64_common.cpp 
+    ${LIBRT64VK_DIR}/private/rt64_scene.cpp
     ${LIBRT64VK_DIR}/private/rt64_device.cpp
     ${LIBRT64VK_DIR}/private/rt64_mesh.cpp
     ${LIBRT64VK_DIR}/private/rt64_scene.cpp

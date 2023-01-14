@@ -6,6 +6,8 @@
 
 #include "rt64_common.h"
 
+#include "rt64_scene.h"
+
 #include "../contrib/nvpro_core/nvvk/raytraceKHR_vk.hpp"
 #include "../contrib/nvpro_core/nvvk/memallocator_dma_vk.hpp"
 #include "../contrib/nvpro_core/nvvk/resourceallocator_vk.hpp"
@@ -35,6 +37,7 @@ namespace RT64
 	class Inspector;
 	class Texture;
 	class Mipmaps;
+
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
         std::optional<uint32_t> presentFamily;
@@ -107,7 +110,6 @@ namespace RT64
             VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
             VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
             VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
-            VkShaderModule createShaderModule(const unsigned int* arr, size_t size);
 
             static void framebufferResizeCallback(GLFWwindow* glfwWindow, int width, int height);
 
@@ -197,6 +199,7 @@ namespace RT64
             void draw();
 		    void addScene(Scene* scene);
 		    void removeScene(Scene* scene);
+            VkShaderModule createShaderModule(const void* arr, size_t size);
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }
