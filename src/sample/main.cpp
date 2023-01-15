@@ -488,6 +488,56 @@ void setupTestScene() {
 	RT64.viewMatrix.m[3][2] = -10.0f;
 	RT64.viewMatrix.m[3][3] = 1.0f;
 
+	// Create mesh from obj file.
+	std::vector<TEST_VERTEX> objVertices;
+	std::vector<unsigned int> objIndices;
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string warn;
+	std::string err;
+	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "../src/sample/res/teapot.obj", NULL, true);
+	assert(loaded);
+	double maxDistance = __DBL_MIN__;	// Just to scale the object to be bellow 1.0
+	
+	for (size_t i = 0; i < shapes.size(); i++) {
+		size_t index_offset = 0;
+		for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
+			size_t fnum = shapes[i].mesh.num_face_vertices[f];
+			for (size_t v = 0; v < fnum; v++) {
+				tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
+				TEST_VERTEX vertex;
+				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2], 1.0f };
+				vertex.color = { attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2] };
+				// vertex.uv = { acosf(vertex.normal.x), acosf(vertex.normal.y) };
+				// vertex.input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+				// Just for testing
+				double distance = (double)(vertex.position.x * vertex.position.x);
+				distance += (double)(vertex.position.y * vertex.position.y);
+				distance += (double)(vertex.position.z * vertex.position.z);
+				distance = std::sqrt(distance);
+				if (distance > maxDistance) {
+					maxDistance = distance;
+				}
+
+				objIndices.push_back((unsigned int)(objVertices.size()));
+				objVertices.push_back(vertex);
+			}
+
+			index_offset += fnum;
+		}
+	}
+
+	for (int i = 0; i < objVertices.size(); i++) {
+		objVertices[i].position.x /= (float)maxDistance;
+		objVertices[i].position.y /= (float)maxDistance;
+		objVertices[i].position.z /= (float)maxDistance;
+	}
+	
+	RT64_MESH* objMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT);
+	RT64.lib.SetMesh(objMesh, objVertices.data(), (int)(objVertices.size()), sizeof(TEST_VERTEX), objIndices.data(), (int)(objIndices.size()));
+
 	// Configure material.
 	RT64.baseMaterial.ignoreNormalFactor = 0.0f;
 	RT64.baseMaterial.uvDetailScale = 1.0f;
@@ -542,7 +592,7 @@ void setupTestScene() {
 	RT64_MESH* floorMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED);
 	RT64.lib.SetMesh(floorMesh, floorVertices, _countof(floorVertices), sizeof(TEST_VERTEX), floorIndices, _countof(floorIndices));
 	RT64_INSTANCE *floorInstance = RT64.lib.CreateInstance(RT64.scene);
-	instDesc.mesh = floorMesh;
+	instDesc.mesh = objMesh;
 	instDesc.transform = floorTransform;
 	instDesc.previousTransform = floorTransform;
 	instDesc.diffuseTexture = nullptr;
