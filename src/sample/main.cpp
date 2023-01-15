@@ -589,8 +589,8 @@ void setupTestScene() {
 	floorTransform.m[2][2] = 10.0f;
 	floorTransform.m[3][3] = 1.0f;
 
-	RT64_MESH* floorMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED);
-	RT64.lib.SetMesh(floorMesh, floorVertices, _countof(floorVertices), sizeof(TEST_VERTEX), floorIndices, _countof(floorIndices));
+	// RT64_MESH* floorMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED);
+	// RT64.lib.SetMesh(floorMesh, floorVertices, _countof(floorVertices), sizeof(TEST_VERTEX), floorIndices, _countof(floorIndices));
 	RT64_INSTANCE *floorInstance = RT64.lib.CreateInstance(RT64.scene);
 	instDesc.mesh = objMesh;
 	instDesc.transform = floorTransform;

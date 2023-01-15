@@ -11,7 +11,7 @@
 const RT64_MATERIAL DefaultMaterial {};
 
 namespace RT64{
-	Instance::Instance(Scene *scene) {
+	Instance::Instance(Scene* scene) {
 		assert(scene != nullptr);
 
 		this->scene = scene;
@@ -32,6 +32,8 @@ namespace RT64{
 
 	Instance::~Instance() {
 		scene->removeInstance(this);
+		
+		delete mesh;
 	}
 
 	void Instance::setMesh(Mesh* mesh) {
@@ -50,7 +52,7 @@ namespace RT64{
 		return material;
 	}
 
-	void Instance::setShader(Shader *shader) {
+	void Instance::setShader(Shader* shader) {
 		this->shader = shader;
 	}
 

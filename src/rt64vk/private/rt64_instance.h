@@ -5,9 +5,9 @@
 #pragma once
 
 #include "rt64_common.h"
+#include "rt64_mesh.h"
 
 namespace RT64 {
-	class Mesh;
 	class Scene;
 	class Shader;
 	class Texture;

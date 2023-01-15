@@ -28,7 +28,7 @@ namespace RT64
         stagingIndexBuffer.destroyResource();
         blasBuffers.destroyResource();
     }
-
+    
     // This function copies the passed in vertex array into the buffer
     void Mesh::updateVertexBuffer(void *vertices, int vertexCount, int vertexStride) {
         const VkDeviceSize vertexBufferSize = vertexCount * vertexStride;

@@ -969,11 +969,6 @@ namespace RT64
     Device::~Device() {
 #ifndef RT64_MINIMAL
         vkDeviceWaitIdle(vkDevice);
-        // Destroy the scenes
-        auto scenesCopy = scenes;
-        for (Scene *scene : scenesCopy) {
-            delete scene;
-        }
 
         cleanupSwapChain();
         vkDestroySurfaceKHR(vkInstance, vkSurface, nullptr);
@@ -986,9 +981,13 @@ namespace RT64
             vkDestroySemaphore(vkDevice, renderFinishedSemaphores[i], nullptr);
             vkDestroyFence(vkDevice, inFlightFences[i], nullptr);
         }
+        
+        // Destroy the scenes
+        auto scenesCopy = scenes;
+        for (Scene* scene : scenesCopy) {
+            delete scene;
+        }
 
-        vertexBuffer.destroyResource();
-        indexBuffer.destroyResource();
 		vmaDestroyAllocator(allocator);
         // TODO: Actually delete stuff instead of just leaking everything.
 #endif
