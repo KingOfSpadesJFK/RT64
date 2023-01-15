@@ -14,15 +14,15 @@ namespace RT64 {
 
 	class Scene {
 	private:
-		Device *device;
-		std::vector<Instance *> instances;
-		std::vector<View *> views;
+		Device* device;
+		std::vector<Instance*> instances;
+		std::vector<View*> views;
 		AllocatedResource lightsBuffer;
 		size_t lightsBufferSize;
 		int lightsCount;
 		RT64_SCENE_DESC description;
 	public:
-		Scene(Device *device);
+		Scene(Device* device);
 		virtual ~Scene();
 		void update();
 		void render(float deltaTimeMs);
@@ -36,8 +36,8 @@ namespace RT64 {
 		void removeInstance(Instance *instance);
 		void addView(View *view);
 		void removeView(View *view);
-		const std::vector<View *> &getViews() const;
-		const std::vector<Instance *> &getInstances() const;
+		const std::vector<View*> &getViews() const;
+		const std::vector<Instance*> &getInstances() const;
 		Device *getDevice() const;
 	};
 };

@@ -25,11 +25,11 @@ namespace RT64
         vertexBuffer.destroyResource();
         stagingVertexBuffer.destroyResource();
         indexBuffer.destroyResource();
-        indexBufferUpload.destroyResource();
+        stagingIndexBuffer.destroyResource();
         blasBuffers.destroyResource();
     }
 
-    // This method copies the passed in vertex array into the buffer
+    // This function copies the passed in vertex array into the buffer
     void Mesh::updateVertexBuffer(void *vertices, int vertexCount, int vertexStride) {
         const VkDeviceSize vertexBufferSize = vertexCount * vertexStride;
 
@@ -54,13 +54,49 @@ namespace RT64
                 &vertexBuffer);
         }
 
-        // Copy data to upload heap.
+        // Get the data into the staging buffer's memory
         stagingVertexBuffer.setData(vertices, vertexBufferSize);
         
+        // Copy staging buffer to main buffer
         device->copyBuffer(*stagingVertexBuffer.getBuffer(), *vertexBuffer.getBuffer(), vertexBufferSize);
         
         this->vertexCount = vertexCount;
         this->vertexStride = vertexStride;
+    }
+
+    // Updates the index buffer with the passed in index array
+    // Similar to updateVertexBuffer() but for indices.
+    void Mesh::updateIndexBuffer(unsigned int *indices, int indexCount) {
+        const VkDeviceSize indexBufferSize = indexCount * sizeof(unsigned int);
+
+        // Delete if the index buffers are out of date
+        if (!indexBuffer.isNull() && ((this->indexCount != indexCount))) {
+            indexBuffer.destroyResource();
+            stagingIndexBuffer.destroyResource();
+            // Discard the BLAS since it won't be compatible anymore even if it's updatable.
+            // blasBuffers.destroyResource();
+        }
+
+        if (indexBuffer.isNull()) {
+            device->allocateBuffer(indexBufferSize, 
+                VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                VMA_MEMORY_USAGE_AUTO_PREFER_HOST, 
+                VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
+                &stagingIndexBuffer);
+            device->allocateBuffer(indexBufferSize, 
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
+                VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
+                VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
+                &indexBuffer);
+        }
+
+        // Get the data into the staging buffer's memory
+        stagingIndexBuffer.setData(indices, indexBufferSize);
+        
+        // Copy staging buffer to main buffer
+        device->copyBuffer(*stagingIndexBuffer.getBuffer(), *indexBuffer.getBuffer(), indexBufferSize);
+        
+        this->indexCount = indexCount;
     }
 
     // vVertexBuffers is a tuple vector, with the 1st thing being a vertex 
@@ -128,6 +164,13 @@ namespace RT64
 
         return input;
     }
+
+    // Public 
+
+    VkBuffer* Mesh::getVertexBuffer() const { return vertexBuffer.getBuffer(); }
+    VkBuffer* Mesh::getIndexBuffer() const { return indexBuffer.getBuffer(); }
+    int Mesh::getIndexCount() const { return indexCount; }
+    int Mesh::getVertexCount() const { return vertexCount; }
 };
 
 // Library Exports
@@ -144,8 +187,8 @@ DLEXPORT void RT64_SetMesh(RT64_MESH* meshPtr, void* vertexArray, int vertexCoun
 	assert(indexArray != nullptr);
 	assert(indexCount > 0);
 	RT64::Mesh *mesh = (RT64::Mesh *)(meshPtr);
-	// mesh->updateVertexBuffer(vertexArray, vertexCount, vertexStride);
-	// mesh->updateIndexBuffer(indexArray, indexCount);
+	mesh->updateVertexBuffer(vertexArray, vertexCount, vertexStride);
+	mesh->updateIndexBuffer(indexArray, indexCount);
 	// mesh->updateBottomLevelAS();
 }
 

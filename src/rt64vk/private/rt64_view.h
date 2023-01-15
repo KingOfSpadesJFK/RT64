@@ -184,8 +184,8 @@ namespace RT64
         public:
             View(Scene *scene);
             virtual ~View();
-            // void update();
-            // void render(float deltaTimeMs);
+            void update();
+            void render(float deltaTimeMs);
             void renderInspector(Inspector *inspector);
             void setPerspective(RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist);
             void movePerspective(RT64_VECTOR3 localMovement);

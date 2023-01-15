@@ -76,12 +76,18 @@
 #define RT64_LIGHT_MAX_SAMPLES					128
 
 // View attributes.
-#define RT64_DLSS_MODE_OFF						0x0
-#define RT64_DLSS_MODE_AUTO						0x1
-#define RT64_DLSS_MODE_MAX_QUALITY				0x2
-#define RT64_DLSS_MODE_BALANCED					0x3
-#define RT64_DLSS_MODE_MAX_PERFORMANCE			0x4
-#define RT64_DLSS_MODE_ULTRA_PERFORMANCE		0x5
+#define RT64_UPSCALER_OFF						0x0
+#define RT64_UPSCALER_AUTO						0x1
+#define RT64_UPSCALER_DLSS						0x2
+#define RT64_UPSCALER_FSR						0x3
+#define RT64_UPSCALER_XESS						0x4
+#define RT64_UPSCALER_MODE_AUTO					0x0
+#define RT64_UPSCALER_MODE_ULTRA_PERFORMANCE	0x1
+#define RT64_UPSCALER_MODE_PERFORMANCE			0x2
+#define RT64_UPSCALER_MODE_BALANCED				0x3
+#define RT64_UPSCALER_MODE_QUALITY				0x4
+#define RT64_UPSCALER_MODE_ULTRA_QUALITY		0x5
+#define RT64_UPSCALER_MODE_NATIVE				0x6
 
 // Feature codes.
 #define RT64_FEATURE_DLSS						0x1
@@ -179,7 +185,9 @@ typedef struct {
 	unsigned int diSamples;
 	unsigned int giSamples;
 	unsigned int maxLights;
-	unsigned char dlssMode;
+	unsigned char upscaler;
+	unsigned char upscalerMode;
+	float upscalerSharpness;
 	bool denoiserEnabled;
 } RT64_VIEW_DESC;
 

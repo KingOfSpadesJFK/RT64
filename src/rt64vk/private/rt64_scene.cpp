@@ -65,7 +65,7 @@ namespace RT64
         RT64_LOG_PRINTF("Started scene render");
 
         for (View *view : views) {
-            // view->render(deltaTimeMs);
+            view->render(deltaTimeMs);
         }
 
         RT64_LOG_PRINTF("Finished scene render");

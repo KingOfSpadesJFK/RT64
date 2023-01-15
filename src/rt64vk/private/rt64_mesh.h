@@ -20,7 +20,7 @@ namespace RT64
             AllocatedResource stagingVertexBuffer;      // The temporary one used for like doing stuff on the CPU
             VkBufferView vkVertexBufferView;
             AllocatedResource indexBuffer;
-            AllocatedResource indexBufferUpload;
+            AllocatedResource stagingIndexBuffer;
             VkBufferView vkIndexBufferView;
             int vertexCount;
             int vertexStride;
@@ -28,20 +28,20 @@ namespace RT64
             AccelerationStructureBuffers blasBuffers;
             int flags;
 
-            void createBottomLevelAS(std::vector<std::pair<VkBuffer *, uint32_t>> vVertexBuffers, std::vector<std::pair<VkBuffer *, uint32_t>> vIndexBuffers);
+            void createBottomLevelAS(std::vector<std::pair<VkBuffer*, uint32_t>> vVertexBuffers, std::vector<std::pair<VkBuffer *, uint32_t>> vIndexBuffers);
             nvvk::RaytracingBuilderKHR::BlasInput modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount);
         public:
-            Mesh(Device *device, int flags);
+            Mesh(Device* device, int flags);
             virtual ~Mesh();
-            void updateVertexBuffer(void *vertexArray, int vertexCount, int vertexStride);
-            VkBuffer *getVertexBuffer() const;
-            const VkBufferView *getVertexBufferView() const;
+            void updateVertexBuffer(void* vertexArray, int vertexCount, int vertexStride);
+            VkBuffer* getVertexBuffer() const;
+            const VkBufferView* getVertexBufferView() const;
             int getVertexCount() const;
-            void updateIndexBuffer(unsigned int *indexArray, int indexCount);
-            VkBuffer *getIndexBuffer() const;
-            const VkBufferView *getIndexBufferView() const;
+            void updateIndexBuffer(unsigned int* indexArray, int indexCount);
+            VkBuffer* getIndexBuffer() const;
+            const VkBufferView* getIndexBufferView() const;
             int getIndexCount() const;
             void updateBottomLevelAS();
-            VkBuffer *getBottomLevelASResult() const;
+            VkBuffer* getBottomLevelASResult() const;
 	};
 };

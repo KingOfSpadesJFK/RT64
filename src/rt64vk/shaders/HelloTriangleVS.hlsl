@@ -1,16 +1,13 @@
-struct VSInput {
-    [[vk::location(0)]] float2 inPosition : POSITION;
-    [[vk::location(1)]] float3 inColor : COLOR0;
-};
 
-struct PSInput {
-    [[vk::location(0)]] float3 inColor : COLOR0;
-    float4 position : SV_POSITION;
-};
 
-PSInput main(VSInput input) {
-    PSInput output;
-    output.position = float4(input.inPosition, 0.0, 1.0);
-    output.inColor = input.inColor;
-    return output;
+void main(
+    [[vk::location(0)]] float4 inPosition : POSITION, 
+    [[vk::location(1)]] float3 inColor : COLOR0,
+
+    [[vk::location(0)]] out float3 outColor : COLOR0,
+    out float4 outPosition : SV_POSITION
+    )
+{
+    outPosition = inPosition;
+    outColor = inColor;
 }

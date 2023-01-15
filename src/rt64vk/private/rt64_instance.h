@@ -14,8 +14,8 @@ namespace RT64 {
 
 	class Instance {
 		private:
-			Scene*scene;
-			Mesh*mesh;
+			Scene* scene;
+			Mesh* mesh;
 			Texture* diffuseTexture;
 			Texture* normalTexture;
 			Texture* specularTexture;
@@ -27,9 +27,9 @@ namespace RT64 {
 			RT64_RECT viewportRect;
 			unsigned int flags;
 		public:
-			Instance(Scene *scene);
+			Instance(Scene* scene);
 			virtual ~Instance();
-			void setMesh(Mesh *mesh);
+			void setMesh(Mesh* mesh);
 			Mesh* getMesh() const;
 			void setMaterial(const RT64_MATERIAL& material);
 			const RT64_MATERIAL& getMaterial() const;

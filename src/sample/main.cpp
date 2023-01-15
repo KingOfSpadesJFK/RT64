@@ -55,6 +55,11 @@ typedef struct {
 	RT64_VECTOR4 input1;
 } VERTEX;
 
+typedef struct {
+	RT64_VECTOR4 position;
+	RT64_VECTOR3 color;
+} TEST_VERTEX;
+
 struct {
 	RT64_LIBRARY lib;
 	RT64_LIGHT lights[16];
@@ -427,6 +432,128 @@ void destroyRT64() {
 	RT64_UnloadLibrary(RT64.lib);
 }
 
+/*	Just a test scene to test if this thing works very early on.
+	How I think this whole thing works so far:
+		- The library creates a device
+		- Then you create a scene, as well as describe that scene
+		- Then you create meshes, textures, transform matrices, shaders viewport and scissor rectangles and whatnot. 
+		- Then you pass them into an Instance
+			- This instance will get passed into the scene
+		- Then you create a view and pass the scene into it
+			- The view is a actually a member of the scene
+		- The screen then gets rendered
+			- It first calls device to draw the scene
+			- In the draw call, device calls the function in scene to render the scene
+			- The scene render call has a call to the function to render the view
+			- Basically, you call device, who then calls scene, who then calls view
+		- Hierarchy:
+			- Device
+				- Scene
+					- View
+					- Instances
+						- Mesh
+						- Textures
+						- Materials
+*/
+void setupTestScene() {
+	RT64.scene = RT64.lib.CreateScene(RT64.device);
+	RT64.sceneDesc.ambientBaseColor = { 0.1f, 0.1f, 0.1f };
+	RT64.sceneDesc.ambientNoGIColor = { 0.2f, 0.2f, 0.2f };
+	RT64.sceneDesc.eyeLightDiffuseColor = { 0.08f, 0.08f, 0.08f };
+	RT64.sceneDesc.eyeLightSpecularColor = { 0.04f, 0.04f, 0.04f };
+	RT64.sceneDesc.skyDiffuseMultiplier = { 1.0f, 1.0f, 1.0f };
+	RT64.sceneDesc.skyHSLModifier = { 0.0f, 0.0f, 0.0f };
+	RT64.sceneDesc.skyYawOffset = 0.0f;
+	RT64.sceneDesc.giDiffuseStrength = 0.7f;
+	RT64.sceneDesc.giSkyStrength = 0.35f;
+	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
+
+	// Setup view.
+	RT64.view = RT64.lib.CreateView(RT64.scene);
+
+	// Make initial transform with a 0.1f scale.
+	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
+	RT64.transform.m[0][0] = 1.0f;
+	RT64.transform.m[1][1] = 1.0f;
+	RT64.transform.m[2][2] = 1.0f;
+	RT64.transform.m[3][3] = 1.0f;
+
+	// Make initial view.
+	memset(RT64.viewMatrix.m, 0, sizeof(RT64_MATRIX4));
+	RT64.viewMatrix.m[0][0] = 1.0f;
+	RT64.viewMatrix.m[1][1] = 1.0f;
+	RT64.viewMatrix.m[2][2] = 1.0f;
+	RT64.viewMatrix.m[3][0] = 0.0f;
+	RT64.viewMatrix.m[3][1] = -2.0f;
+	RT64.viewMatrix.m[3][2] = -10.0f;
+	RT64.viewMatrix.m[3][3] = 1.0f;
+
+	// Configure material.
+	RT64.baseMaterial.ignoreNormalFactor = 0.0f;
+	RT64.baseMaterial.uvDetailScale = 1.0f;
+	RT64.baseMaterial.reflectionFactor = 0.0f;
+	RT64.baseMaterial.reflectionFresnelFactor = 1.0f;
+	RT64.baseMaterial.reflectionShineFactor = 0.0f;
+	RT64.baseMaterial.refractionFactor = 0.0f;
+	RT64.baseMaterial.specularColor = { 1.0f, 1.0f, 1.0f };
+	RT64.baseMaterial.specularExponent = 1.0f;
+	RT64.baseMaterial.solidAlphaMultiplier = 1.0f;
+	RT64.baseMaterial.shadowAlphaMultiplier = 1.0f;
+	RT64.baseMaterial.diffuseColorMix = { 0.0f, 0.0f, 0.0f, 0.0f };
+	RT64.baseMaterial.selfLight = { 0.0f , 0.0f, 0.0f };
+	RT64.baseMaterial.lightGroupMaskBits = 0xFFFFFFFF;
+	RT64.baseMaterial.fogColor = { 0.3f, 0.5f, 0.7f };
+	RT64.baseMaterial.fogMul = 1.0f;
+	RT64.baseMaterial.fogOffset = 0.0f;
+	RT64.baseMaterial.fogEnabled = 0;
+
+	RT64_INSTANCE_DESC instDesc;
+	instDesc.scissorRect = { 0, 0, 0, 0 };
+	instDesc.viewportRect = { 0, 0, 0, 0 };
+	
+	// Create floor.
+	TEST_VERTEX floorVertices[4];
+	RT64_MATRIX4 floorTransform;
+	unsigned int floorIndices[] = { 0, 1, 2, 2, 3, 0 };
+	floorVertices[0].position = { -0.5f, -0.5f, 0.0f, 1.0f };
+	floorVertices[0].color = { 1.0f, 0.0f, 0.0f };
+	// floorVertices[0].uv = { 0.0f, 0.0f };
+	floorVertices[1].position = { 0.5f, -0.5f, 0.0f, 1.0f };
+	floorVertices[1].color = { 0.0f, 1.0f, 0.0f };
+	// floorVertices[1].uv = { 1.0f, 0.0f };
+	floorVertices[2].position = { 0.5f, 0.5f, 0.0f, 1.0f };
+	floorVertices[2].color = { 0.0f, 0.0f, 1.0f };
+	// floorVertices[2].uv = { 0.0f, 1.0f };
+	floorVertices[3].position = { -0.5f, 0.5f, 0.0f, 1.0f };
+	floorVertices[3].color = { 1.0f, 1.0f, 1.0f };
+	// floorVertices[3].uv = { 1.0f, 1.0f };
+
+	// for (int i = 0; i < _countof(floorVertices); i++) {
+	// 	floorVertices[i].normal = { 0.0f, 1.0f, 0.0f };
+	// 	floorVertices[i].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
+	// }
+
+	memset(&floorTransform, 0, sizeof(RT64_MATRIX4));
+	floorTransform.m[0][0] = 10.0f;
+	floorTransform.m[1][1] = 10.0f;
+	floorTransform.m[2][2] = 10.0f;
+	floorTransform.m[3][3] = 1.0f;
+
+	RT64_MESH* floorMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED);
+	RT64.lib.SetMesh(floorMesh, floorVertices, _countof(floorVertices), sizeof(TEST_VERTEX), floorIndices, _countof(floorIndices));
+	RT64_INSTANCE *floorInstance = RT64.lib.CreateInstance(RT64.scene);
+	instDesc.mesh = floorMesh;
+	instDesc.transform = floorTransform;
+	instDesc.previousTransform = floorTransform;
+	instDesc.diffuseTexture = nullptr;
+	instDesc.normalTexture = nullptr;
+	instDesc.specularTexture = nullptr;
+	instDesc.shader = RT64.shader;
+	instDesc.flags = 0;
+	RT64.lib.SetInstanceDescription(floorInstance, instDesc);
+
+}
+
 int main(int argc, char *argv[]) {
 	// Show a basic message to the user so they know what the sample is meant to do.
 	infoMessage(NULL, 
@@ -447,7 +574,7 @@ int main(int argc, char *argv[]) {
 	if (!createRT64(window)) {
 		errorMessage(nullptr,
 			"Failed to initialize RT64! \n"
-			"Please make sure your GPU drivers are up to date and the driver supports the Vulkan 1.2 \n"
+			"Please make sure your GPU drivers are up to date and the driver supports Vulkan 1.2 \n"
 #ifdef _WIN32
 			"Windows 10 version 2004 or newer is also required for this feature level to work properly\n"
 #else
@@ -459,17 +586,9 @@ int main(int argc, char *argv[]) {
 
 	// Setup scene in RT64.
 	// setupRT64Scene();
-	RT64.scene = RT64.lib.CreateScene(RT64.device);
-	RT64.sceneDesc.ambientBaseColor = { 0.1f, 0.1f, 0.1f };
-	RT64.sceneDesc.ambientNoGIColor = { 0.2f, 0.2f, 0.2f };
-	RT64.sceneDesc.eyeLightDiffuseColor = { 0.08f, 0.08f, 0.08f };
-	RT64.sceneDesc.eyeLightSpecularColor = { 0.04f, 0.04f, 0.04f };
-	RT64.sceneDesc.skyDiffuseMultiplier = { 1.0f, 1.0f, 1.0f };
-	RT64.sceneDesc.skyHSLModifier = { 0.0f, 0.0f, 0.0f };
-	RT64.sceneDesc.skyYawOffset = 0.0f;
-	RT64.sceneDesc.giDiffuseStrength = 0.7f;
-	RT64.sceneDesc.giSkyStrength = 0.35f;
-	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
+
+	// For now, just do the scene set up here
+	setupTestScene();
 
 	// GLFW Window loop.
 	while (!glfwWindowShouldClose(window)) {
@@ -477,12 +596,6 @@ int main(int argc, char *argv[]) {
         glfwPollEvents();
 		// Remove when done
 		RT64.lib.DrawDevice(RT64.device, 1);
-#ifdef WIN32
-		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-		}
-#endif
 	}
 
 	destroyRT64();

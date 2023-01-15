@@ -21,7 +21,6 @@
 //static unsigned int helloTriangleVS[] = 
 #include "shaders/HelloTriangleVS.hlsl.h"
 #include "shaders/HelloTrianglePS.hlsl.h"
-#include "shaders/shader.frag.h"
 
 // Pixel shaders
 #include "shaders/ComposePS.hlsl.h"
@@ -57,8 +56,8 @@ namespace RT64
         createFramebuffers();
         createCommandPool();
 
-        createVertexBuffer();
-        createIndexBuffer();
+        // createVertexBuffer();
+        // createIndexBuffer();
 
         createCommandBuffers();
         createSyncObjects();
@@ -98,9 +97,10 @@ namespace RT64
     void Device::draw() {
         vkWaitForFences(vkDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
-        uint32_t imageIndex;        // The index to our framebuffer. Sounds like a romcom lmao
-        VkResult result = vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        uint32_t framebufferIndex;
+        VkResult result = vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
 
+        // Handle resizing
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
             framebufferResized = false;
             recreateSwapChain();
@@ -112,10 +112,11 @@ namespace RT64
         // Only reset the fence if we are submitting work
         vkResetFences(vkDevice, 1, &inFlightFences[currentFrame]);
 
-        vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &imageIndex);
+        vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
 
         vkResetCommandBuffer(commandBuffers[currentFrame], 0);
-        recordCommandBuffer(commandBuffers[currentFrame], imageIndex);
+        recordCommandBuffer(commandBuffers[currentFrame], framebufferIndex);
+
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -145,13 +146,22 @@ namespace RT64
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores = signalSemaphores;
-
         VkSwapchainKHR swapChains[] = {swapChain};
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
-        presentInfo.pImageIndices = &imageIndex;
+        presentInfo.pImageIndices = &framebufferIndex;
         presentInfo.pResults = nullptr; // Optional
-        vkQueuePresentKHR(presentQueue, &presentInfo);
+        // Now pop it on the screen!
+        result = vkQueuePresentKHR(presentQueue, &presentInfo); 
+
+        // Handle resizing
+        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+            framebufferResized = false;
+            recreateSwapChain();
+            return;
+        } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
+            throw std::runtime_error("failed to present swap chain image!");
+        }
         
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
@@ -214,7 +224,7 @@ namespace RT64
     }
     
     // The function to write the commands we want into the command buffer
-    void Device::recordCommandBuffer(VkCommandBuffer commandBuffer, uint32_t imageIndex) {
+    void Device::recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex) {
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = 0; // Optional
@@ -249,12 +259,17 @@ namespace RT64
         scissor.extent = swapChainExtent;
         vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
         
-        VkBuffer vertexBuffers[] = {*(vertexBuffer.getBuffer())};
-        VkDeviceSize offsets[] = {0};
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        vkCmdBindIndexBuffer(commandBuffer, *indexBuffer.getBuffer(), 0, VK_INDEX_TYPE_UINT16);
+        // Time to render!
+        for (Scene* s : scenes) {
+            s->render(0.0f);
+        }
 
-        vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+        // VkBuffer vertexBuffers[] = {*(vertexBuffer.getBuffer())};
+        // VkDeviceSize offsets[] = {0};
+        // vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
+        // vkCmdBindIndexBuffer(commandBuffer, *indexBuffer.getBuffer(), 0, VK_INDEX_TYPE_UINT32);
+
+        // vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
 
         vkCmdEndRenderPass(commandBuffer);
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
@@ -397,8 +412,8 @@ namespace RT64
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
         vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         // Bind the vertex inputs
-            auto bindingDescription = Vertex::getBindingDescription();
-            auto attributeDescriptions = Vertex::getAttributeDescriptions();
+            auto bindingDescription = TestVertex::getBindingDescription();
+            auto attributeDescriptions = TestVertex::getAttributeDescriptions();
             vertexInputInfo.vertexBindingDescriptionCount = 1;
             vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
             vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
@@ -994,7 +1009,8 @@ namespace RT64
     VkDevice& Device::getVkDevice() { return vkDevice; }
     VkPhysicalDevice& Device::getPhysicalDevice() { return physicalDevice; }
     nvvk::RaytracingBuilderKHR& Device::getRTBuilder() { return rtBuilder; }
-    nvvk::ResourceAllocatorDma& Device::getMemAllocator() { return memAlloc; }
+    VmaAllocator& Device::getMemAllocator() { return allocator; }
+	VkCommandBuffer& Device::getCurrentCommandBuffer() { return commandBuffers[currentFrame]; }
 
     // Adds a scene to the device
     void Device::addScene(Scene* scene) {
