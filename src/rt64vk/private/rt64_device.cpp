@@ -50,14 +50,12 @@ namespace RT64
 #ifndef RT64_MINIMAL
         createMemoryAllocator();
         createSwapChain();
+        updateViewport();
         createImageViews();
         createRenderPass();
         createGraphicsPipeline();
         createFramebuffers();
         createCommandPool();
-
-        // createVertexBuffer();
-        // createIndexBuffer();
 
         createCommandBuffers();
         createSyncObjects();
@@ -94,20 +92,13 @@ namespace RT64
             - Present the swap chain image
     */
 #ifndef RT64_MINIMAL
-    void Device::draw() {
+    void Device::draw(int vsyncInterval, double delta) {
         vkWaitForFences(vkDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
-        uint32_t framebufferIndex;
         VkResult result = vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
 
         // Handle resizing
-        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
-            framebufferResized = false;
-            recreateSwapChain();
-            return;
-        } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-            throw std::runtime_error("failed to acquire swap chain image!");
-        }
+        updateSize(result, "failed to acquire swap chain image!");
 
         // Only reset the fence if we are submitting work
         vkResetFences(vkDevice, 1, &inFlightFences[currentFrame]);
@@ -115,7 +106,11 @@ namespace RT64
         vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
 
         vkResetCommandBuffer(commandBuffers[currentFrame], 0);
-        recordCommandBuffer(commandBuffers[currentFrame], framebufferIndex);
+
+        // Draw the scenes!
+        for (Scene* s : scenes) {
+            s->render(0.0f);
+        }
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -154,16 +149,32 @@ namespace RT64
         // Now pop it on the screen!
         result = vkQueuePresentKHR(presentQueue, &presentInfo); 
 
-        // Handle resizing
+        // Handle resizing again
+        updateSize(result, "failed to present swap chain image!");
+        
+        currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+    }
+
+    void Device::updateViewport() {
+        vkViewport.x = 0.0f;
+        vkViewport.y = 0.0f;
+        vkViewport.width = static_cast<float>(swapChainExtent.width);
+        vkViewport.height = static_cast<float>(swapChainExtent.height);
+        vkViewport.minDepth = 0.0f;
+        vkViewport.maxDepth = 1.0f;
+        vkScissorRect.offset = {0, 0};
+        vkScissorRect.extent = swapChainExtent;
+    }
+
+    void Device::updateSize(VkResult result, const char* error) {
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
             framebufferResized = false;
             recreateSwapChain();
+            updateViewport();
             return;
         } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
-            throw std::runtime_error("failed to present swap chain image!");
+            throw std::runtime_error(error);
         }
-        
-        currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
 
     // The things needed for syncing the CPU and GPU lmao
@@ -182,82 +193,9 @@ namespace RT64
             VK_CHECK(vkCreateFence(vkDevice, &fenceInfo, nullptr, &inFlightFences[i]));
         }
     }
-
-    void Device::createIndexBuffer() {
-        AllocatedResource stagingBuffer;
-        VkDeviceSize bufferSize = sizeof(indices[0]) * indices.size();
-        allocateBuffer(bufferSize, 
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VMA_MEMORY_USAGE_AUTO_PREFER_HOST, 
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
-            &stagingBuffer);
-
-        stagingBuffer.setData(indices.data(), bufferSize);
-        allocateBuffer(bufferSize, 
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
-            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
-            &indexBuffer);
-        copyBuffer(*stagingBuffer.getBuffer(), *indexBuffer.getBuffer(), bufferSize);
-        stagingBuffer.destroyResource();
-    }
-
-    void Device::createVertexBuffer() {
-        AllocatedResource stagingBuffer;
-        VkDeviceSize bufferSize = sizeof(vertices[0]) * vertices.size();
-        allocateBuffer(bufferSize, 
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VMA_MEMORY_USAGE_AUTO_PREFER_HOST, 
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
-            &stagingBuffer);
-
-        stagingBuffer.setData(vertices.data(), bufferSize);
-        // void* data = vertices.data();
-        // memcpy(stagingBuffer.mapMemory(&data), vertices.data(), (size_t)bufferSize);
-        allocateBuffer(bufferSize, 
-            VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
-            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
-            &vertexBuffer);
-        copyBuffer(*stagingBuffer.getBuffer(), *vertexBuffer.getBuffer(), bufferSize);
-        stagingBuffer.destroyResource();
-    }
     
     // The function to write the commands we want into the command buffer
     void Device::recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex) {
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = 0; // Optional
-        beginInfo.pInheritanceInfo = nullptr; // Optional
-
-        VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
-
-        VkRenderPassBeginInfo renderPassInfo{};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassInfo.renderPass = renderPass;
-        renderPassInfo.framebuffer = swapChainFramebuffers[imageIndex];
-        renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = swapChainExtent;
-
-        VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
-        renderPassInfo.clearValueCount = 1;
-        renderPassInfo.pClearValues = &clearColor;
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-
-        VkViewport viewport{};
-        viewport.x = 0.0f;
-        viewport.y = 0.0f;
-        viewport.width = static_cast<float>(swapChainExtent.width);
-        viewport.height = static_cast<float>(swapChainExtent.height);
-        viewport.minDepth = 0.0f;
-        viewport.maxDepth = 1.0f;
-        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-
-        VkRect2D scissor{};
-        scissor.offset = {0, 0};
-        scissor.extent = swapChainExtent;
-        vkCmdSetScissor(commandBuffer, 0, 1, &scissor);
         
         // Time to render!
         for (Scene* s : scenes) {
@@ -270,9 +208,6 @@ namespace RT64
         // vkCmdBindIndexBuffer(commandBuffer, *indexBuffer.getBuffer(), 0, VK_INDEX_TYPE_UINT32);
 
         // vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
-
-        vkCmdEndRenderPass(commandBuffer);
-        VK_CHECK(vkEndCommandBuffer(commandBuffer));
     }
 
     void Device::createCommandBuffers() {
@@ -364,7 +299,7 @@ namespace RT64
 
     #define PS_ENTRY "PSMain"
     #define VS_ENTRY "VSMain"
-    VkShaderModule Device::createShaderModule(const void* code, size_t size, ShaderStage stage, VkPipelineShaderStageCreateInfo& shaderStageInfo) {
+    VkShaderModule Device::createShaderModule(const void* code, size_t size, ShaderStage stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages) {
         VkShaderModuleCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         createInfo.codeSize = size;
@@ -385,18 +320,18 @@ namespace RT64
                 shaderStageInfo.pName = PS_ENTRY;
                 break;
         }
+
+        if (shaderStages) {
+            shaderStages->push_back(shaderStageInfo);
+        }
+        
         return shaderModule;
     }
 
     void Device::createGraphicsPipeline() {
 	    RT64_LOG_PRINTF("Pipeline creation started");
 
-        VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-        VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-        VkShaderModule vertShaderModule = createShaderModule(HelloTriangleVS_SPIRV, sizeof(HelloTriangleVS_SPIRV), VertexStage, vertShaderStageInfo);
-        VkShaderModule fragShaderModule = createShaderModule(HelloTrianglePS_SPIRV, sizeof(HelloTrianglePS_SPIRV), FragmentStage, fragShaderStageInfo);
-
-        VkPipelineShaderStageCreateInfo shaderStages[] = {vertShaderStageInfo, fragShaderStageInfo};
+        std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
         std::vector<VkDynamicState> dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
@@ -407,17 +342,7 @@ namespace RT64
         dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
         dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
         dynamicState.pDynamicStates = dynamicStates.data();
-
-        // We'll probs revisit this when I figure out how to bind vertecies
-        VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        // Bind the vertex inputs
-            auto bindingDescription = TestVertex::getBindingDescription();
-            auto attributeDescriptions = TestVertex::getAttributeDescriptions();
-            vertexInputInfo.vertexBindingDescriptionCount = 1;
-            vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-            vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-            vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+        
         VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
         inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
         inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
@@ -483,11 +408,31 @@ namespace RT64
 
         VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
+        /******************************************
+        * The shaders
+        */
+
+        VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
+        VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
+        VkShaderModule vertShaderModule = createShaderModule(HelloTriangleVS_SPIRV, sizeof(HelloTriangleVS_SPIRV), VertexStage, vertShaderStageInfo, &shaderStages);
+        VkShaderModule fragShaderModule = createShaderModule(HelloTrianglePS_SPIRV, sizeof(HelloTrianglePS_SPIRV), FragmentStage, fragShaderStageInfo, &shaderStages);
+
+        // We'll probs revisit this when I figure out how to bind vertecies
+        VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        // Bind the vertex inputs
+        auto bindingDescription = TestVertex::getBindingDescription();
+        auto attributeDescriptions = TestVertex::getAttributeDescriptions();
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
+        vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
+        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+
         // With your powers combined, I am Captain Pipeline!!!
         VkGraphicsPipelineCreateInfo pipelineInfo{};
         pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipelineInfo.stageCount = 2;
-        pipelineInfo.pStages = shaderStages;
+        pipelineInfo.stageCount = shaderStages.size();
+        pipelineInfo.pStages = shaderStages.data();
         pipelineInfo.pVertexInputState = &vertexInputInfo;
         pipelineInfo.pInputAssemblyState = &inputAssembly;
         pipelineInfo.pViewportState = &viewportState;
@@ -1010,6 +955,12 @@ namespace RT64
     nvvk::RaytracingBuilderKHR& Device::getRTBuilder() { return rtBuilder; }
     VmaAllocator& Device::getMemAllocator() { return allocator; }
 	VkCommandBuffer& Device::getCurrentCommandBuffer() { return commandBuffers[currentFrame]; }
+    VkFramebuffer& Device::getCurrentSwapchainFramebuffer() { return swapChainFramebuffers[framebufferIndex]; };
+    VkRenderPass& Device::getRenderPass() { return renderPass; };
+	VkViewport& Device::getViewport() { return vkViewport; }
+	VkRect2D& Device::getScissors() { return vkScissorRect; }
+    VkExtent2D& Device::getSwapchainExtent() { return swapChainExtent; }
+    VkPipeline& Device::getGraphicsPipeline() { return graphicsPipeline; }
 
     // Adds a scene to the device
     void Device::addScene(Scene* scene) {
@@ -1100,11 +1051,11 @@ DLEXPORT void RT64_DestroyDevice(RT64_DEVICE* devicePtr) {
 
 #ifndef RT64_MINIMAL
 
-DLEXPORT void RT64_DrawDevice(RT64_DEVICE* devicePtr, int vsyncInterval) {
+DLEXPORT void RT64_DrawDevice(RT64_DEVICE* devicePtr, int vsyncInterval, double delta) {
 	assert(devicePtr != nullptr);
 	try {
 		RT64::Device* device = (RT64::Device*)(devicePtr);
-		device->draw();
+		device->draw(vsyncInterval, delta);
 	}
 	RT64_CATCH_EXCEPTION();
 }

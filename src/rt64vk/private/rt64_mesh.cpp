@@ -28,7 +28,7 @@ namespace RT64
         stagingIndexBuffer.destroyResource();
         blasBuffers.destroyResource();
     }
-    
+
     // This function copies the passed in vertex array into the buffer
     void Mesh::updateVertexBuffer(void *vertices, int vertexCount, int vertexStride) {
         const VkDeviceSize vertexBufferSize = vertexCount * vertexStride;
@@ -59,7 +59,7 @@ namespace RT64
         
         // Copy staging buffer to main buffer
         device->copyBuffer(*stagingVertexBuffer.getBuffer(), *vertexBuffer.getBuffer(), vertexBufferSize);
-        
+
         this->vertexCount = vertexCount;
         this->vertexStride = vertexStride;
     }
@@ -186,7 +186,7 @@ DLEXPORT void RT64_SetMesh(RT64_MESH* meshPtr, void* vertexArray, int vertexCoun
 	assert(vertexCount > 0);
 	assert(indexArray != nullptr);
 	assert(indexCount > 0);
-	RT64::Mesh *mesh = (RT64::Mesh *)(meshPtr);
+	RT64::Mesh* mesh = (RT64::Mesh*)(meshPtr);
 	mesh->updateVertexBuffer(vertexArray, vertexCount, vertexStride);
 	mesh->updateIndexBuffer(indexArray, indexCount);
 	// mesh->updateBottomLevelAS();

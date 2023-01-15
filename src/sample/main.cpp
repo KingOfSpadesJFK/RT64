@@ -584,14 +584,12 @@ void setupTestScene() {
 	// }
 
 	memset(&floorTransform, 0, sizeof(RT64_MATRIX4));
-	floorTransform.m[0][0] = 10.0f;
-	floorTransform.m[1][1] = 10.0f;
-	floorTransform.m[2][2] = 10.0f;
+	floorTransform.m[0][0] = 1.0f;
+	floorTransform.m[1][1] = 1.0f;
+	floorTransform.m[2][2] = 1.0f;
 	floorTransform.m[3][3] = 1.0f;
 
-	// RT64_MESH* floorMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED);
-	// RT64.lib.SetMesh(floorMesh, floorVertices, _countof(floorVertices), sizeof(TEST_VERTEX), floorIndices, _countof(floorIndices));
-	RT64_INSTANCE *floorInstance = RT64.lib.CreateInstance(RT64.scene);
+	RT64_INSTANCE* objInstance = RT64.lib.CreateInstance(RT64.scene);
 	instDesc.mesh = objMesh;
 	instDesc.transform = floorTransform;
 	instDesc.previousTransform = floorTransform;
@@ -600,8 +598,13 @@ void setupTestScene() {
 	instDesc.specularTexture = nullptr;
 	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
-	RT64.lib.SetInstanceDescription(floorInstance, instDesc);
+	RT64.lib.SetInstanceDescription(objInstance, instDesc);
 
+	// RT64_MESH* floorMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED);
+	// RT64.lib.SetMesh(floorMesh, floorVertices, _countof(floorVertices), sizeof(TEST_VERTEX), floorIndices, _countof(floorIndices));
+	// RT64_INSTANCE *floorInstance = RT64.lib.CreateInstance(RT64.scene);
+	// instDesc.mesh = floorMesh;
+	// RT64.lib.SetInstanceDescription(floorInstance, instDesc);
 }
 
 int main(int argc, char *argv[]) {
@@ -645,7 +648,7 @@ int main(int argc, char *argv[]) {
 		// Process any poll evenets.
         glfwPollEvents();
 		// Remove when done
-		RT64.lib.DrawDevice(RT64.device, 1);
+		RT64.lib.DrawDevice(RT64.device, 1, 1000.0 / 60.0);
 	}
 
 	destroyRT64();

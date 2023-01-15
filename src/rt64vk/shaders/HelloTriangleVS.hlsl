@@ -1,6 +1,7 @@
 
+#include "GlobalParams.hlsli"
 
-void main(
+void VSMain(
     [[vk::location(0)]] float4 inPosition : POSITION, 
     [[vk::location(1)]] float3 inColor : COLOR0,
 

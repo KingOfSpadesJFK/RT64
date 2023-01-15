@@ -137,6 +137,8 @@ namespace RT64
             void initRayTracing();
             void recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
             void recreateSwapChain();
+            void updateSize(VkResult result, const char* error);
+            void updateViewport();
 
             std::vector<TestVertex> vertices = {
                 {{-0.5f, -0.5f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}},
@@ -147,9 +149,6 @@ namespace RT64
             std::vector<uint32_t> indices = {
                 0, 1, 2, 2, 3, 0
             };
-
-            void createVertexBuffer();
-            void createIndexBuffer();
 
             GLFWwindow* window;
             VkSurfaceKHR vkSurface;
@@ -174,6 +173,7 @@ namespace RT64
             std::vector<VkSemaphore> renderFinishedSemaphores;
             std::vector<VkFence> inFlightFences;
             uint32_t currentFrame = 0;
+            uint32_t framebufferIndex = 0;
             AllocatedResource vertexBuffer;
             AllocatedResource indexBuffer;
             // VkDeviceMemory vertexBufferMemory;
@@ -209,13 +209,19 @@ namespace RT64
 		    nvvk::RaytracingBuilderKHR& getRTBuilder();
 		    VmaAllocator& getMemAllocator();
 		    VkCommandBuffer& getCurrentCommandBuffer();
+		    VkFramebuffer& getCurrentSwapchainFramebuffer();
+		    VkExtent2D& getSwapchainExtent();
+            VkPipeline& getGraphicsPipeline();
+            VkRenderPass& getRenderPass();
+		    VkViewport& getViewport();
+		    VkRect2D& getScissors();
 
             VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedResource* alre);
             void copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size);
-            void draw();
+            void draw(int vsyncInterval, double delta);
 		    void addScene(Scene* scene);
 		    void removeScene(Scene* scene);
-            VkShaderModule createShaderModule(const void* arr, size_t size, ShaderStage stage , VkPipelineShaderStageCreateInfo& shaderStageInfo);
+            VkShaderModule createShaderModule(const void* code, size_t size, ShaderStage stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }

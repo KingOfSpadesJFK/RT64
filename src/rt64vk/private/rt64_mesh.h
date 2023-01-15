@@ -18,10 +18,8 @@ namespace RT64
             Device *device;
             AllocatedResource vertexBuffer;             // The actual one; the one optimized for the GPU
             AllocatedResource stagingVertexBuffer;      // The temporary one used for like doing stuff on the CPU
-            VkBufferView vkVertexBufferView;
             AllocatedResource indexBuffer;
             AllocatedResource stagingIndexBuffer;
-            VkBufferView vkIndexBufferView;
             int vertexCount;
             int vertexStride;
             int indexCount;

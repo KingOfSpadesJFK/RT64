@@ -37,7 +37,36 @@ namespace RT64
 
     void View::render(float deltaTimeMs) { 
         VkCommandBuffer& commandBuffer = scene->getDevice()->getCurrentCommandBuffer();
+        VkViewport viewport = scene->getDevice()->getViewport();
+        VkRect2D scissors = scene->getDevice()->getScissors();
+        VkRenderPass renderPass = scene->getDevice()->getRenderPass();
+        VkFramebuffer framebuffer = scene->getDevice()->getCurrentSwapchainFramebuffer();
+        VkExtent2D swapChainExtent = scene->getDevice()->getSwapchainExtent();
+        VkPipeline graphicsPipeline = scene->getDevice()->getGraphicsPipeline();
 
+        VkCommandBufferBeginInfo beginInfo{};
+        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+        beginInfo.flags = 0; // Optional
+        beginInfo.pInheritanceInfo = nullptr; // Optional
+
+        VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
+
+        VkRenderPassBeginInfo renderPassInfo{};
+        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+        renderPassInfo.renderPass = renderPass;
+        renderPassInfo.framebuffer = framebuffer;
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent = swapChainExtent;
+        VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+        renderPassInfo.clearValueCount = 1;
+        renderPassInfo.pClearValues = &clearColor;
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissors);
+
+        // Draw the meshes
         std::vector<VkBuffer*> vertexBuffers;
         std::vector<VkBuffer*> indexBuffers;
         for (Instance* i : scene->getInstances()) {
@@ -48,6 +77,9 @@ namespace RT64
             vkCmdBindIndexBuffer(commandBuffer, *mesh->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
             vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(mesh->getIndexCount()), 1, 0, 0, 0);
         }
+
+        vkCmdEndRenderPass(commandBuffer);
+        VK_CHECK(vkEndCommandBuffer(commandBuffer));
     }
 };
 

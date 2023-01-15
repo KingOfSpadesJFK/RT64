@@ -287,7 +287,7 @@ typedef unsigned int WPARAM;
 typedef const char *(*GetLastErrorPtr)();
 typedef RT64_DEVICE* (*CreateDevicePtr)(void* glfwWindow);
 typedef void (*DestroyDevicePtr)(RT64_DEVICE* device);
-typedef void (*DrawDevicePtr)(RT64_DEVICE *device, int vsyncInterval);
+typedef void (*DrawDevicePtr)(RT64_DEVICE *device, int vsyncInterval, double delta);
 typedef RT64_VIEW* (*CreateViewPtr)(RT64_SCENE* scenePtr);
 typedef void (*SetViewPerspectivePtr)(RT64_VIEW *viewPtr, RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist, bool canReproject);
 typedef void (*SetViewDescriptionPtr)(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc);

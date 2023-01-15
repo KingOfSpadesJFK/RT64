@@ -32,7 +32,6 @@ namespace RT64{
 
 	Instance::~Instance() {
 		scene->removeInstance(this);
-		
 		delete mesh;
 	}
 
