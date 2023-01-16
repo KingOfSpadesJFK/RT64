@@ -11,7 +11,6 @@ set(CONTRIB_DIR ${LIBRT64VK_DIR}/contrib)
 set(RT64_HEADER ${LIBRT64VK_DIR}/public/rt64.h)
 set(SHADER_DIR ${LIBRT64VK_DIR}/shaders)
 # third party directories
-set(NVPRO_DIR ${CONTRIB_DIR}/nvpro_core)
 set(IMGUI_DIR ${CONTRIB_DIR}/imgui)
 set(VMA_DIR ${CONTRIB_DIR}/VulkanMemoryAllocator)
 set(DXC_DIR ${CONTRIB_DIR}/dxc)
@@ -62,35 +61,12 @@ execute_process(COMMAND dxc ${SHADER_DIR}/Im3DGSLines.hlsl -spirv -fspv-target-e
 #######################################################################
 # The real building
 
-# Build the nvpro_core sources
-# I probs shouldn't build them all but I tried just building the
-#  ones I need and got tired of it
-set(NVPWINDOW_SOURCE
-  ${NVPRO_DIR}/nvp/perproject_globals.cpp
-)
-file(GLOB NVHELPERS_SOURCE ${NVPRO_DIR}/nvh/*.cpp ${NVPRO_DIR}/nvh/*.hpp ${NVPRO_DIR}/nvh/*.inl ${NVPRO_DIR}/nvh/*.h)
-file(GLOB NVHELPERSVK_SOURCE ${NVPRO_DIR}/nvvk/*.cpp ${NVPRO_DIR}/nvvk/*.hpp ${NVPRO_DIR}/nvvk/*.inl ${NVPRO_DIR}/nvvk/*.h)
-
-# Exclude these nvpro_core sources
-list(REMOVE_ITEM NVHELPERSVK_SOURCE ${NVPRO_DIR}/nvvk/appwindowprofiler_vk.cpp)
-list(REMOVE_ITEM NVHELPERSVK_SOURCE ${NVPRO_DIR}/nvvk/appwindowprofiler_vk.hpp)
-list(REMOVE_ITEM NVHELPERS_SOURCE ${NVPRO_DIR}/nvh/gltfscene.cpp)
-list(REMOVE_ITEM NVHELPERS_SOURCE ${NVPRO_DIR}/nvh/gltfscene.hpp)
-list(REMOVE_ITEM NVHELPERS_SOURCE ${NVPRO_DIR}/nvh/appwindowprofiler.cpp)
-list(REMOVE_ITEM NVHELPERS_SOURCE ${NVPRO_DIR}/nvh/appwindowprofiler.hpp)
-list(REMOVE_ITEM NVHELPERS_SOURCE ${NVPRO_DIR}/nvh/cameramanipulator.cpp)
-list(REMOVE_ITEM NVHELPERS_SOURCE ${NVPRO_DIR}/nvh/cameramanipulator.hpp)
-
 # Include the dxc headers
 if(UNIX)
     set(DXC_HEADER_DIR ${DXC_DIR}/include/linux)
 else()
     set(DXC_HEADER_DIR ${DXC_DIR}/include/win)
 endif()
-
-source_group("nvvk" FILES ${NVHELPERSVK_SOURCE})
-source_group("nvh" FILES ${NVHELPERS_SOURCE})
-source_group("nvp" FILES ${NVPWINDOW_SOURCE})
 
 if(UNIX)
     LIST(APPEND PLATFORM /usr/include/glm/simd)
@@ -109,19 +85,14 @@ add_library(rt64vk SHARED
     ${LIBRT64VK_DIR}/private/rt64_view.cpp
     ${LIBRT64VK_DIR}/private/rt64_mesh.cpp
     ${LIBRT64VK_DIR}/private/rt64_instance.cpp
-    ${NVHELPERS_SOURCE}
-    ${NVHELPERSVK_SOURCE}
-    ${NVPWINDOW_SOURCE}
 )
 target_include_directories(rt64vk PRIVATE 
     ${LIBRT64VK_DIR}
     ${CONTRIB_DIR}
     ${VMA_DIR}
-    ${NVPRO_DIR}
     ${IMGUI_DIR}
-    ${NVPWINDOW_SOURCE}
-    ${PLATFORM}
     ${DXC_DIR}
+    ${PLATFORM}
 )
 target_link_libraries(rt64vk
     vulkan

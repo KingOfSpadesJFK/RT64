@@ -8,6 +8,7 @@
 
 #include <map>
 #include <set>
+#include <chrono>
 
 #include "rt64_device.h"
 // #include "rt64_dlss.h"
@@ -25,15 +26,92 @@ namespace RT64
 {
     View::View(Scene* scene) {
         this->scene = scene;
+        this->device = scene->getDevice();
+
+        createGlobalParamsBuffer();
+        createDescriptorPool();
+        createDescriptorSets();
 
 	    scene->addView(this);
     }
 
     View::~View() {
         scene->removeView(this);
+
+        vkDestroyDescriptorPool(device->getVkDevice(), descriptorPool, nullptr);
+        globalParamsBuffer.destroyResource();
     }
 
-    void View::update() { }
+    void View::createDescriptorPool() {
+        VkDescriptorPoolSize poolSize{};
+        poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = 1;
+        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        VK_CHECK(vkCreateDescriptorPool(device->getVkDevice(), &poolInfo, nullptr, &descriptorPool));
+    }
+
+    void View::createDescriptorSets() {
+        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, device->getDescriptorSetLayout());
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        allocInfo.pSetLayouts = layouts.data();
+
+        descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+        VK_CHECK(vkAllocateDescriptorSets(device->getVkDevice(), &allocInfo, descriptorSets.data()));
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            VkDescriptorBufferInfo bufferInfo{};
+            bufferInfo.buffer = *globalParamsBuffer.getBuffer();
+            bufferInfo.offset = 0;
+            bufferInfo.range = globalParamsSize;
+
+            VkWriteDescriptorSet descriptorWrite{};
+            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrite.dstSet = descriptorSets[i];
+            descriptorWrite.dstBinding = 0;
+            descriptorWrite.dstArrayElement = 0;
+            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrite.descriptorCount = 1;
+            descriptorWrite.pBufferInfo = &bufferInfo;
+            descriptorWrite.pImageInfo = nullptr; // Optional
+            descriptorWrite.pTexelBufferView = nullptr; // Optional
+            vkUpdateDescriptorSets(device->getVkDevice(), 1, &descriptorWrite, 0, nullptr);
+        }
+    }
+
+    void View::createGlobalParamsBuffer() {
+        globalParamsSize = sizeof(GlobalParams);
+        device->allocateBuffer(
+            globalParamsSize,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            &globalParamsBuffer
+        );
+    }
+
+    void View::updateGlobalParamsBuffer() {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+        globalParamsData.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        globalParamsData.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        globalParamsData.projection = glm::perspective(glm::radians(45.0f), (float)this->scene->getDevice()->getAspectRatio(), 0.1f, 10.0f);
+        globalParamsData.projection[1][1] *= -1;
+        globalParamsBuffer.setData(&globalParamsData, sizeof(globalParamsData));
+    }
+
+    void View::update() {
+        updateGlobalParamsBuffer();
+    }
 
     void View::render(float deltaTimeMs) { 
         VkCommandBuffer& commandBuffer = scene->getDevice()->getCurrentCommandBuffer();
@@ -44,7 +122,6 @@ namespace RT64
         VkExtent2D swapChainExtent = scene->getDevice()->getSwapchainExtent();
         VkPipeline graphicsPipeline = scene->getDevice()->getGraphicsPipeline();
         VkPipelineLayout pipelineLayout = scene->getDevice()->getPipelineLayout();
-        VkDescriptorSet descriptorSet = scene->getDevice()->getCurrentDescriptorSet();
 
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -64,7 +141,7 @@ namespace RT64
         renderPassInfo.pClearValues = &clearColor;
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[device->getCurrentFrameIndex()], 0, nullptr);
 
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
         vkCmdSetScissor(commandBuffer, 0, 1, &scissors);

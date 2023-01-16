@@ -10,6 +10,7 @@
 #include <cstring>
 #include <string>
 #include <vector>
+#include <stdio.h>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 

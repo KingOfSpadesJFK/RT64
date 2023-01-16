@@ -37,44 +37,60 @@ namespace RT64
                 UINT flags;
             };
 
-            struct GlobalParamsBuffer {
+            struct GlobalParams {
+                glm::mat4 model;            // Temporary member
+                
                 glm::mat4 view;
-                glm::mat4 viewI;
-                glm::mat4 prevViewI;
+                // glm::mat4 viewI;
+                // glm::mat4 prevViewI;
                 glm::mat4 projection;
-                glm::mat4 projectionI;
-                glm::mat4 viewProj;
-                glm::mat4 prevViewProj;
-                RT64_VECTOR4 cameraU;
-                RT64_VECTOR4 cameraV;
-                RT64_VECTOR4 cameraW;
-                RT64_VECTOR4 viewport;
-                RT64_VECTOR4 resolution;
-                RT64_VECTOR4 ambientBaseColor;
-                RT64_VECTOR4 ambientNoGIColor;
-                RT64_VECTOR4 eyeLightDiffuseColor;
-                RT64_VECTOR4 eyeLightSpecularColor;
-                RT64_VECTOR4 skyDiffuseMultiplier;
-                RT64_VECTOR4 skyHSLModifier;
-                RT64_VECTOR2 pixelJitter;
-                float skyYawOffset;
-                float giDiffuseStrength;
-                float giSkyStrength;
-                float motionBlurStrength;
-                int skyPlaneTexIndex;
-                unsigned int randomSeed;
-                unsigned int diSamples;
-                unsigned int giSamples;
-                unsigned int diReproject;
-                unsigned int giReproject;
-                unsigned int binaryLockMask;
-                unsigned int maxLights;
-                unsigned int motionBlurSamples;
-                unsigned int visualizationMode;
-                unsigned int frameCount;
+                // glm::mat4 projectionI;
+                // glm::mat4 viewProj;
+                // glm::mat4 prevViewProj;
+                // RT64_VECTOR4 cameraU;
+                // RT64_VECTOR4 cameraV;
+                // RT64_VECTOR4 cameraW;
+                // RT64_VECTOR4 viewport;
+                // RT64_VECTOR4 resolution;
+                // RT64_VECTOR4 ambientBaseColor;
+                // RT64_VECTOR4 ambientNoGIColor;
+                // RT64_VECTOR4 eyeLightDiffuseColor;
+                // RT64_VECTOR4 eyeLightSpecularColor;
+                // RT64_VECTOR4 skyDiffuseMultiplier;
+                // RT64_VECTOR4 skyHSLModifier;
+                // RT64_VECTOR2 pixelJitter;
+                // float skyYawOffset;
+                // float giDiffuseStrength;
+                // float giSkyStrength;
+                // float motionBlurStrength;
+                // int skyPlaneTexIndex;
+                // unsigned int randomSeed;
+                // unsigned int diSamples;
+                // unsigned int giSamples;
+                // unsigned int diReproject;
+                // unsigned int giReproject;
+                // unsigned int binaryLockMask;
+                // unsigned int maxLights;
+                // unsigned int motionBlurSamples;
+                // unsigned int visualizationMode;
+                // unsigned int frameCount;
             };
 
+            Device *device;
             Scene *scene;
+            VkDescriptorPool descriptorPool;
+            std::vector<VkDescriptorSet> descriptorSets;
+
+            AllocatedResource globalParamsBuffer;
+            GlobalParams globalParamsData;
+            VkDeviceSize globalParamsSize;
+
+            void createDescriptorPool();
+            void createDescriptorSets();
+
+            void createGlobalParamsBuffer();
+            void updateGlobalParamsBuffer();
+            
         public:
             View(Scene *scene);
             virtual ~View();

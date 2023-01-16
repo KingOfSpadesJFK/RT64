@@ -8,14 +8,12 @@
 
 #include "rt64_scene.h"
 
-#include "../contrib/nvpro_core/nvvk/raytraceKHR_vk.hpp"
-#include "../contrib/nvpro_core/nvvk/memallocator_dma_vk.hpp"
-#include "../contrib/nvpro_core/nvvk/resourceallocator_vk.hpp"
-
 #include <glm/gtc/matrix_transform.hpp>
 #include <GLFW/glfw3.h>
 #include <vector>
 #include <optional>
+#include <vulkan/vulkan.h>
+#include <array>
 
 #ifdef _WIN32
     #define VK_USE_PLATFORM_WIN32_KHR
@@ -23,13 +21,7 @@
     #include <GLFW/glfw3native.h>
 #endif
 
-namespace nvvk
-{
-    class ResourceAllocator;
-    class RaytracingBuilderKHR;
-    class ResourceAllocatorDma;
-    class CommandPool;
-}
+#define MAX_FRAMES_IN_FLIGHT    2
 
 namespace RT64
 {
@@ -95,7 +87,6 @@ namespace RT64
     class Device
     {
         private:
-            const int MAX_FRAMES_IN_FLIGHT = 2;
             VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
             VkInstance vkInstance;
             VkDevice vkDevice;
@@ -141,16 +132,11 @@ namespace RT64
             void createCommandBuffers();
             void createSyncObjects();
 
-            void createUniformBuffers();
-            void createDescriptorPool();
-            void createDescriptorSets();
-
             void initRayTracing();
             void recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
             void recreateSwapChain();
             void updateSize(VkResult result, const char* error);
             void updateViewport();
-            void updateUniformBuffer(uint32_t currentImage);
 
             std::vector<TestVertex> vertices = {
                 {{-0.5f, -0.5f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}},
@@ -172,8 +158,6 @@ namespace RT64
             std::vector<Shader*> shaders;
             std::vector<Inspector*> inspectors;
 		    Mipmaps *mipmaps;
-            nvvk::RaytracingBuilderKHR rtBuilder;
-            nvvk::ResourceAllocatorDma memAlloc;
             VmaAllocator allocator;
             VkDescriptorSetLayout descriptorSetLayout;
             VkPipelineLayout pipelineLayout;
@@ -187,9 +171,6 @@ namespace RT64
             std::vector<VkFence> inFlightFences;
             uint32_t currentFrame = 0;
             uint32_t framebufferIndex = 0;
-            AllocatedResource uniformBuffer;
-            VkDescriptorPool descriptorPool;
-            std::vector<VkDescriptorSet> descriptorSets;
 
             VkViewport vkViewport;
             VkRect2D vkScissorRect;
@@ -222,18 +203,20 @@ namespace RT64
             /********************** Getters **********************/
 		    VkDevice& getVkDevice();
 		    VkPhysicalDevice& getPhysicalDevice();
-		    nvvk::RaytracingBuilderKHR& getRTBuilder();
+		    // nvvk::RaytracingBuilderKHR& getRTBuilder();
 		    VmaAllocator& getMemAllocator();
 		    VkExtent2D& getSwapchainExtent();
+            VkDescriptorSetLayout& getDescriptorSetLayout();
             VkPipelineLayout& getPipelineLayout();
             VkPipeline& getGraphicsPipeline();
             VkRenderPass& getRenderPass();
 		    VkViewport& getViewport();
 		    VkRect2D& getScissors();
+		    double getAspectRatio();
+            int getCurrentFrameIndex();
 
 		    VkCommandBuffer& getCurrentCommandBuffer();
 		    VkFramebuffer& getCurrentSwapchainFramebuffer();
-            VkDescriptorSet& getCurrentDescriptorSet();
 
             VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedResource* alre);
             void copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size);

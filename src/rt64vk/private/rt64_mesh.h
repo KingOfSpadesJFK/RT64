@@ -27,7 +27,7 @@ namespace RT64
             int flags;
 
             void createBottomLevelAS(std::vector<std::pair<VkBuffer*, uint32_t>> vVertexBuffers, std::vector<std::pair<VkBuffer *, uint32_t>> vIndexBuffers);
-            nvvk::RaytracingBuilderKHR::BlasInput modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount);
+            // nvvk::RaytracingBuilderKHR::BlasInput modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount);
         public:
             Mesh(Device* device, int flags);
             virtual ~Mesh();

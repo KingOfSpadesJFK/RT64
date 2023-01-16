@@ -15,6 +15,7 @@
 #include "rt64_device.h"
 #include "rt64_instance.h"
 #include "rt64_view.h"
+#include <bits/stl_algo.h>
 
 namespace RT64
 {
@@ -51,17 +52,17 @@ namespace RT64
         }
     }
 
-    void RT64::Scene::update() {
+    void Scene::update() {
         RT64_LOG_PRINTF("Started scene update");
 
         for (View *view : views) {
-            // view->update();
+            view->update();
         }
 
         RT64_LOG_PRINTF("Finished scene update");
     }
 
-    void RT64::Scene::render(float deltaTimeMs) {
+    void Scene::render(float deltaTimeMs) {
         RT64_LOG_PRINTF("Started scene render");
 
         for (View *view : views) {
@@ -85,12 +86,12 @@ namespace RT64
         return description;
     }
 
-    void RT64::Scene::addInstance(Instance *instance) {
+    void RT64::Scene::addInstance(Instance* instance) {
         assert(instance != nullptr);
         instances.push_back(instance);
     }
 
-    void RT64::Scene::removeInstance(Instance *instance) {
+    void RT64::Scene::removeInstance(Instance* instance) {
         assert(instance != nullptr);
 
         auto it = std::find(instances.begin(), instances.end(), instance);
@@ -99,19 +100,19 @@ namespace RT64
         }
     }
 
-    void RT64::Scene::addView(View *view) {
+    void RT64::Scene::addView(View* view) {
         views.push_back(view);
     }
 
-    void RT64::Scene::removeView(View *view) {
+    void RT64::Scene::removeView(View* view) {
         // TODO
     }
 
-    const std::vector<RT64::View *> &RT64::Scene::getViews() const {
+    const std::vector<RT64::View*>&RT64::Scene::getViews() const {
         return views;
     }
 
-    void RT64::Scene::setLights(RT64_LIGHT *lightArray, int lightCount) {
+    void RT64::Scene::setLights(RT64_LIGHT* lightArray, int lightCount) {
         static std::default_random_engine randomEngine;
         static std::uniform_real_distribution<float> randomDistribution(0.0f, 1.0f);
 
@@ -140,7 +141,7 @@ namespace RT64
 
             // Modify light colors with flicker intensity if necessary.
             while (i < lightCount) {
-                RT64_LIGHT *light = ((RT64_LIGHT *)(pData));
+                RT64_LIGHT *light = ((RT64_LIGHT*)(pData));
                 const float flickerIntensity = light->flickerIntensity;
                 if (flickerIntensity > 0.0) {
                     const float flickerMult = 1.0f + ((randomDistribution(randomEngine) * 2.0f - 1.0f) * flickerIntensity);
@@ -177,22 +178,22 @@ namespace RT64
 
 // Public
 
-DLEXPORT RT64_SCENE *RT64_CreateScene(RT64_DEVICE *devicePtr) {
-    RT64::Device *device = (RT64::Device *)(devicePtr);
-    return (RT64_SCENE *)(new RT64::Scene(device));
+DLEXPORT RT64_SCENE* RT64_CreateScene(RT64_DEVICE*devicePtr) {
+    RT64::Device* device = (RT64::Device*)(devicePtr);
+    return (RT64_SCENE*)(new RT64::Scene(device));
 }
 
-DLEXPORT void RT64_SetSceneDescription(RT64_SCENE *scenePtr, RT64_SCENE_DESC sceneDesc) {
-    RT64::Scene *scene = (RT64::Scene *)(scenePtr);
+DLEXPORT void RT64_SetSceneDescription(RT64_SCENE* scenePtr, RT64_SCENE_DESC sceneDesc) {
+    RT64::Scene* scene = (RT64::Scene*)(scenePtr);
     scene->setDescription(sceneDesc);
 }
 
-DLEXPORT void RT64_SetSceneLights(RT64_SCENE *scenePtr, RT64_LIGHT *lightArray, int lightCount) {
-    RT64::Scene *scene = (RT64::Scene *)(scenePtr);
+DLEXPORT void RT64_SetSceneLights(RT64_SCENE* scenePtr, RT64_LIGHT* lightArray, int lightCount) {
+    RT64::Scene* scene = (RT64::Scene*)(scenePtr);
     scene->setLights(lightArray, lightCount);
 }
 
-DLEXPORT void RT64_DestroyScene(RT64_SCENE *scenePtr) {
-    delete (RT64::Scene *)(scenePtr);
+DLEXPORT void RT64_DestroyScene(RT64_SCENE* scenePtr) {
+    delete (RT64::Scene*)(scenePtr);
 }
 #endif
