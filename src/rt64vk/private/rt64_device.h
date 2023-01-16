@@ -12,6 +12,7 @@
 #include "../contrib/nvpro_core/nvvk/memallocator_dma_vk.hpp"
 #include "../contrib/nvpro_core/nvvk/resourceallocator_vk.hpp"
 
+#include <glm/gtc/matrix_transform.hpp>
 #include <GLFW/glfw3.h>
 #include <vector>
 #include <optional>
@@ -85,6 +86,11 @@ namespace RT64
             return attributeDescriptions;
         }
     };
+    struct UniformBufferObject {
+        glm::mat4 model;
+        glm::mat4 view;
+        glm::mat4 proj;
+    };
     
     class Device
     {
@@ -128,17 +134,23 @@ namespace RT64
             void createSwapChain();
             void createImageViews();
 		    void createRenderPass();
+            void createDescriptorSetLayout();
 		    void createGraphicsPipeline();
             void createFramebuffers();
             void createCommandPool();
             void createCommandBuffers();
             void createSyncObjects();
 
+            void createUniformBuffers();
+            void createDescriptorPool();
+            void createDescriptorSets();
+
             void initRayTracing();
             void recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
             void recreateSwapChain();
             void updateSize(VkResult result, const char* error);
             void updateViewport();
+            void updateUniformBuffer(uint32_t currentImage);
 
             std::vector<TestVertex> vertices = {
                 {{-0.5f, -0.5f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}},
@@ -163,6 +175,7 @@ namespace RT64
             nvvk::RaytracingBuilderKHR rtBuilder;
             nvvk::ResourceAllocatorDma memAlloc;
             VmaAllocator allocator;
+            VkDescriptorSetLayout descriptorSetLayout;
             VkPipelineLayout pipelineLayout;
             VkRenderPass renderPass;
             VkPipeline graphicsPipeline;
@@ -174,9 +187,9 @@ namespace RT64
             std::vector<VkFence> inFlightFences;
             uint32_t currentFrame = 0;
             uint32_t framebufferIndex = 0;
-            AllocatedResource vertexBuffer;
-            AllocatedResource indexBuffer;
-            // VkDeviceMemory vertexBufferMemory;
+            AllocatedResource uniformBuffer;
+            VkDescriptorPool descriptorPool;
+            std::vector<VkDescriptorSet> descriptorSets;
 
             VkViewport vkViewport;
             VkRect2D vkScissorRect;
@@ -203,18 +216,24 @@ namespace RT64
 
             Device(GLFWwindow* window);
 		    virtual ~Device();
+
 #ifndef RT64_MINIMAL
+
+            /********************** Getters **********************/
 		    VkDevice& getVkDevice();
 		    VkPhysicalDevice& getPhysicalDevice();
 		    nvvk::RaytracingBuilderKHR& getRTBuilder();
 		    VmaAllocator& getMemAllocator();
-		    VkCommandBuffer& getCurrentCommandBuffer();
-		    VkFramebuffer& getCurrentSwapchainFramebuffer();
 		    VkExtent2D& getSwapchainExtent();
+            VkPipelineLayout& getPipelineLayout();
             VkPipeline& getGraphicsPipeline();
             VkRenderPass& getRenderPass();
 		    VkViewport& getViewport();
 		    VkRect2D& getScissors();
+
+		    VkCommandBuffer& getCurrentCommandBuffer();
+		    VkFramebuffer& getCurrentSwapchainFramebuffer();
+            VkDescriptorSet& getCurrentDescriptorSet();
 
             VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedResource* alre);
             void copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size);

@@ -43,6 +43,8 @@ namespace RT64
         VkFramebuffer framebuffer = scene->getDevice()->getCurrentSwapchainFramebuffer();
         VkExtent2D swapChainExtent = scene->getDevice()->getSwapchainExtent();
         VkPipeline graphicsPipeline = scene->getDevice()->getGraphicsPipeline();
+        VkPipelineLayout pipelineLayout = scene->getDevice()->getPipelineLayout();
+        VkDescriptorSet descriptorSet = scene->getDevice()->getCurrentDescriptorSet();
 
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -62,6 +64,7 @@ namespace RT64
         renderPassInfo.pClearValues = &clearColor;
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSet, 0, nullptr);
 
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
         vkCmdSetScissor(commandBuffer, 0, 1, &scissors);

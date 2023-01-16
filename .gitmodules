@@ -7,3 +7,6 @@
 [submodule "src/rt64vk/contrib/imgui"]
 	path = src/rt64vk/contrib/imgui
 	url = https://github.com/ocornut/imgui/
+[submodule "src/rt64vk/contrib/DirectXMath"]
+	path = src/rt64vk/contrib/DirectXMath
+	url = https://github.com/microsoft/DirectXMath

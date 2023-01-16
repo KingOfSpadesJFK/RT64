@@ -53,9 +53,14 @@ namespace RT64
         updateViewport();
         createImageViews();
         createRenderPass();
+        createDescriptorSetLayout();
         createGraphicsPipeline();
         createFramebuffers();
         createCommandPool();
+
+        createUniformBuffers();
+        createDescriptorPool();
+        createDescriptorSets();
 
         createCommandBuffers();
         createSyncObjects();
@@ -112,6 +117,8 @@ namespace RT64
             s->render(0.0f);
         }
 
+        updateUniformBuffer(currentFrame);
+
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
@@ -155,6 +162,20 @@ namespace RT64
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
     }
 
+    void Device::updateUniformBuffer(uint32_t currentImage) {
+        static auto startTime = std::chrono::high_resolution_clock::now();
+
+        auto currentTime = std::chrono::high_resolution_clock::now();
+        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
+
+        UniformBufferObject ubo{};
+        ubo.model = glm::rotate(glm::mat4(1.0f), time * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.view = glm::lookAt(glm::vec3(2.0f, 2.0f, 2.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+        ubo.proj = glm::perspective(glm::radians(45.0f), swapChainExtent.width / (float) swapChainExtent.height, 0.1f, 10.0f);
+        ubo.proj[1][1] *= -1;
+        uniformBuffer.setData(&ubo, sizeof(ubo));
+    }
+
     void Device::updateViewport() {
         vkViewport.x = 0.0f;
         vkViewport.y = 0.0f;
@@ -175,6 +196,60 @@ namespace RT64
         } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
             throw std::runtime_error(error);
         }
+    }
+
+    void Device::createDescriptorSets() {
+        std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, descriptorSetLayout);
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        allocInfo.pSetLayouts = layouts.data();
+
+        descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
+        VK_CHECK(vkAllocateDescriptorSets(vkDevice, &allocInfo, descriptorSets.data()));
+
+        for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            VkDescriptorBufferInfo bufferInfo{};
+            bufferInfo.buffer = *uniformBuffer.getBuffer();
+            bufferInfo.offset = 0;
+            bufferInfo.range = sizeof(UniformBufferObject);
+
+            VkWriteDescriptorSet descriptorWrite{};
+            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrite.dstSet = descriptorSets[i];
+            descriptorWrite.dstBinding = 0;
+            descriptorWrite.dstArrayElement = 0;
+            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrite.descriptorCount = 1;
+            descriptorWrite.pBufferInfo = &bufferInfo;
+            descriptorWrite.pImageInfo = nullptr; // Optional
+            descriptorWrite.pTexelBufferView = nullptr; // Optional
+            vkUpdateDescriptorSets(vkDevice, 1, &descriptorWrite, 0, nullptr);
+        }
+    }
+
+    void Device::createDescriptorPool() {
+        VkDescriptorPoolSize poolSize{};
+        poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = 1;
+        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+        VK_CHECK(vkCreateDescriptorPool(vkDevice, &poolInfo, nullptr, &descriptorPool));
+    }
+
+    void Device::createUniformBuffers() {
+        VkDeviceSize bufferSize = sizeof(UniformBufferObject);
+        allocateBuffer(
+            bufferSize,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            &uniformBuffer
+        );
     }
 
     // The things needed for syncing the CPU and GPU lmao
@@ -328,6 +403,22 @@ namespace RT64
         return shaderModule;
     }
 
+    void Device::createDescriptorSetLayout() {
+        VkDescriptorSetLayoutBinding uboLayoutBinding{};
+        uboLayoutBinding.binding = 0;
+        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        uboLayoutBinding.descriptorCount = 1;
+        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = 1;
+        layoutInfo.pBindings = &uboLayoutBinding;
+        VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &descriptorSetLayout));
+
+    }
+
     void Device::createGraphicsPipeline() {
 	    RT64_LOG_PRINTF("Pipeline creation started");
 
@@ -363,7 +454,7 @@ namespace RT64
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
         rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
         rasterizer.depthBiasConstantFactor = 0.0f; // Optional
         rasterizer.depthBiasClamp = 0.0f; // Optional
@@ -401,8 +492,8 @@ namespace RT64
 
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 0; // Optional
-        pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; 
         pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
         pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
@@ -926,13 +1017,16 @@ namespace RT64
             vkDestroySemaphore(vkDevice, renderFinishedSemaphores[i], nullptr);
             vkDestroyFence(vkDevice, inFlightFences[i], nullptr);
         }
-        
+
+        vkDestroyDescriptorPool(vkDevice, descriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(vkDevice, descriptorSetLayout, nullptr);
         // Destroy the scenes
         auto scenesCopy = scenes;
         for (Scene* scene : scenesCopy) {
             delete scene;
         }
-
+        
+        uniformBuffer.destroyResource();
 		vmaDestroyAllocator(allocator);
         // TODO: Actually delete stuff instead of just leaking everything.
 #endif
@@ -950,17 +1044,22 @@ namespace RT64
     // Public
 
 #ifndef RT64_MINIMAL
+
+    /********************** Getters **********************/
     VkDevice& Device::getVkDevice() { return vkDevice; }
     VkPhysicalDevice& Device::getPhysicalDevice() { return physicalDevice; }
     nvvk::RaytracingBuilderKHR& Device::getRTBuilder() { return rtBuilder; }
     VmaAllocator& Device::getMemAllocator() { return allocator; }
-	VkCommandBuffer& Device::getCurrentCommandBuffer() { return commandBuffers[currentFrame]; }
-    VkFramebuffer& Device::getCurrentSwapchainFramebuffer() { return swapChainFramebuffers[framebufferIndex]; };
     VkRenderPass& Device::getRenderPass() { return renderPass; };
-	VkViewport& Device::getViewport() { return vkViewport; }
-	VkRect2D& Device::getScissors() { return vkScissorRect; }
     VkExtent2D& Device::getSwapchainExtent() { return swapChainExtent; }
     VkPipeline& Device::getGraphicsPipeline() { return graphicsPipeline; }
+    VkPipelineLayout& Device::getPipelineLayout() { return pipelineLayout; }
+	VkViewport& Device::getViewport() { return vkViewport; }
+	VkRect2D& Device::getScissors() { return vkScissorRect; }
+
+	VkCommandBuffer& Device::getCurrentCommandBuffer() { return commandBuffers[currentFrame]; }
+    VkFramebuffer& Device::getCurrentSwapchainFramebuffer() { return swapChainFramebuffers[framebufferIndex]; };
+	VkDescriptorSet& Device::getCurrentDescriptorSet() { return descriptorSets[currentFrame]; }
 
     // Adds a scene to the device
     void Device::addScene(Scene* scene) {
