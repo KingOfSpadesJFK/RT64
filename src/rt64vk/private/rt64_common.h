@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
+#include <bits/stl_algo.h>		// Idk why I know have to throw in this include in other than it makes it compile
 
 #include "../contrib/VulkanMemoryAllocator/vk_mem_alloc.h"
 

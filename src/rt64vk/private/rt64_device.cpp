@@ -53,10 +53,11 @@ namespace RT64
         updateViewport();
         createImageViews();
         createRenderPass();
-        createDescriptorSetLayout();
-        createGraphicsPipeline();
         createFramebuffers();
         createCommandPool();
+
+        createDescriptorSetLayout();
+        createGraphicsPipeline();
 
         createCommandBuffers();
         createSyncObjects();
@@ -99,12 +100,13 @@ namespace RT64
         VkResult result = vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
 
         // Handle resizing
-        updateSize(result, "failed to acquire swap chain image!");
+        if (updateSize(result, "failed to acquire swap chain image!")) {
+            // don't draw the image if resized
+            return;
+        }
 
         // Only reset the fence if we are submitting work
         vkResetFences(vkDevice, 1, &inFlightFences[currentFrame]);
-
-        vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
 
         vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 
@@ -168,15 +170,19 @@ namespace RT64
         vkScissorRect.extent = swapChainExtent;
     }
 
-    void Device::updateSize(VkResult result, const char* error) {
+    // Recreates the swapchain and what not if the resolution gets resized
+    // Returns true if the size got updated, false if not
+    //  Also returns a secret third thing if something goes wrong (a runtime error)
+    bool Device::updateSize(VkResult result, const char* error) {
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
             framebufferResized = false;
             recreateSwapChain();
             updateViewport();
-            return;
+            return true;
         } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
             throw std::runtime_error(error);
         }
+        return false;
     }
 
     // The things needed for syncing the CPU and GPU lmao
@@ -424,7 +430,7 @@ namespace RT64
         pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
         pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
-        VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout));
+        VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &rasterPipelineLayout));
 
         /******************************************
         * The shaders
@@ -459,12 +465,12 @@ namespace RT64
         pipelineInfo.pDepthStencilState = nullptr; // Optional
         pipelineInfo.pColorBlendState = &colorBlending;
         pipelineInfo.pDynamicState = &dynamicState;
-        pipelineInfo.layout = pipelineLayout;
+        pipelineInfo.layout = rasterPipelineLayout;
         pipelineInfo.renderPass = renderPass;
         pipelineInfo.subpass = 0;
         pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
         pipelineInfo.basePipelineIndex = -1; // Optional
-        VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &graphicsPipeline));
+        VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &rasterPipeline));
         // vkCreateGraphicsPipelines() actually takes more parameters than this. Maybe check that out?
 
         vkDestroyShaderModule(vkDevice, fragShaderModule, nullptr);
@@ -574,7 +580,7 @@ namespace RT64
         appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
         appInfo.pEngineName = "No Engine";
         appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.apiVersion = VK_API_VERSION_1_2;
+        appInfo.apiVersion = VK_API_VERSION_1_3;
 
         VkInstanceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
@@ -935,8 +941,8 @@ namespace RT64
 
         cleanupSwapChain();
         vkDestroySurfaceKHR(vkInstance, vkSurface, nullptr);
-        vkDestroyPipelineLayout(vkDevice, pipelineLayout, nullptr);
-        vkDestroyPipeline(vkDevice, graphicsPipeline, nullptr);
+        vkDestroyPipelineLayout(vkDevice, rasterPipelineLayout, nullptr);
+        vkDestroyPipeline(vkDevice, rasterPipeline, nullptr);
         vkDestroyRenderPass(vkDevice, renderPass, nullptr);
         vkDestroyCommandPool(vkDevice, commandPool, nullptr);
         for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -977,8 +983,8 @@ namespace RT64
     VmaAllocator& Device::getMemAllocator() { return allocator; }
     VkRenderPass& Device::getRenderPass() { return renderPass; };
     VkExtent2D& Device::getSwapchainExtent() { return swapChainExtent; }
-    VkPipeline& Device::getGraphicsPipeline() { return graphicsPipeline; }
-    VkPipelineLayout& Device::getPipelineLayout() { return pipelineLayout; }
+    VkPipeline& Device::getRasterPipeline() { return rasterPipeline; }
+    VkPipelineLayout& Device::getRasterPipelineLayout() { return rasterPipelineLayout; }
     VkDescriptorSetLayout& Device::getDescriptorSetLayout() { return descriptorSetLayout; }
 	VkViewport& Device::getViewport() { return vkViewport; }
 	VkRect2D& Device::getScissors() { return vkScissorRect; }
@@ -999,6 +1005,12 @@ namespace RT64
         assert(scene != nullptr);
         scenes.erase(std::remove(scenes.begin(), scenes.end(), scene), scenes.end());
     }
+
+    // Removes a shader from the device
+    // void Device::removeShader(Shader* shader) {
+    //     assert(shader != nullptr);
+    //     shaders.erase(std::remove(shaders.begin(), shaders.end(), shaders), shaders.end());
+    // }
 
     // Creates an allocated buffer
     VkResult Device::allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedResource* alre) {

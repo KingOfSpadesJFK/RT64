@@ -15,7 +15,6 @@
 #include "rt64_device.h"
 #include "rt64_instance.h"
 #include "rt64_view.h"
-#include <bits/stl_algo.h>
 
 namespace RT64
 {

@@ -54,6 +54,7 @@ namespace RT64
         VK_CHECK(vkCreateDescriptorPool(device->getVkDevice(), &poolInfo, nullptr, &descriptorPool));
     }
 
+    // The function used to bind the global params buffer
     void View::createDescriptorSets() {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, device->getDescriptorSetLayout());
         VkDescriptorSetAllocateInfo allocInfo{};
@@ -120,8 +121,8 @@ namespace RT64
         VkRenderPass renderPass = scene->getDevice()->getRenderPass();
         VkFramebuffer framebuffer = scene->getDevice()->getCurrentSwapchainFramebuffer();
         VkExtent2D swapChainExtent = scene->getDevice()->getSwapchainExtent();
-        VkPipeline graphicsPipeline = scene->getDevice()->getGraphicsPipeline();
-        VkPipelineLayout pipelineLayout = scene->getDevice()->getPipelineLayout();
+        VkPipeline rasterPipeline = scene->getDevice()->getRasterPipeline();
+        VkPipelineLayout rasterPipelinLayout = scene->getDevice()->getRasterPipelineLayout();
 
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -140,8 +141,8 @@ namespace RT64
         renderPassInfo.clearValueCount = 1;
         renderPassInfo.pClearValues = &clearColor;
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline);
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, pipelineLayout, 0, 1, &descriptorSets[device->getCurrentFrameIndex()], 0, nullptr);
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterPipeline);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterPipelinLayout, 0, 1, &descriptorSets[device->getCurrentFrameIndex()], 0, nullptr);
 
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
         vkCmdSetScissor(commandBuffer, 0, 1, &scissors);

@@ -78,11 +78,6 @@ namespace RT64
             return attributeDescriptions;
         }
     };
-    struct UniformBufferObject {
-        glm::mat4 model;
-        glm::mat4 view;
-        glm::mat4 proj;
-    };
     
     class Device
     {
@@ -135,7 +130,7 @@ namespace RT64
             void initRayTracing();
             void recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
             void recreateSwapChain();
-            void updateSize(VkResult result, const char* error);
+            bool updateSize(VkResult result, const char* error);
             void updateViewport();
 
             std::vector<TestVertex> vertices = {
@@ -160,9 +155,9 @@ namespace RT64
 		    Mipmaps *mipmaps;
             VmaAllocator allocator;
             VkDescriptorSetLayout descriptorSetLayout;
-            VkPipelineLayout pipelineLayout;
+            VkPipelineLayout rasterPipelineLayout;
             VkRenderPass renderPass;
-            VkPipeline graphicsPipeline;
+            VkPipeline rasterPipeline;
             std::vector<VkFramebuffer> swapChainFramebuffers;
             VkCommandPool commandPool;
             std::vector<VkCommandBuffer> commandBuffers;
@@ -207,8 +202,8 @@ namespace RT64
 		    VmaAllocator& getMemAllocator();
 		    VkExtent2D& getSwapchainExtent();
             VkDescriptorSetLayout& getDescriptorSetLayout();
-            VkPipelineLayout& getPipelineLayout();
-            VkPipeline& getGraphicsPipeline();
+            VkPipelineLayout& getRasterPipelineLayout();
+            VkPipeline& getRasterPipeline();
             VkRenderPass& getRenderPass();
 		    VkViewport& getViewport();
 		    VkRect2D& getScissors();
@@ -223,6 +218,8 @@ namespace RT64
             void draw(int vsyncInterval, double delta);
 		    void addScene(Scene* scene);
 		    void removeScene(Scene* scene);
+            void addShader(Shader* shader);
+            void removeShader(Shader* shader);
             VkShaderModule createShaderModule(const void* code, size_t size, ShaderStage stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
 
             // More stuff for window resizing

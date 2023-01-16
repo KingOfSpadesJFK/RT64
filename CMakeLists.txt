@@ -27,7 +27,7 @@ file(GLOB vertexShaders ${SHADER_DIR}/*VS.hlsl)
 foreach(shader ${vertexShaders})
     cmake_path(GET shader STEM shaderName)
     execute_process(COMMAND echo Building vertex shader ${shaderName}...)
-    execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T vs_6_3 -E VSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
+    execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.3 -T vs_6_3 -E VSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
 endforeach()
 
 # Build pixel shaders
@@ -35,7 +35,7 @@ file(GLOB pixelShaders ${SHADER_DIR}/*PS.hlsl)
 foreach(shader ${pixelShaders})
     cmake_path(GET shader STEM shaderName)
     execute_process(COMMAND echo Building pixel shader ${shaderName}...)
-    execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T ps_6_3 -E PSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
+    execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.3 -T ps_6_3 -E PSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
 endforeach()
 
 # Build compute shaders
@@ -43,7 +43,7 @@ file(GLOB computeShaders ${SHADER_DIR}/*CS.hlsl)
 foreach(shader ${computeShaders})
     cmake_path(GET shader STEM shaderName)
     execute_process(COMMAND echo Building compute shader ${shaderName}...)
-    execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T cs_6_3 -E mainCS -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
+    execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.3 -T cs_6_3 -E mainCS -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
 endforeach()
 
 # Build ray generation shaders
@@ -51,12 +51,12 @@ file(GLOB rayShaders ${SHADER_DIR}/*RayGen.hlsl)
 foreach(shader ${rayShaders})
     cmake_path(GET shader STEM shaderName)
     execute_process(COMMAND echo Building raygen shader ${shaderName}...)
-    execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T lib_6_3 -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
+    execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.3 -T lib_6_3 -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
 endforeach()
 
 execute_process(COMMAND echo Building geometry shaders ${shaderName}...)
-execute_process(COMMAND dxc ${SHADER_DIR}/Im3DGSPoints.hlsl -spirv -fspv-target-env=vulkan1.2 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSPoints.hlsl.h -Vn Im3DGSPoints_SPIRV)
-execute_process(COMMAND dxc ${SHADER_DIR}/Im3DGSLines.hlsl -spirv -fspv-target-env=vulkan1.2 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSLines.hlsl.h -Vn Im3DGSPLines_SPIRV)
+execute_process(COMMAND dxc ${SHADER_DIR}/Im3DGSPoints.hlsl -spirv -fspv-target-env=vulkan1.3 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSPoints.hlsl.h -Vn Im3DGSPoints_SPIRV)
+execute_process(COMMAND dxc ${SHADER_DIR}/Im3DGSLines.hlsl -spirv -fspv-target-env=vulkan1.3 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSLines.hlsl.h -Vn Im3DGSPLines_SPIRV)
 
 #######################################################################
 # The real building
