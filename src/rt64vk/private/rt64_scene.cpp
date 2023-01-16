@@ -159,7 +159,7 @@ namespace RT64
     }
 
     VkBuffer *RT64::Scene::getLightsBuffer() const {
-        return lightsBuffer.getBuffer();
+        return lightsBuffer.getResource();
     }
 
     int RT64::Scene::getLightsCount() const {

@@ -68,7 +68,7 @@ namespace RT64
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = *globalParamsBuffer.getBuffer();
+            bufferInfo.buffer = *globalParamsBuffer.getResource();
             bufferInfo.offset = 0;
             bufferInfo.range = globalParamsSize;
 

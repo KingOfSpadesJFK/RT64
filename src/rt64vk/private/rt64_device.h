@@ -213,7 +213,8 @@ namespace RT64
 		    VkCommandBuffer& getCurrentCommandBuffer();
 		    VkFramebuffer& getCurrentSwapchainFramebuffer();
 
-            VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedResource* alre);
+            VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedBuffer* alre);
+            VkResult allocateImage(uint32_t width, uint32_t height, VkImageType imageType, VkFormat imageFormat, VkImageTiling imageTiling, VkImageLayout initLayout, VkImageUsageFlags imageUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedImage* alre);
             void copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size);
             void draw(int vsyncInterval, double delta);
 		    void addScene(Scene* scene);

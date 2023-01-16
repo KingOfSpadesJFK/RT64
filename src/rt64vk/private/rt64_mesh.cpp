@@ -57,7 +57,7 @@ namespace RT64
         stagingVertexBuffer.setData(vertices, vertexBufferSize);
         
         // Copy staging buffer to main buffer
-        device->copyBuffer(*stagingVertexBuffer.getBuffer(), *vertexBuffer.getBuffer(), vertexBufferSize);
+        device->copyBuffer(*stagingVertexBuffer.getResource(), *vertexBuffer.getResource(), vertexBufferSize);
 
         this->vertexCount = vertexCount;
         this->vertexStride = vertexStride;
@@ -93,7 +93,7 @@ namespace RT64
         stagingIndexBuffer.setData(indices, indexBufferSize);
         
         // Copy staging buffer to main buffer
-        device->copyBuffer(*stagingIndexBuffer.getBuffer(), *indexBuffer.getBuffer(), indexBufferSize);
+        device->copyBuffer(*stagingIndexBuffer.getResource(), *indexBuffer.getResource(), indexBufferSize);
         
         this->indexCount = indexCount;
     }
@@ -126,8 +126,8 @@ namespace RT64
 
     // Public 
 
-    VkBuffer* Mesh::getVertexBuffer() const { return vertexBuffer.getBuffer(); }
-    VkBuffer* Mesh::getIndexBuffer() const { return indexBuffer.getBuffer(); }
+    VkBuffer* Mesh::getVertexBuffer() const { return vertexBuffer.getResource(); }
+    VkBuffer* Mesh::getIndexBuffer() const { return indexBuffer.getResource(); }
     int Mesh::getIndexCount() const { return indexCount; }
     int Mesh::getVertexCount() const { return vertexCount; }
 };

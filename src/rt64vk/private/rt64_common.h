@@ -166,27 +166,42 @@ namespace RT64 {
 
 #ifndef RT64_MINIMAL
 	class AllocatedResource {
-		private:
+		protected:
 			VmaAllocation* allocation = nullptr;
 			VmaAllocator* allocator = nullptr;
-			VkBuffer* buffer = nullptr;
-			VkImage* image = nullptr;
-			bool mapped = false;
-			bool isImage = false;
 		public:
-			AllocatedResource() { }
+			AllocatedResource() {}
 
-			AllocatedResource(AllocatedResource& alre) {
-				copy(alre);
+			virtual ~AllocatedResource() {}
+
+			void setAllocationName(const char* name) {
+				if (!isNull()) {
+					vmaSetAllocationName(*allocator, *allocation, name);
+				}
 			}
 
-			// Copies an outside Alre into this one
-			void copy(AllocatedResource& alre) {
-				allocation = alre.allocation;
-				allocator = alre.allocator;
-				buffer = alre.buffer;
-				image = alre.image;
-				isImage = alre.isImage;
+			inline bool isNull() const {
+				return (allocation == nullptr);
+			}
+	};
+
+	class AllocatedBuffer : public AllocatedResource {
+		private:
+			VkBuffer* buffer = nullptr;
+			bool mapped = false;
+		public:
+			AllocatedBuffer() { }
+
+			AllocatedBuffer(AllocatedBuffer& albo) {
+				copy(albo);
+			}
+
+			// Copies an outside Albo into this one
+			void copy(AllocatedBuffer& albo) {
+				allocation = albo.allocation;
+				allocator = albo.allocator;
+				buffer = albo.buffer;
+				mapped = albo.mapped;
 			}
 
 			void init(VmaAllocator* allocator, VmaAllocation* allocation, VkBuffer* buffer) {
@@ -195,25 +210,101 @@ namespace RT64 {
 				this->allocator = allocator;
 				this->buffer = buffer;
 			}
+			
+			AllocatedBuffer(VmaAllocator* allocator, VmaAllocation* allocation, VkBuffer* buffer) {
+				init(allocator, allocation, buffer);
+			}
+
+			~AllocatedBuffer() { 
+				allocator = nullptr;
+				allocation = nullptr;
+				buffer = nullptr;
+			}
+
+			// Maps a portion of memory to the allocation
+			// Returns the pointer to the first byte in memory
+			void* mapMemory(void** ppData) {
+				assert(!isNull() && !mapped);
+				vmaMapMemory(*allocator, *allocation, ppData);
+				mapped = true;
+				// vmaUnmapMemory(*allocator, *allocation);
+				return *ppData;
+			}
+
+			// Unmaps that portion of memory
+			void unmapMemory() {
+				assert(!isNull() && mapped);
+				vmaUnmapMemory(*allocator, *allocation);
+				mapped = false;
+			}
+
+			// Copies a portion of memory into the mapped memory
+			// Returns the pointer to the first byte in memory
+			void* setData(void* pData, size_t size) {
+				assert(!isNull() && !mapped);
+				void* ppData = pData;		// Make a new reference that's just a pointer to a pointer to the data
+				vmaMapMemory(*allocator, *allocation, &ppData);
+				memcpy(ppData, pData, size);
+				vmaUnmapMemory(*allocator, *allocation);
+				return ppData;
+			}
+
+			inline VkBuffer* getResource() const {
+				if (!isNull()) {
+					return buffer;
+				}
+				return nullptr;
+			}
+
+			void destroyResource() {
+				if (!isNull()) {
+					if (mapped) {
+						vmaUnmapMemory(*allocator, *allocation);
+					}
+					vmaDestroyBuffer(*allocator, *buffer, *allocation);
+					// vmaFreeMemory(*allocator, *allocation);
+					allocation = nullptr;
+					allocator = nullptr;
+					buffer = nullptr;
+					mapped = false;
+				}
+			}
+		};
+
+	class AllocatedImage :  public AllocatedResource {
+		private:
+			VkImage* image = nullptr;
+			glm::ivec2 resolution;
+			bool mapped = false;
+		public:
+			AllocatedImage() { }
+
+			AllocatedImage(AllocatedImage& albo) {
+				copy(albo);
+			}
+
+			// Copies an outside Albo into this one
+			void copy(AllocatedImage& alime) {
+				allocation = alime.allocation;
+				allocator = alime.allocator;
+				image = alime.image;
+				mapped = alime.mapped;
+			}
 
 			void init(VmaAllocator* allocator, VmaAllocation* allocation, VkImage* image) {
 				assert(isNull());
 				this->allocation = allocation;
 				this->allocator = allocator;
 				this->image = image;
-				isImage = true;
 			}
-			AllocatedResource(VmaAllocator* allocator, VmaAllocation* allocation, VkBuffer* buffer) {
-				init(allocator, allocation, buffer);
-			}
-			AllocatedResource(VmaAllocator* allocator, VmaAllocation* allocation, VkImage* image) {
+			
+			AllocatedImage(VmaAllocator* allocator, VmaAllocation* allocation, VkImage* image) {
 				init(allocator, allocation, image);
 			}
 
-			~AllocatedResource() { 
+			~AllocatedImage() { 
 				allocator = nullptr;
 				allocation = nullptr;
-				buffer = nullptr;
 				image = nullptr;
 			}
 
@@ -251,28 +342,11 @@ namespace RT64 {
 				}
 			}
 
-			inline VkBuffer* getBuffer() const {
+			inline VkImage* getResource() const {
 				if (!isNull()) {
-					if (isImage) {
-						return nullptr;
-					}
-					return buffer;
+					return image;
 				}
 				return nullptr;
-			}
-
-			inline VkImage* getImage() const {
-				if (!isNull()) {
-					if (isImage) {
-						return image;
-					}
-					return nullptr;
-				}
-				return nullptr;
-			}
-
-			inline bool isNull() const {
-				return (allocation == nullptr);
 			}
 
 			void destroyResource() {
@@ -280,21 +354,16 @@ namespace RT64 {
 					if (mapped) {
 						vmaUnmapMemory(*allocator, *allocation);
 					}
-					if (isImage) {
-						vmaDestroyImage(*allocator, *image, *allocation);
-					} else {
-						vmaDestroyBuffer(*allocator, *buffer, *allocation);
-					} 
+					vmaDestroyImage(*allocator, *image, *allocation);
 					// vmaFreeMemory(*allocator, *allocation);
 					allocation = nullptr;
 					allocator = nullptr;
-					buffer = nullptr;
 					image = nullptr;
-					isImage = false;
 					mapped = false;
 				}
 			}
-	};
+		};
+
 
 	struct InstanceTransforms {
 		glm::mat4x4 objectToWorld;
@@ -303,11 +372,11 @@ namespace RT64 {
 	};
 
 	struct AccelerationStructureBuffers {
-		AllocatedResource scratch;
+		AllocatedBuffer scratch;
 		uint64_t scratchSize;
-		AllocatedResource result;
+		AllocatedBuffer result;
 		uint64_t resultSize;
-		AllocatedResource instanceDesc;
+		AllocatedBuffer instanceDesc;
 		uint64_t instanceDescSize;
 
 		AccelerationStructureBuffers() {

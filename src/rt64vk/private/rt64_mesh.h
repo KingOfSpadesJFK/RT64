@@ -16,10 +16,10 @@ namespace RT64
     {
         private:
             Device *device;
-            AllocatedResource vertexBuffer;             // The actual one; the one optimized for the GPU
-            AllocatedResource stagingVertexBuffer;      // The temporary one used for like doing stuff on the CPU
-            AllocatedResource indexBuffer;
-            AllocatedResource stagingIndexBuffer;
+            AllocatedBuffer vertexBuffer;             // The actual one; the one optimized for the GPU
+            AllocatedBuffer stagingVertexBuffer;      // The temporary one used for like doing stuff on the CPU
+            AllocatedBuffer indexBuffer;
+            AllocatedBuffer stagingIndexBuffer;
             int vertexCount;
             int vertexStride;
             int indexCount;

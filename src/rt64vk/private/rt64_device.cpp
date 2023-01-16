@@ -1012,8 +1012,15 @@ namespace RT64
     //     shaders.erase(std::remove(shaders.begin(), shaders.end(), shaders), shaders.end());
     // }
 
-    // Creates an allocated buffer
-    VkResult Device::allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedResource* alre) {
+    // Creates an allocated buffer. You must pass in a pointer to an AllocatedResource. Once the function does its thing, the pointer will point to the newly created AllocatedBuffer with the buffer
+    VkResult Device::allocateBuffer(
+            VkDeviceSize bufferSize, 
+            VkBufferUsageFlags bufferUsage, 
+            VmaMemoryUsage memUsage, 
+            VmaAllocationCreateFlags allocProperties, 
+            AllocatedBuffer* alre
+        ) 
+    {
         VkResult res;
         VkBufferCreateInfo bufferInfo = {};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -1030,6 +1037,48 @@ namespace RT64
         VkBuffer* buffer = new VkBuffer;
         res = vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, buffer, allocation, &allocInfo);
         alre->init(&allocator, allocation, buffer);
+        return res;
+    }
+
+    // Creates an allocated image. You must pass in a pointer to an AllocatedResource. Once the function does its thing, the pointer will point to the newly created AllocatedImage with the image
+    VkResult Device::allocateImage(
+            uint32_t width, uint32_t height, 
+            VkImageType imageType, 
+            VkFormat imageFormat, 
+            VkImageTiling imageTiling, 
+            VkImageLayout initLayout, 
+            VkImageUsageFlags imageUsage, 
+            VmaMemoryUsage memUsage, 
+            VmaAllocationCreateFlags allocProperties, 
+            AllocatedImage* alre
+        ) 
+    {
+        VkResult res;
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = imageType;
+        imageInfo.format = imageFormat;
+        imageInfo.tiling = imageTiling;
+        imageInfo.initialLayout = initLayout;
+        imageInfo.usage = imageUsage;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.extent.width = width;
+        imageInfo.extent.height = height;
+        imageInfo.extent.depth = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.flags = 0; // Optional
+
+        VmaAllocationCreateInfo allocCreateInfo = {};
+        allocCreateInfo.usage = memUsage;
+        allocCreateInfo.flags = allocProperties;
+        VmaAllocationInfo allocInfo = {};
+
+        VmaAllocation* allocation = new VmaAllocation;
+        VkImage* image = new VkImage;
+        vmaCreateImage(allocator, &imageInfo, &allocCreateInfo, image, allocation, &allocInfo);
+        alre->init(&allocator, allocation, image);
         return res;
     }
 

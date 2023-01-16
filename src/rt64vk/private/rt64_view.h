@@ -79,7 +79,7 @@ namespace RT64
             VkDescriptorPool descriptorPool;
             std::vector<VkDescriptorSet> descriptorSets;
 
-            AllocatedResource globalParamsBuffer;
+            AllocatedBuffer globalParamsBuffer;
             GlobalParams globalParamsData;
             VkDeviceSize globalParamsSize;
 
