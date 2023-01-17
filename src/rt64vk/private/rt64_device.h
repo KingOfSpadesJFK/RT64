@@ -127,21 +127,19 @@ namespace RT64
             void createCommandBuffers();
             void createSyncObjects();
 
+            void createTextureImage();
+            void createTextureImageView();
+            void createTextureSampler();
+
             void initRayTracing();
             void recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
             void recreateSwapChain();
             bool updateSize(VkResult result, const char* error);
             void updateViewport();
 
-            std::vector<TestVertex> vertices = {
-                {{-0.5f, -0.5f, 0.0f, 1.0f}, {1.0f, 0.0f, 0.0f}},
-                {{0.5f, -0.5f, 0.0f, 1.0f}, {0.0f, 1.0f, 0.0f}},
-                {{0.5f, 0.5f, 0.0f, 1.0f}, {0.0f, 0.0f, 1.0f}},
-                {{-0.5f, 0.5f, 0.0f, 1.0f}, {1.0f, 1.0f, 1.0f}}
-            };
-            std::vector<uint32_t> indices = {
-                0, 1, 2, 2, 3, 0
-            };
+            AllocatedImage textureImage;
+            VkImageView textureImageView;
+            VkSampler textureSampler;
 
             GLFWwindow* window;
             VkSurfaceKHR vkSurface;
@@ -209,13 +207,19 @@ namespace RT64
 		    VkRect2D& getScissors();
 		    double getAspectRatio();
             int getCurrentFrameIndex();
-
 		    VkCommandBuffer& getCurrentCommandBuffer();
 		    VkFramebuffer& getCurrentSwapchainFramebuffer();
+
+            VkCommandBuffer beginSingleTimeCommands();
+            VkCommandBuffer beginSingleTimeCommands(VkCommandBuffer* commandBuffer);
+            void endSingleTimeCommands(VkCommandBuffer* commandBuffer);
 
             VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedBuffer* alre);
             VkResult allocateImage(uint32_t width, uint32_t height, VkImageType imageType, VkFormat imageFormat, VkImageTiling imageTiling, VkImageLayout initLayout, VkImageUsageFlags imageUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedImage* alre);
             void copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size);
+            void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
+            void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+            VkImageView createImageView(VkImage image, VkFormat format);
             void draw(int vsyncInterval, double delta);
 		    void addScene(Scene* scene);
 		    void removeScene(Scene* scene);

@@ -124,11 +124,11 @@ namespace RT64
         VkPipeline rasterPipeline = scene->getDevice()->getRasterPipeline();
         VkPipelineLayout rasterPipelinLayout = scene->getDevice()->getRasterPipelineLayout();
 
+        // The drawing begins >:)
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = 0; // Optional
         beginInfo.pInheritanceInfo = nullptr; // Optional
-
         VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
         VkRenderPassBeginInfo renderPassInfo{};

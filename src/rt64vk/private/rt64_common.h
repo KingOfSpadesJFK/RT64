@@ -11,9 +11,10 @@
 #include <string>
 #include <vector>
 #include <stdio.h>
-#include <vulkan/vulkan.h>
 #include <glm/glm.hpp>
 #include <bits/stl_algo.h>		// Idk why I know have to throw in this include in other than it makes it compile
+#include <vulkan/vulkan.h>
+#define RT64_VULKAN_VERSION VK_API_VERSION_1_2
 
 #include "../contrib/VulkanMemoryAllocator/vk_mem_alloc.h"
 
@@ -240,7 +241,7 @@ namespace RT64 {
 
 			// Copies a portion of memory into the mapped memory
 			// Returns the pointer to the first byte in memory
-			void* setData(void* pData, size_t size) {
+			void* setData(void* pData, uint64_t size) {
 				assert(!isNull() && !mapped);
 				void* ppData = pData;		// Make a new reference that's just a pointer to a pointer to the data
 				vmaMapMemory(*allocator, *allocation, &ppData);
@@ -327,7 +328,7 @@ namespace RT64 {
 
 			// Copies a portion of memory into the mapped memory
 			// Returns the pointer to the first byte in memory
-			void* setData(void* pData, size_t size) {
+			void* setData(void* pData, uint64_t size) {
 				assert(!isNull() && !mapped);
 				void* ppData = pData;		// Make a new reference that's just a pointer to a pointer to the data
 				vmaMapMemory(*allocator, *allocation, &ppData);
