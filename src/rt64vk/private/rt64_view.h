@@ -83,8 +83,8 @@ namespace RT64
             GlobalParams globalParamsData;
             VkDeviceSize globalParamsSize;
 
-            void createDescriptorPool();
-            void createDescriptorSets();
+            void createDescriptorPool(DescriptorSetBinding* bindings, uint32_t count);
+            void createDescriptorSets(DescriptorSetBinding* bindings, uint32_t count);
 
             void createGlobalParamsBuffer();
             void updateGlobalParamsBuffer();

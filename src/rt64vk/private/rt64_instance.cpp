@@ -33,6 +33,7 @@ namespace RT64{
 	Instance::~Instance() {
 		scene->removeInstance(this);
 		delete mesh;
+		delete diffuseTexture;
 	}
 
 	void Instance::setMesh(Mesh* mesh) {
@@ -152,8 +153,8 @@ DLEXPORT RT64_INSTANCE *RT64_CreateInstance(RT64_SCENE *scenePtr) {
 DLEXPORT void RT64_SetInstanceDescription(RT64_INSTANCE *instancePtr, RT64_INSTANCE_DESC instanceDesc) {
 	assert(instancePtr != nullptr);
 	assert(instanceDesc.mesh != nullptr);
-	// assert(instanceDesc.diffuseTexture != nullptr);		lol still need to work on that
-	// assert(instanceDesc.shader != nullptr);
+	assert(instanceDesc.diffuseTexture != nullptr);
+	// assert(instanceDesc.shader != nullptr);			The shader class is under construction
 
 	RT64::Instance *instance = (RT64::Instance *)(instancePtr);
 	instance->setMesh((RT64::Mesh *)(instanceDesc.mesh));

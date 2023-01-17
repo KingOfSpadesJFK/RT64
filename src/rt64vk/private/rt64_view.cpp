@@ -29,8 +29,30 @@ namespace RT64
         this->device = scene->getDevice();
 
         createGlobalParamsBuffer();
-        createDescriptorPool();
-        createDescriptorSets();
+
+        std::vector<DescriptorSetBinding> bindings;
+        DescriptorSetBinding globalParamsBind;
+        globalParamsBind.resource = &globalParamsBuffer;
+        globalParamsBind.size = globalParamsSize;
+        globalParamsBind.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        globalParamsBind.stage = VK_SHADER_STAGE_VERTEX_BIT;
+        bindings.push_back(globalParamsBind);
+
+        for (Instance* i : scene->getInstances()) {
+            DescriptorSetBinding instanceBind;
+            instanceBind.resource = i->getDiffuseTexture()->getTexture();
+            instanceBind.size = i->getDiffuseTexture()->getWidth() * i->getDiffuseTexture()->getHeight();
+            instanceBind.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            instanceBind.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+            instanceBind.imageView = i->getDiffuseTexture()->getTextureImageView();
+            instanceBind.sampler = i->getDiffuseTexture()->getTextureSampler();
+            bindings.push_back(instanceBind);
+        }
+        
+        device->createRasterPipeline(bindings.data(), bindings.size());
+
+        createDescriptorPool(bindings.data(), bindings.size());
+        createDescriptorSets(bindings.data(), bindings.size());
 
 	    scene->addView(this);
     }
@@ -42,47 +64,73 @@ namespace RT64
         globalParamsBuffer.destroyResource();
     }
 
-    void View::createDescriptorPool() {
-        VkDescriptorPoolSize poolSize{};
-        poolSize.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+    void View::createDescriptorPool(DescriptorSetBinding* bindings, uint32_t count) {
+        std::vector<VkDescriptorPoolSize> poolSizes;
+        for (int i = 0; i < count; i++) {
+            VkDescriptorPoolSize poolSize {};
+            poolSize.descriptorCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
+            poolSize.type = bindings[i].type;
+            poolSizes.push_back(poolSize);
+        }
+
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = 1;
-        poolInfo.pPoolSizes = &poolSize;
+        poolInfo.poolSizeCount = count;
+        poolInfo.pPoolSizes = poolSizes.data();
         poolInfo.maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
         VK_CHECK(vkCreateDescriptorPool(device->getVkDevice(), &poolInfo, nullptr, &descriptorPool));
     }
 
     // The function used to bind the global params buffer
-    void View::createDescriptorSets() {
+    void View::createDescriptorSets(DescriptorSetBinding* bindings, uint32_t count) {
         std::vector<VkDescriptorSetLayout> layouts(MAX_FRAMES_IN_FLIGHT, device->getDescriptorSetLayout());
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorPool = descriptorPool;
         allocInfo.descriptorSetCount = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT);
         allocInfo.pSetLayouts = layouts.data();
-
         descriptorSets.resize(MAX_FRAMES_IN_FLIGHT);
         VK_CHECK(vkAllocateDescriptorSets(device->getVkDevice(), &allocInfo, descriptorSets.data()));
 
         for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            VkDescriptorBufferInfo bufferInfo{};
-            bufferInfo.buffer = *globalParamsBuffer.getResource();
-            bufferInfo.offset = 0;
-            bufferInfo.range = globalParamsSize;
+            std::vector<VkDescriptorBufferInfo> bufferInfos;
+            std::vector<VkDescriptorImageInfo> imageInfos;
+            std::array<VkWriteDescriptorSet, 2> descriptorWrites{};
 
-            VkWriteDescriptorSet descriptorWrite{};
-            descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-            descriptorWrite.dstSet = descriptorSets[i];
-            descriptorWrite.dstBinding = 0;
-            descriptorWrite.dstArrayElement = 0;
-            descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            descriptorWrite.descriptorCount = 1;
-            descriptorWrite.pBufferInfo = &bufferInfo;
-            descriptorWrite.pImageInfo = nullptr; // Optional
-            descriptorWrite.pTexelBufferView = nullptr; // Optional
-            vkUpdateDescriptorSets(device->getVkDevice(), 1, &descriptorWrite, 0, nullptr);
+            for (int j = 0; j < count; j++) {
+                if (bindings[j].type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER) {
+                    VkDescriptorBufferInfo bufferInfo;
+                    bufferInfo.buffer = *(VkBuffer*)(bindings[j].resource->getResource());
+                    bufferInfo.range = bindings[j].size;
+                    bufferInfo.offset = 0;
+                    bufferInfos.push_back(bufferInfo);
+                }
+                if (bindings[j].type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) {
+                    VkDescriptorImageInfo imageInfo;
+                    imageInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                    imageInfo.imageView = *bindings[j].imageView;
+                    imageInfo.sampler = *bindings[j].sampler;
+                    imageInfos.push_back(imageInfo);
+                }
+            }
+
+            descriptorWrites[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[0].dstSet = descriptorSets[i];
+            descriptorWrites[0].dstBinding = 0;
+            descriptorWrites[0].dstArrayElement = 0;
+            descriptorWrites[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            descriptorWrites[0].descriptorCount = bufferInfos.size();
+            descriptorWrites[0].pBufferInfo = bufferInfos.data();
+
+            descriptorWrites[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+            descriptorWrites[1].dstSet = descriptorSets[i];
+            descriptorWrites[1].dstBinding = 1;
+            descriptorWrites[1].dstArrayElement = 0;
+            descriptorWrites[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+            descriptorWrites[1].descriptorCount = imageInfos.size();
+            descriptorWrites[1].pImageInfo = imageInfos.data();
+
+            vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
         }
     }
 

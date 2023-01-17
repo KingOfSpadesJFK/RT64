@@ -83,6 +83,7 @@ add_library(rt64vk SHARED
     ${LIBRT64VK_DIR}/private/rt64_device.cpp
     ${LIBRT64VK_DIR}/private/rt64_scene.cpp
     ${LIBRT64VK_DIR}/private/rt64_view.cpp
+    ${LIBRT64VK_DIR}/private/rt64_texture.cpp
     ${LIBRT64VK_DIR}/private/rt64_mesh.cpp
     ${LIBRT64VK_DIR}/private/rt64_instance.cpp
 )

@@ -57,7 +57,8 @@ typedef struct {
 
 typedef struct {
 	RT64_VECTOR4 position;
-	RT64_VECTOR3 color;
+	RT64_VECTOR3 normal;
+	RT64_VECTOR2 uv;
 } TEST_VERTEX;
 
 struct {
@@ -468,8 +469,11 @@ void setupTestScene() {
 	RT64.sceneDesc.giSkyStrength = 0.35f;
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
+	// Load textures.
+	RT64.textureDif = loadTexturePNG("../assets/nice_cock.png");
+
 	// Setup view.
-	RT64.view = RT64.lib.CreateView(RT64.scene);
+	// RT64.view = RT64.lib.CreateView(RT64.scene);
 
 	// Make initial transform with a 0.1f scale.
 	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
@@ -508,8 +512,8 @@ void setupTestScene() {
 				tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
 				TEST_VERTEX vertex;
 				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2], 1.0f };
-				vertex.color = { attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2] };
-				// vertex.uv = { acosf(vertex.normal.x), acosf(vertex.normal.y) };
+				vertex.normal = { attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2] };
+				vertex.uv = { acosf(vertex.normal.x), acosf(vertex.normal.y) };
 				// vertex.input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 				// Just for testing
@@ -566,17 +570,17 @@ void setupTestScene() {
 	RT64_MATRIX4 floorTransform;
 	unsigned int floorIndices[] = { 0, 1, 2, 2, 3, 0 };
 	floorVertices[0].position = { -0.5f, -0.5f, 0.0f, 1.0f };
-	floorVertices[0].color = { 1.0f, 0.0f, 0.0f };
-	// floorVertices[0].uv = { 0.0f, 0.0f };
+	floorVertices[0].normal = { 1.0f, 0.0f, 0.0f };
+	floorVertices[0].uv = { 0.0f, 0.0f };
 	floorVertices[1].position = { 0.5f, -0.5f, 0.0f, 1.0f };
-	floorVertices[1].color = { 0.0f, 1.0f, 0.0f };
-	// floorVertices[1].uv = { 1.0f, 0.0f };
+	floorVertices[1].normal = { 0.0f, 1.0f, 0.0f };
+	floorVertices[1].uv = { 1.0f, 0.0f };
 	floorVertices[2].position = { 0.5f, 0.5f, 0.0f, 1.0f };
-	floorVertices[2].color = { 0.0f, 0.0f, 1.0f };
-	// floorVertices[2].uv = { 0.0f, 1.0f };
+	floorVertices[2].normal = { 0.0f, 0.0f, 1.0f };
+	floorVertices[2].uv = { 0.0f, 1.0f };
 	floorVertices[3].position = { -0.5f, 0.5f, 0.0f, 1.0f };
-	floorVertices[3].color = { 1.0f, 1.0f, 1.0f };
-	// floorVertices[3].uv = { 1.0f, 1.0f };
+	floorVertices[3].normal = { 1.0f, 1.0f, 1.0f };
+	floorVertices[3].uv = { 1.0f, 1.0f };
 
 	// for (int i = 0; i < _countof(floorVertices); i++) {
 	// 	floorVertices[i].normal = { 0.0f, 1.0f, 0.0f };
@@ -593,7 +597,7 @@ void setupTestScene() {
 	instDesc.mesh = objMesh;
 	instDesc.transform = floorTransform;
 	instDesc.previousTransform = floorTransform;
-	instDesc.diffuseTexture = nullptr;
+	instDesc.diffuseTexture = RT64.textureDif;
 	instDesc.normalTexture = nullptr;
 	instDesc.specularTexture = nullptr;
 	instDesc.shader = RT64.shader;
@@ -605,6 +609,11 @@ void setupTestScene() {
 	// RT64_INSTANCE *floorInstance = RT64.lib.CreateInstance(RT64.scene);
 	// instDesc.mesh = floorMesh;
 	// RT64.lib.SetInstanceDescription(floorInstance, instDesc);
+
+	// Setup view after all of that
+	// THIS IS ONLY TEMPORARY
+	// TODO: Make it so create view isn't the last thing called
+	RT64.view = RT64.lib.CreateView(RT64.scene);
 }
 
 int main(int argc, char *argv[]) {

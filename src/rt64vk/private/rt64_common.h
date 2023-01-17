@@ -170,26 +170,67 @@ namespace RT64 {
 		protected:
 			VmaAllocation* allocation = nullptr;
 			VmaAllocator* allocator = nullptr;
+			bool mapped = false;
 		public:
 			AllocatedResource() {}
 
 			virtual ~AllocatedResource() {}
 
-			void setAllocationName(const char* name) {
+			// Maps a portion of memory to the allocation
+			// Returns the pointer to the first byte in memory
+			virtual void* mapMemory(void** ppData) {
+				assert(!isNull() && !mapped);
+				vmaMapMemory(*allocator, *allocation, ppData);
+				mapped = true;
+				return *ppData;
+			}
+
+			// Unmaps that portion of memory
+			virtual void unmapMemory() {
+				assert(!isNull() && mapped);
+				vmaUnmapMemory(*allocator, *allocation);
+				mapped = false;
+			}
+
+			// Copies a portion of memory into the mapped memory
+			// Returns the pointer to the first byte in memory
+			virtual void* setData(void* pData, uint64_t size) {
+				assert(!isNull() && !mapped);
+				void* ppData = pData;		// Make a new reference that's just a pointer to a pointer to the data
+				vmaMapMemory(*allocator, *allocation, &ppData);
+				memcpy(ppData, pData, size);
+				vmaUnmapMemory(*allocator, *allocation);
+				return ppData;
+			}
+
+			virtual void setAllocationName(const char* name) {
 				if (!isNull()) {
 					vmaSetAllocationName(*allocator, *allocation, name);
 				}
 			}
 
-			inline bool isNull() const {
+			virtual void* getResource() const { return nullptr; }
+
+			virtual bool isNull() const {
 				return (allocation == nullptr);
+			}
+
+			virtual void destroyResource() {
+				if (!isNull()) {
+					if (mapped) {
+						vmaUnmapMemory(*allocator, *allocation);
+					}
+					allocation = nullptr;
+					allocator = nullptr;
+					mapped = false;
+				}
 			}
 	};
 
 	class AllocatedBuffer : public AllocatedResource {
 		private:
 			VkBuffer* buffer = nullptr;
-			bool mapped = false;
+			
 		public:
 			AllocatedBuffer() { }
 
@@ -222,35 +263,9 @@ namespace RT64 {
 				buffer = nullptr;
 			}
 
-			// Maps a portion of memory to the allocation
-			// Returns the pointer to the first byte in memory
-			void* mapMemory(void** ppData) {
-				assert(!isNull() && !mapped);
-				vmaMapMemory(*allocator, *allocation, ppData);
-				mapped = true;
-				// vmaUnmapMemory(*allocator, *allocation);
-				return *ppData;
-			}
+			inline void* getResource() const { return getBuffer(); }
 
-			// Unmaps that portion of memory
-			void unmapMemory() {
-				assert(!isNull() && mapped);
-				vmaUnmapMemory(*allocator, *allocation);
-				mapped = false;
-			}
-
-			// Copies a portion of memory into the mapped memory
-			// Returns the pointer to the first byte in memory
-			void* setData(void* pData, uint64_t size) {
-				assert(!isNull() && !mapped);
-				void* ppData = pData;		// Make a new reference that's just a pointer to a pointer to the data
-				vmaMapMemory(*allocator, *allocation, &ppData);
-				memcpy(ppData, pData, size);
-				vmaUnmapMemory(*allocator, *allocation);
-				return ppData;
-			}
-
-			inline VkBuffer* getResource() const {
+			inline VkBuffer* getBuffer() const {
 				if (!isNull()) {
 					return buffer;
 				}
@@ -275,8 +290,7 @@ namespace RT64 {
 	class AllocatedImage :  public AllocatedResource {
 		private:
 			VkImage* image = nullptr;
-			glm::ivec2 resolution;
-			bool mapped = false;
+			
 		public:
 			AllocatedImage() { }
 
@@ -309,41 +323,9 @@ namespace RT64 {
 				image = nullptr;
 			}
 
-			// Maps a portion of memory to the allocation
-			// Returns the pointer to the first byte in memory
-			void* mapMemory(void** ppData) {
-				assert(!isNull() && !mapped);
-				vmaMapMemory(*allocator, *allocation, ppData);
-				mapped = true;
-				// vmaUnmapMemory(*allocator, *allocation);
-				return *ppData;
-			}
+			inline void* getResource() const { return getImage(); }
 
-			// Unmaps that portion of memory
-			void unmapMemory() {
-				assert(!isNull() && mapped);
-				vmaUnmapMemory(*allocator, *allocation);
-				mapped = false;
-			}
-
-			// Copies a portion of memory into the mapped memory
-			// Returns the pointer to the first byte in memory
-			void* setData(void* pData, uint64_t size) {
-				assert(!isNull() && !mapped);
-				void* ppData = pData;		// Make a new reference that's just a pointer to a pointer to the data
-				vmaMapMemory(*allocator, *allocation, &ppData);
-				memcpy(ppData, pData, size);
-				vmaUnmapMemory(*allocator, *allocation);
-				return ppData;
-			}
-
-			void setAllocationName(const char* name) {
-				if (!isNull()) {
-					vmaSetAllocationName(*allocator, *allocation, name);
-				}
-			}
-
-			inline VkImage* getResource() const {
+			inline VkImage* getImage() const {
 				if (!isNull()) {
 					return image;
 				}
@@ -363,8 +345,80 @@ namespace RT64 {
 					mapped = false;
 				}
 			}
-		};
+	};
 
+	inline void operator+=(RT64_VECTOR3 &a, const RT64_VECTOR3& b) {
+		a.x += b.x;
+		a.y += b.y;
+		a.z += b.z;
+	}
+
+	inline RT64_VECTOR3 operator+(const RT64_VECTOR3& a, const RT64_VECTOR3& b) {
+		return { a.x + b.x, a.y + b.y, a.z + b.z };
+	}
+
+	inline RT64_VECTOR3 operator-(const RT64_VECTOR3& a, const RT64_VECTOR3& b) {
+		return { a.x - b.x, a.y - b.y, a.z - b.z };
+	}
+
+	inline RT64_VECTOR3 operator*(const RT64_VECTOR3& a, const float v) {
+		return { a.x * v, a.y * v, a.z * v };
+	}
+
+	inline RT64_VECTOR3 operator/(const RT64_VECTOR3& a, const float v) {
+		return { a.x / v, a.y / v, a.z / v };
+	}
+
+	inline float Length(const RT64_VECTOR3& a) {
+		float sqrLength = a.x * a.x + a.y * a.y + a.z * a.z;
+		return sqrt(sqrLength);
+	}
+
+	inline RT64_VECTOR3 Normalize(const RT64_VECTOR3& a) {
+		float l = Length(a);
+		return (l > 0.0f) ? (a / l) : a;
+	}
+
+	inline RT64_VECTOR3 Cross(const RT64_VECTOR3& a, const RT64_VECTOR3& b) {
+		return {
+			a.y * b.z - b.y * a.z,
+			a.z * b.x - b.z * a.x,
+			a.x * b.y - b.x * a.y
+		};
+	}
+
+	inline RT64_VECTOR3 DirectionFromTo(const RT64_VECTOR3& a, const RT64_VECTOR3& b) {
+		RT64_VECTOR3 dir = { b.x - a.x,  b.y - a.y, b.z - a.z };
+		float length = Length(dir);
+		return dir / length;
+	}
+
+	inline RT64_VECTOR4 ToVector4(const RT64_VECTOR3& a, float w) {
+		return { a.x, a.y, a.z, w };
+	}
+
+	inline void CalculateTextureRowWidthPadding(uint32_t rowPitch, uint32_t& rowWidth, uint32_t& rowPadding) {
+		const int RowMultiple = 256;
+		rowWidth = rowPitch;
+		rowPadding = (rowWidth % RowMultiple) ? RowMultiple - (rowWidth % RowMultiple) : 0;
+		rowWidth += rowPadding;
+	}
+
+	inline float HaltonSequence(int i, int b) {
+		float f = 1.0;
+		float r = 0.0;
+		while (i > 0) {
+			f = f / float(b);
+			r = r + f * float(i % b);
+			i = i / b;
+		}
+
+		return r;
+	}
+
+	inline RT64_VECTOR2 HaltonJitter(int frame, int phases) {
+		return { HaltonSequence(frame % phases + 1, 2) - 0.5f, HaltonSequence(frame % phases + 1, 3) - 0.5f };
+	}
 
 	struct InstanceTransforms {
 		glm::mat4x4 objectToWorld;

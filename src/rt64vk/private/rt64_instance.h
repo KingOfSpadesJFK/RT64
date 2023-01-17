@@ -6,6 +6,7 @@
 
 #include "rt64_common.h"
 #include "rt64_mesh.h"
+#include "rt64_texture.h"
 
 namespace RT64 {
 	class Scene;

@@ -57,9 +57,10 @@ namespace RT64
         createRenderPass();
         createFramebuffers();
         createCommandPool();
+        // I'd say you probs can put createGraphicsPipeline and descriptorSetLayout anywhere after this
 
-        createDescriptorSetLayout();
-        createGraphicsPipeline();
+        // createDescriptorSetLayout();
+        // createGraphicsPipeline();
 
         createTextureImage();
         createTextureImageView();
@@ -343,25 +344,32 @@ namespace RT64
     }
 
     void Device::createDescriptorSetLayout() {
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
         VkDescriptorSetLayoutBinding uboLayoutBinding{};
         uboLayoutBinding.binding = 0;
         uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         uboLayoutBinding.descriptorCount = 1;
         uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
+        bindings.push_back(uboLayoutBinding);
+
+        VkDescriptorSetLayoutBinding samplerLayoutBinding{};
+        samplerLayoutBinding.binding = 1;
+        samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        samplerLayoutBinding.descriptorCount = 1;
+        samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        samplerLayoutBinding.pImmutableSamplers = nullptr;
+        bindings.push_back(samplerLayoutBinding);
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = 1;
-        layoutInfo.pBindings = &uboLayoutBinding;
+        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
+        layoutInfo.pBindings = bindings.data();
         VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &descriptorSetLayout));
-
     }
 
     void Device::createGraphicsPipeline() {
 	    RT64_LOG_PRINTF("Pipeline creation started");
-
-        std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
         std::vector<VkDynamicState> dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
@@ -442,6 +450,7 @@ namespace RT64
         * The shaders
         */
 
+        std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
         VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
         VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
         VkShaderModule vertShaderModule = createShaderModule(HelloTriangleVS_SPIRV, sizeof(HelloTriangleVS_SPIRV), VertexStage, vertShaderStageInfo, &shaderStages);
@@ -508,7 +517,7 @@ namespace RT64
     }
 
     void Device::createTextureImageView() {
-        textureImageView = createImageView(*textureImage.getResource(), VK_FORMAT_R8G8B8A8_SRGB);
+        textureImageView = createImageView(*textureImage.getImage(), VK_FORMAT_R8G8B8A8_SRGB);
     }
 
     void Device::createTextureImage() {
@@ -538,9 +547,13 @@ namespace RT64
             VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT,
             &textureImage
         ));
-        transitionImageLayout(*textureImage.getResource(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-        copyBufferToImage(*stagingImage.getResource(), *textureImage.getResource(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight));
-        transitionImageLayout(*textureImage.getResource(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        VkCommandBuffer* commandBuffer = nullptr;
+        // commandBuffer = beginSingleTimeCommands(commandBuffer);
+        transitionImageLayout(*textureImage.getImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, commandBuffer);
+        copyBufferToImage(*stagingImage.getBuffer(), *textureImage.getImage(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), commandBuffer);
+        transitionImageLayout(*textureImage.getImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, commandBuffer);
+        // endSingleTimeCommands(commandBuffer);
         stagingImage.destroyResource();
     }
 
@@ -1032,6 +1045,28 @@ namespace RT64
 
 #ifndef RT64_MINIMAL
 
+    void Device::createRasterPipeline(DescriptorSetBinding* bindingInfos, uint32_t count)
+    {
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
+        for (int i = 0; i < count; i++) {
+            VkDescriptorSetLayoutBinding* binding = new VkDescriptorSetLayoutBinding;
+            binding->binding = i;
+            binding->descriptorCount = 1;
+            binding->descriptorType = bindingInfos[i].type;
+            binding->stageFlags = bindingInfos[i].stage;
+            binding->pImmutableSamplers = nullptr; // Optional
+            bindings.push_back(*binding);
+        }
+
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = count;
+        layoutInfo.pBindings = bindings.data();
+        VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &descriptorSetLayout));
+
+        createGraphicsPipeline();
+    }
+
     /********************** Getters **********************/
     VkDevice& Device::getVkDevice() { return vkDevice; }
     VkPhysicalDevice& Device::getPhysicalDevice() { return physicalDevice; }
@@ -1139,20 +1174,33 @@ namespace RT64
     }
 
     // Copies a buffer into another
-    void Device::copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+    //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
+    //  Otherwise, it would create a new command buffer just for this
+    void Device::copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size, VkCommandBuffer* commandBuffer) {
+        bool oneTime = !commandBuffer;
+        if (!commandBuffer) {
+            commandBuffer = beginSingleTimeCommands();
+        }
 
         VkBufferCopy copyRegion{};
         copyRegion.srcOffset = 0; // Optional
         copyRegion.dstOffset = 0; // Optional
         copyRegion.size = size;
-        vkCmdCopyBuffer(commandBuffer, src, dest, 1, &copyRegion);
+        vkCmdCopyBuffer(*commandBuffer, src, dest, 1, &copyRegion);
 
-        endSingleTimeCommands(&commandBuffer);
+        if (oneTime) {
+            endSingleTimeCommands(commandBuffer);
+        }
     }
 
-    void Device::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+    // Turns the layout of one image into another
+    //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
+    //  Otherwise, it would create a new command buffer just for this
+    void Device::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer* commandBuffer) {
+        bool oneTime = !commandBuffer;
+        if (!commandBuffer) {
+            commandBuffer = beginSingleTimeCommands();
+        }
 
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
@@ -1189,7 +1237,7 @@ namespace RT64
         }
 
         vkCmdPipelineBarrier(
-            commandBuffer,
+            *commandBuffer,
             sourceStage, destinationStage,
             0,
             0, nullptr,
@@ -1197,11 +1245,21 @@ namespace RT64
             1, &barrier
         );
 
-        endSingleTimeCommands(&commandBuffer);
+        if (oneTime) {
+            // The fact that you passed on passing in a pointer to a
+            //  command buffer kinda implies that's all you wanna do
+            //  with the command buffer :/
+            endSingleTimeCommands(commandBuffer);
+        }
     }
 
-    void Device::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height) {
-        VkCommandBuffer commandBuffer = beginSingleTimeCommands();
+    //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
+    //  Otherwise, it would create a new command buffer just for this
+    void Device::copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, VkCommandBuffer* commandBuffer) {
+        bool oneTime = !commandBuffer;
+        if (!commandBuffer) {
+            commandBuffer = beginSingleTimeCommands();
+        }
 
         VkBufferImageCopy region{};
         region.bufferOffset = 0;
@@ -1219,7 +1277,7 @@ namespace RT64
         };
 
         vkCmdCopyBufferToImage(
-            commandBuffer,
+            *commandBuffer,
             buffer,
             image,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1227,7 +1285,9 @@ namespace RT64
             &region
         );
 
-        endSingleTimeCommands(&commandBuffer);
+        if (oneTime) {
+            endSingleTimeCommands(commandBuffer);
+        }
     }
 
     VkImageView Device::createImageView(VkImage image, VkFormat format) {
@@ -1248,9 +1308,9 @@ namespace RT64
     }
 
     // Begin the use of a command buffer that runs temporarily
-    VkCommandBuffer Device::beginSingleTimeCommands() { return beginSingleTimeCommands(nullptr); }
+    VkCommandBuffer* Device::beginSingleTimeCommands() { return beginSingleTimeCommands(nullptr); }
     // Begin the use of the passed in command buffer that runs temporarily
-    VkCommandBuffer Device::beginSingleTimeCommands(VkCommandBuffer* commandBuffer) {
+    VkCommandBuffer* Device::beginSingleTimeCommands(VkCommandBuffer* commandBuffer) {
         // If no command buffer is passed in, create one
         if (!commandBuffer) {
             commandBuffer = new VkCommandBuffer;
@@ -1265,10 +1325,9 @@ namespace RT64
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
         beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
         vkBeginCommandBuffer(*commandBuffer, &beginInfo);
 
-        return *commandBuffer;
+        return commandBuffer;
     }
     // Ends the passed in command buffer and destroys the command buffer
     void Device::endSingleTimeCommands(VkCommandBuffer* commandBuffer) {

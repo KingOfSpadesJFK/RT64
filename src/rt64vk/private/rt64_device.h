@@ -46,6 +46,15 @@ namespace RT64
         std::vector<VkPresentModeKHR> presentModes;
     };
 
+    struct DescriptorSetBinding {
+        AllocatedResource* resource;
+        VkImageView* imageView;
+        VkSampler* sampler;
+        VkDeviceSize size;
+        VkDescriptorType type;
+        VkShaderStageFlagBits stage;
+    };
+
     enum ShaderStage {
         VertexStage,
         FragmentStage,
@@ -57,7 +66,8 @@ namespace RT64
     // For the test shader
     struct TestVertex {
         glm::vec4 pos;
-        glm::vec3 color;
+        glm::vec3 normal;
+        glm::vec2 uv;
         static VkVertexInputBindingDescription getBindingDescription() {
             VkVertexInputBindingDescription bindingDescription{};
             bindingDescription.binding = 0;
@@ -65,16 +75,20 @@ namespace RT64
             bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
             return bindingDescription;
         }
-        static std::array<VkVertexInputAttributeDescription, 2> getAttributeDescriptions() {
-            std::array<VkVertexInputAttributeDescription, 2> attributeDescriptions{};
+        static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() {
+            std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
             attributeDescriptions[0].binding = 0;   // You know that (location = 0) thing in the glsl shaders? Yeah that's what
             attributeDescriptions[0].location = 0;
-            attributeDescriptions[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+            attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
             attributeDescriptions[0].offset = offsetof(TestVertex, pos);
             attributeDescriptions[1].binding = 0;
             attributeDescriptions[1].location = 1;
             attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-            attributeDescriptions[1].offset = offsetof(TestVertex, color);
+            attributeDescriptions[1].offset = offsetof(TestVertex, normal);
+            attributeDescriptions[2].binding = 0;
+            attributeDescriptions[2].location = 2;
+            attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
+            attributeDescriptions[2].offset = offsetof(TestVertex, uv);
             return attributeDescriptions;
         }
     };
@@ -120,12 +134,13 @@ namespace RT64
             void createSwapChain();
             void createImageViews();
 		    void createRenderPass();
-            void createDescriptorSetLayout();
-		    void createGraphicsPipeline();
             void createFramebuffers();
             void createCommandPool();
             void createCommandBuffers();
             void createSyncObjects();
+
+            void createDescriptorSetLayout();
+		    void createGraphicsPipeline();
 
             void createTextureImage();
             void createTextureImageView();
@@ -210,15 +225,15 @@ namespace RT64
 		    VkCommandBuffer& getCurrentCommandBuffer();
 		    VkFramebuffer& getCurrentSwapchainFramebuffer();
 
-            VkCommandBuffer beginSingleTimeCommands();
-            VkCommandBuffer beginSingleTimeCommands(VkCommandBuffer* commandBuffer);
+            VkCommandBuffer* beginSingleTimeCommands();
+            VkCommandBuffer* beginSingleTimeCommands(VkCommandBuffer* commandBuffer);
             void endSingleTimeCommands(VkCommandBuffer* commandBuffer);
 
             VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedBuffer* alre);
             VkResult allocateImage(uint32_t width, uint32_t height, VkImageType imageType, VkFormat imageFormat, VkImageTiling imageTiling, VkImageLayout initLayout, VkImageUsageFlags imageUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedImage* alre);
-            void copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size);
-            void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout);
-            void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height);
+            void copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size, VkCommandBuffer* commandBuffer);
+            void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer* commandBuffer);
+            void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, VkCommandBuffer* commandBuffer);
             VkImageView createImageView(VkImage image, VkFormat format);
             void draw(int vsyncInterval, double delta);
 		    void addScene(Scene* scene);
@@ -226,6 +241,7 @@ namespace RT64
             void addShader(Shader* shader);
             void removeShader(Shader* shader);
             VkShaderModule createShaderModule(const void* code, size_t size, ShaderStage stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
+            void createRasterPipeline(DescriptorSetBinding* bindings, uint32_t count);
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }
