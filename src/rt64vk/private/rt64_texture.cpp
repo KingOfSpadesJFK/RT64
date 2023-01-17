@@ -16,6 +16,8 @@ namespace RT64 {
 
     Texture::~Texture() {
         texture.destroyResource();
+        vkDestroyImageView(device->getVkDevice(), textureImageView, nullptr);
+        vkDestroySampler(device->getVkDevice(), textureSampler, nullptr);
     }
 
     void Texture::setRawWithFormat(
