@@ -16,6 +16,11 @@
 #include <vulkan/vulkan.h>
 #define RT64_VULKAN_VERSION VK_API_VERSION_1_2
 
+// Oh hey, that dxc rly do be outputing spir-v code
+#ifndef _WIN32
+    #include <dxc/include/linux/dxcapi.h>
+#endif
+
 #include "../contrib/VulkanMemoryAllocator/vk_mem_alloc.h"
 
 #include "../public/rt64.h"
@@ -467,6 +472,20 @@ namespace RT64 {
 			char errorMessage[512];													\
 			snprintf(errorMessage, sizeof(errorMessage), "Vulkan call " #call " "	    \
 				"failed with error code %X.", vr);									\
+																					\
+            throw std::runtime_error(errorMessage);                                 \
+        }                                                                           \
+    } while( 0 )
+
+#define D3D12_CHECK( call )                                                         \
+    do                                                                              \
+    {                                                                               \
+        HRESULT hr = call;                                                          \
+        if (FAILED(hr))														        \
+        {																	        \
+			char errorMessage[512];													\
+			snprintf(errorMessage, sizeof(errorMessage), "D3D12 call " #call " "	\
+				"failed with error code %X.", hr);									\
 																					\
             throw std::runtime_error(errorMessage);                                 \
         }                                                                           \

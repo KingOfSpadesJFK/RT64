@@ -18,7 +18,7 @@
 
 namespace RT64
 {
-    RT64::Scene::Scene(Device *device) {
+    RT64::Scene::Scene(Device* device) {
         assert(device != nullptr);
         this->device = device;
 

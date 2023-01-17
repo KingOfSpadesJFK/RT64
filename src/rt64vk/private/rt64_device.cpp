@@ -62,12 +62,10 @@ namespace RT64
         // createDescriptorSetLayout();
         // createGraphicsPipeline();
 
-        createTextureImage();
-        createTextureImageView();
-        createTextureSampler();
-
         createCommandBuffers();
         createSyncObjects();
+
+        createDxcCompiler();
         
         initRayTracing();
 #endif
@@ -209,20 +207,12 @@ namespace RT64
         }
     }
     
-    // The function to write the commands we want into the command buffer
-    void Device::recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex) {
-        
-        // Time to render!
-        for (Scene* s : scenes) {
-            s->render(0.0f);
-        }
-
-        // VkBuffer vertexBuffers[] = {*(vertexBuffer.getBuffer())};
-        // VkDeviceSize offsets[] = {0};
-        // vkCmdBindVertexBuffers(commandBuffer, 0, 1, vertexBuffers, offsets);
-        // vkCmdBindIndexBuffer(commandBuffer, *indexBuffer.getBuffer(), 0, VK_INDEX_TYPE_UINT32);
-
-        // vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(indices.size()), 1, 0, 0, 0);
+    // I used the DX12 to destroy the DX12
+    void Device::createDxcCompiler() {
+        RT64_LOG_PRINTF("Compiler creation started");
+        D3D12_CHECK(DxcCreateInstance(CLSID_DxcCompiler, __uuidof(IDxcCompiler), (void **)&d3dDxcCompiler));
+        D3D12_CHECK(DxcCreateInstance(CLSID_DxcLibrary, __uuidof(IDxcLibrary), (void **)&d3dDxcLibrary));
+        RT64_LOG_PRINTF("Compiler creation finished");
     }
 
     void Device::createCommandBuffers() {
@@ -490,71 +480,6 @@ namespace RT64
 
         vkDestroyShaderModule(vkDevice, fragShaderModule, nullptr);
         vkDestroyShaderModule(vkDevice, vertShaderModule, nullptr);
-    }
-
-    void Device::createTextureSampler() {
-        VkPhysicalDeviceProperties properties{};
-        vkGetPhysicalDeviceProperties(physicalDevice, &properties);
-
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.anisotropyEnable = VK_FALSE;
-        samplerInfo.maxAnisotropy = 1.0f;
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.unnormalizedCoordinates = VK_FALSE;
-        samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerInfo.mipLodBias = 0.0f;
-        samplerInfo.minLod = 0.0f;
-        samplerInfo.maxLod = 0.0f;
-        vkCreateSampler(vkDevice, &samplerInfo, nullptr, &textureSampler);
-    }
-
-    void Device::createTextureImageView() {
-        textureImageView = createImageView(*textureImage.getImage(), VK_FORMAT_R8G8B8A8_SRGB);
-    }
-
-    void Device::createTextureImage() {
-        int texWidth, texHeight, texChannels;
-        stbi_uc* pixels = stbi_load("../src/rt64vk/contrib/nice_cock.jpg", &texWidth, &texHeight, &texChannels, STBI_rgb_alpha);
-        VkDeviceSize imageSize = texWidth * texHeight * 4;
-        assert(pixels);
-        AllocatedBuffer stagingImage;
-        VK_CHECK(allocateBuffer(imageSize, 
-            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
-            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT,
-            &stagingImage
-        ));
-
-        stagingImage.setData(pixels, imageSize);
-        stbi_image_free(pixels);
-
-        VK_CHECK(allocateImage(
-            texWidth, texHeight,
-            VK_IMAGE_TYPE_2D,
-            VK_FORMAT_R8G8B8A8_SRGB,
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT,
-            &textureImage
-        ));
-
-        VkCommandBuffer* commandBuffer = nullptr;
-        // commandBuffer = beginSingleTimeCommands(commandBuffer);
-        transitionImageLayout(*textureImage.getImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, commandBuffer);
-        copyBufferToImage(*stagingImage.getBuffer(), *textureImage.getImage(), static_cast<uint32_t>(texWidth), static_cast<uint32_t>(texHeight), commandBuffer);
-        transitionImageLayout(*textureImage.getImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, commandBuffer);
-        // endSingleTimeCommands(commandBuffer);
-        stagingImage.destroyResource();
     }
 
     void Device::createSwapChain() {
@@ -1023,10 +948,6 @@ namespace RT64
             delete scene;
         }
         
-
-        vkDestroySampler(vkDevice, textureSampler, nullptr);
-        vkDestroyImageView(vkDevice, textureImageView, nullptr);
-        textureImage.destroyResource();
 		vmaDestroyAllocator(allocator);
         // TODO: Actually delete stuff instead of just leaking everything.
 #endif
@@ -1070,7 +991,6 @@ namespace RT64
     /********************** Getters **********************/
     VkDevice& Device::getVkDevice() { return vkDevice; }
     VkPhysicalDevice& Device::getPhysicalDevice() { return physicalDevice; }
-    // nvvk::RaytracingBuilderKHR& Device::getRTBuilder() { return rtBuilder; }
     VmaAllocator& Device::getMemAllocator() { return allocator; }
     VkRenderPass& Device::getRenderPass() { return renderPass; };
     VkExtent2D& Device::getSwapchainExtent() { return swapChainExtent; }
@@ -1084,6 +1004,8 @@ namespace RT64
 
 	VkCommandBuffer& Device::getCurrentCommandBuffer() { return commandBuffers[currentFrame]; }
     VkFramebuffer& Device::getCurrentSwapchainFramebuffer() { return swapChainFramebuffers[framebufferIndex]; };
+    IDxcCompiler* Device::getDxcCompiler() { return d3dDxcCompiler; }
+    IDxcLibrary* Device::getDxcLibrary() { return d3dDxcLibrary; }
 
     // Adds a scene to the device
     void Device::addScene(Scene* scene) {

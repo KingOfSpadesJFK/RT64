@@ -63,12 +63,12 @@ namespace RT64 {
         ));
 
         // Copy the command the buffer into the image
-        // VkCommandBuffer* commandBuffer = nullptr;
-        // commandBuffer = beginSingleTimeCommands(commandBuffer);
+        VkCommandBuffer* commandBuffer = nullptr;
+        commandBuffer = device->beginSingleTimeCommands(commandBuffer);
         device->transitionImageLayout(*texture.getImage(), format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, nullptr);
         device->copyBufferToImage(*stagingTexture.getBuffer(), *texture.getImage(), static_cast<uint32_t>(width), static_cast<uint32_t>(height), nullptr);
         device->transitionImageLayout(*texture.getImage(), format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, nullptr);
-        // endSingleTimeCommands(commandBuffer);
+        device->endSingleTimeCommands(commandBuffer);
         
         // Destroy the staged resource
         stagingTexture.destroyResource();

@@ -128,6 +128,7 @@ namespace RT64
             static void framebufferResizeCallback(GLFWwindow* glfwWindow, int width, int height);
 
 #ifndef RT64_MINIMAL
+            void createDxcCompiler();
             void createMemoryAllocator();
             void createSurface();
             void cleanupSwapChain();
@@ -142,19 +143,11 @@ namespace RT64
             void createDescriptorSetLayout();
 		    void createGraphicsPipeline();
 
-            void createTextureImage();
-            void createTextureImageView();
-            void createTextureSampler();
-
             void initRayTracing();
             void recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
             void recreateSwapChain();
             bool updateSize(VkResult result, const char* error);
             void updateViewport();
-
-            AllocatedImage textureImage;
-            VkImageView textureImageView;
-            VkSampler textureSampler;
 
             GLFWwindow* window;
             VkSurfaceKHR vkSurface;
@@ -182,6 +175,9 @@ namespace RT64
 
             VkViewport vkViewport;
             VkRect2D vkScissorRect;
+
+            IDxcCompiler* d3dDxcCompiler;   // Who invited my man blud XDXDXD
+            IDxcLibrary* d3dDxcLibrary;     // Bro thinks he's on the team  XDXDXDXDXDXD
 #endif
 
             const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
@@ -224,6 +220,8 @@ namespace RT64
             int getCurrentFrameIndex();
 		    VkCommandBuffer& getCurrentCommandBuffer();
 		    VkFramebuffer& getCurrentSwapchainFramebuffer();
+            IDxcCompiler* getDxcCompiler();
+            IDxcLibrary* getDxcLibrary();
 
             VkCommandBuffer* beginSingleTimeCommands();
             VkCommandBuffer* beginSingleTimeCommands(VkCommandBuffer* commandBuffer);

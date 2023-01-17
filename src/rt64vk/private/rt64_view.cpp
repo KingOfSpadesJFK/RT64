@@ -30,6 +30,7 @@ namespace RT64
 
         createGlobalParamsBuffer();
 
+        // Create binding info for the descriptor sets
         std::vector<DescriptorSetBinding> bindings;
         DescriptorSetBinding globalParamsBind;
         globalParamsBind.resource = &globalParamsBuffer;
