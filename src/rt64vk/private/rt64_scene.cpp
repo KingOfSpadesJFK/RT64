@@ -72,9 +72,9 @@ namespace RT64
     }
 
     void RT64::Scene::resize() {
-        // for (View *view : views) {
-        //     view->resize();
-        // }
+        for (View *view : views) {
+            view->resize();
+        }
     }
 
     void RT64::Scene::setDescription(RT64_SCENE_DESC v) {
@@ -107,7 +107,7 @@ namespace RT64
         // TODO
     }
 
-    const std::vector<RT64::View*>&RT64::Scene::getViews() const {
+    const std::vector<RT64::View*>& RT64::Scene::getViews() const {
         return views;
     }
 

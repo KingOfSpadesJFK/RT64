@@ -11,5 +11,5 @@ float4 PSMain(
     ) : SV_TARGET
 {
     
-    return texture.SampleLevel(samplerColor, inUV, 1) * float4(inNormal, 1.0f);
+    return texture.SampleLevel(samplerColor, inUV, 1) + float4(inNormal, 1.0f);
 }

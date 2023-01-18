@@ -271,10 +271,8 @@ namespace RT64 {
 			inline void* getResource() const { return getBuffer(); }
 
 			inline VkBuffer* getBuffer() const {
-				if (!isNull()) {
-					return buffer;
-				}
-				return nullptr;
+				assert(!isNull());
+				return buffer;
 			}
 
 			void destroyResource() {
@@ -331,10 +329,8 @@ namespace RT64 {
 			inline void* getResource() const { return getImage(); }
 
 			inline VkImage* getImage() const {
-				if (!isNull()) {
-					return image;
-				}
-				return nullptr;
+				assert(!isNull());
+				return image;
 			}
 
 			void destroyResource() {

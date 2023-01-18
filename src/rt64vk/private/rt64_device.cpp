@@ -55,9 +55,9 @@ namespace RT64
         updateViewport();
         createImageViews();
         createRenderPass();
-        createFramebuffers();
         createCommandPool();
         // I'd say you probs can put createGraphicsPipeline and descriptorSetLayout anywhere after this
+        // ...... like an RT64 shader. Since the descriptor sets and pipeline are bound to shaders
 
         // createDescriptorSetLayout();
         // createGraphicsPipeline();
@@ -100,6 +100,10 @@ namespace RT64
     */
 #ifndef RT64_MINIMAL
     void Device::draw(int vsyncInterval, double delta) {
+        if (!framebufferCreated) {
+            createFramebuffers();
+            framebufferCreated = true;
+        }
         vkWaitForFences(vkDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         VkResult result = vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
@@ -115,10 +119,12 @@ namespace RT64
 
         vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 
+        // Update the scenes....
+        updateScenes();
+
         // Draw the scenes!
         for (Scene* s : scenes) {
-            s->update();
-            s->render(0.0f);
+            s->render(delta);
         }
 
         VkSubmitInfo submitInfo{};
@@ -137,14 +143,6 @@ namespace RT64
         submitInfo.signalSemaphoreCount = 1;
         submitInfo.pSignalSemaphores = signalSemaphores;
         VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]));
-
-        VkSubpassDependency dependency{};
-        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.srcAccessMask = 0;
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -180,9 +178,9 @@ namespace RT64
     //  Also returns a secret third thing if something goes wrong (a runtime error)
     bool Device::updateSize(VkResult result, const char* error) {
         if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
-            framebufferResized = false;
             recreateSwapChain();
             updateViewport();
+            framebufferResized = false;
             return true;
         } else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
             throw std::runtime_error(error);
@@ -246,22 +244,23 @@ namespace RT64
         swapChainFramebuffers.resize(swapChainImageViews.size());
 
         for (size_t i = 0; i < swapChainImageViews.size(); i++) {
-            VkImageView attachments[] = {
+            std::vector<VkImageView> attachments = {
                 swapChainImageViews[i]
             };
+            for (int j = 0; j < depthViews.size(); j++) {  
+                attachments.push_back(*depthViews[j]);
+            }
 
             VkFramebufferCreateInfo framebufferInfo{};
             framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
             framebufferInfo.renderPass = renderPass;
-            framebufferInfo.attachmentCount = 1;
-            framebufferInfo.pAttachments = attachments;
+            framebufferInfo.attachmentCount = attachments.size();
+            framebufferInfo.pAttachments = attachments.data();
             framebufferInfo.width = swapChainExtent.width;
             framebufferInfo.height = swapChainExtent.height;
             framebufferInfo.layers = 1;
 
-            if (vkCreateFramebuffer(vkDevice, &framebufferInfo, nullptr, &swapChainFramebuffers[i]) != VK_SUCCESS) {
-                throw std::runtime_error("failed to create framebuffer!");
-            }
+            VK_CHECK(vkCreateFramebuffer(vkDevice, &framebufferInfo, nullptr, &swapChainFramebuffers[i]));
         }
 
     }
@@ -280,24 +279,46 @@ namespace RT64
         colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
+        VkAttachmentDescription depthAttachment{};
+        depthAttachment.format = VK_FORMAT_D32_SFLOAT;
+        depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
+        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+
         // TODO: Do some subpass trickery later on
         VkAttachmentReference colorAttachmentRef{};
         colorAttachmentRef.attachment = 0;
         colorAttachmentRef.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        VkAttachmentReference depthAttachmentRef{};
+        depthAttachmentRef.attachment = 1;
+        depthAttachmentRef.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         VkSubpassDescription subpass{};
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         subpass.colorAttachmentCount = 1;
         subpass.pColorAttachments = &colorAttachmentRef;
+        subpass.pDepthStencilAttachment = &depthAttachmentRef;
 
+        VkSubpassDependency dependency{};
+        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+        dependency.dstSubpass = 0;
+        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.srcAccessMask = 0;
+        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+        VkAttachmentDescription attachments[] = {colorAttachment, depthAttachment};
         VkRenderPassCreateInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = 1;
-        renderPassInfo.pAttachments = &colorAttachment;
+        renderPassInfo.attachmentCount = 2;
+        renderPassInfo.pAttachments = attachments;
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpass;
-        // It's probs a surprise tool that will help us later
-        // renderPassInfo.dependencyCount = 1;
-        // renderPassInfo.pDependencies = &dependency;
+        renderPassInfo.dependencyCount = 1;
+        renderPassInfo.pDependencies = &dependency;
 
         VK_CHECK(vkCreateRenderPass(vkDevice, &renderPassInfo, nullptr, &renderPass));
     }
@@ -456,6 +477,14 @@ namespace RT64
         vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
         vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
         vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        depthStencil.stencilTestEnable = VK_FALSE;
+        depthStencil.front = {}; // Optional
+        depthStencil.back = {}; // Optional
 
         // With your powers combined, I am Captain Pipeline!!!
         VkGraphicsPipelineCreateInfo pipelineInfo{};
@@ -469,6 +498,7 @@ namespace RT64
         pipelineInfo.pMultisampleState = &multisampling;
         pipelineInfo.pDepthStencilState = nullptr; // Optional
         pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = rasterPipelineLayout;
         pipelineInfo.renderPass = renderPass;
@@ -553,10 +583,23 @@ namespace RT64
         vkDeviceWaitIdle(vkDevice);
 
         cleanupSwapChain();
-        
+
         createSwapChain();
         createImageViews();
+        resizeScenes();
         createFramebuffers();
+    }
+
+    void Device::updateScenes() {
+        for (Scene* s : scenes) {
+            s->update();
+        }
+    }
+
+    void Device::resizeScenes() {
+        for (Scene* s : scenes) {
+            s->resize();
+        }
     }
 #endif
 
@@ -764,7 +807,7 @@ namespace RT64
     void Device::createImageViews() {
         swapChainImageViews.resize(swapChainImages.size());
         for (size_t i = 0; i < swapChainImages.size(); i++) {
-            swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat);
+            swapChainImageViews[i] = createImageView(swapChainImages[i], swapChainImageFormat, VK_IMAGE_ASPECT_COLOR_BIT);
         }
     }
 
@@ -1038,6 +1081,16 @@ namespace RT64
         }
     }
 
+    void Device::addDepthImageView(VkImageView* depthImageView) {
+        assert(depthImageView != nullptr);
+        depthViews.push_back(depthImageView);
+    }
+
+    void Device::removeDepthImageView(VkImageView* depthImageView) {
+        assert(depthImageView != nullptr);
+        depthViews.erase(std::remove(depthViews.begin(), depthViews.end(), depthImageView), depthViews.end());
+    }
+
     // Creates an allocated buffer. You must pass in a pointer to an AllocatedResource. Once the function does its thing, the pointer will point to the newly created AllocatedBuffer with the buffer
     VkResult Device::allocateBuffer(
             VkDeviceSize bufferSize, 
@@ -1088,12 +1141,12 @@ namespace RT64
         imageInfo.initialLayout = initLayout;
         imageInfo.usage = imageUsage;
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         imageInfo.extent.width = width;
         imageInfo.extent.height = height;
-        imageInfo.extent.depth = 1;             // Maybe if I were to like
-        imageInfo.mipLevels = 1;
-        imageInfo.arrayLayers = 1;
+            imageInfo.extent.depth = 1;             // Maybe if I were to like
+            imageInfo.mipLevels = 1;
+            imageInfo.arrayLayers = 1;
+            imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         imageInfo.flags = 0; // Optional
 
         VmaAllocationCreateInfo allocCreateInfo = {};
@@ -1167,6 +1220,12 @@ namespace RT64
 
             sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
             destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        } else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED && newLayout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL) {
+            barrier.srcAccessMask = 0;
+            barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+
+            sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+            destinationStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
         } else {
             throw std::invalid_argument("unsupported layout transition!");
         }
@@ -1225,13 +1284,13 @@ namespace RT64
         }
     }
 
-    VkImageView Device::createImageView(VkImage image, VkFormat format) {
+    VkImageView Device::createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags) {
         VkImageViewCreateInfo viewInfo{};
         viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         viewInfo.image = image;
         viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
         viewInfo.format = format;
-        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.aspectMask = aspectFlags;
         viewInfo.subresourceRange.baseMipLevel = 0;
         viewInfo.subresourceRange.levelCount = 1;
         viewInfo.subresourceRange.baseArrayLayer = 0;

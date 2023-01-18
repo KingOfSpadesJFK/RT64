@@ -6,6 +6,7 @@
 
 #include "rt64_common.h"
 
+#include "rt64_view.h"
 #include "rt64_scene.h"
 #include "rt64_shader.h"
 
@@ -136,7 +137,6 @@ namespace RT64
             void createSwapChain();
             void createImageViews();
 		    void createRenderPass();
-            void createFramebuffers();
             void createCommandPool();
             void createCommandBuffers();
             void createSyncObjects();
@@ -149,12 +149,15 @@ namespace RT64
             void recreateSwapChain();
             bool updateSize(VkResult result, const char* error);
             void updateViewport();
+            void updateScenes();
+            void resizeScenes();
 
             GLFWwindow* window;
             VkSurfaceKHR vkSurface;
             int width;
             int height;
             float aspectRatio;
+            bool framebufferCreated = false;
             bool framebufferResized = false;
             std::vector<Scene*> scenes;
             std::vector<Shader*> shaders;
@@ -171,6 +174,7 @@ namespace RT64
             std::vector<VkSemaphore> imageAvailableSemaphores;
             std::vector<VkSemaphore> renderFinishedSemaphores;
             std::vector<VkFence> inFlightFences;
+            std::vector<VkImageView*> depthViews;
             uint32_t currentFrame = 0;
             uint32_t framebufferIndex = 0;
 
@@ -228,17 +232,21 @@ namespace RT64
             VkCommandBuffer* beginSingleTimeCommands(VkCommandBuffer* commandBuffer);
             void endSingleTimeCommands(VkCommandBuffer* commandBuffer);
 
+            void createFramebuffers();
+
             VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedBuffer* alre);
             VkResult allocateImage(uint32_t width, uint32_t height, VkImageType imageType, VkFormat imageFormat, VkImageTiling imageTiling, VkImageLayout initLayout, VkImageUsageFlags imageUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedImage* alre);
             void copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size, VkCommandBuffer* commandBuffer);
             void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer* commandBuffer);
             void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, VkCommandBuffer* commandBuffer);
-            VkImageView createImageView(VkImage image, VkFormat format);
+            VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
             void draw(int vsyncInterval, double delta);
 		    void addScene(Scene* scene);
 		    void removeScene(Scene* scene);
             void addShader(Shader* shader);
             void removeShader(Shader* shader);
+            void addDepthImageView(VkImageView* depthImageView);
+            void removeDepthImageView(VkImageView* depthImageView);
             VkShaderModule createShaderModule(const void* code, size_t size, ShaderStage stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
             void createRasterPipeline(DescriptorSetBinding* bindings, uint32_t count);
 

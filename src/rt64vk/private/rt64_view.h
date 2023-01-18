@@ -8,6 +8,7 @@
 
 // Very much incomplete. Might as well just do
 #include "rt64_upscaler.h"
+#include "rt64_device.h"
 // #include "rt64_dlss.h"
 // #include "rt64_fsr.h"
 // #include "rt64_xess.h"
@@ -19,6 +20,7 @@ namespace RT64
 	class Inspector;
 	class Instance;
 	class Texture;
+    struct DescriptorSetBinding;
 
 	class View {
         private:
@@ -79,9 +81,16 @@ namespace RT64
             VkDescriptorPool descriptorPool;
             std::vector<VkDescriptorSet> descriptorSets;
 
+            bool recreateImageBuffers = false;
+
             AllocatedBuffer globalParamsBuffer;
             GlobalParams globalParamsData;
             VkDeviceSize globalParamsSize;
+            AllocatedImage depthImage;
+            VkImageView depthImageView;
+
+            void createImageBuffers();
+            void destroyImageBuffers();
 
             void createDescriptorPool(DescriptorSetBinding* bindings, uint32_t count);
             void createDescriptorSets(DescriptorSetBinding* bindings, uint32_t count);
@@ -94,5 +103,8 @@ namespace RT64
             virtual ~View();
             void update();
             void render(float deltaTimeMs);
+            void resize();
+
+            VkImageView& getDepthImageView();
 	};
 };

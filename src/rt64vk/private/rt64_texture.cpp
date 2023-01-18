@@ -76,7 +76,7 @@ namespace RT64 {
         this->height = height;
 
         // Create an image view and sampler
-        textureImageView = device->createImageView(*texture.getImage(), VK_FORMAT_R8G8B8A8_SRGB);
+        textureImageView = device->createImageView(*texture.getImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
         VkPhysicalDeviceProperties properties{};
         vkGetPhysicalDeviceProperties(device->getPhysicalDevice(), &properties);

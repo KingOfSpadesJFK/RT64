@@ -10,14 +10,13 @@
 #include <set>
 #include <chrono>
 
-#include "rt64_device.h"
+#include "rt64_view.h"
 // #include "rt64_dlss.h"
 #include "rt64_instance.h"
 #include "rt64_mesh.h"
 #include "rt64_scene.h"
 #include "rt64_shader.h"
 // #include "rt64_texture.h"
-#include "rt64_view.h"
 
 // #include "im3d/im3d.h"
 // #include "xxhash/xxhash32.h"
@@ -27,6 +26,8 @@ namespace RT64
     View::View(Scene* scene) {
         this->scene = scene;
         this->device = scene->getDevice();
+
+        createImageBuffers();
 
         createGlobalParamsBuffer();
 
@@ -58,9 +59,38 @@ namespace RT64
 	    scene->addView(this);
     }
 
+    void View::createImageBuffers() {
+        
+        destroyImageBuffers();
+
+        // Create the depth buffer
+        VK_CHECK(device->allocateImage(
+            device->getSwapchainExtent().width, 
+            device->getSwapchainExtent().height, 
+            VK_IMAGE_TYPE_2D, 
+            VK_FORMAT_D32_SFLOAT, 
+            VK_IMAGE_TILING_OPTIMAL, 
+            VK_IMAGE_LAYOUT_UNDEFINED, 
+            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
+            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, 
+            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT, 
+            &depthImage));
+        depthImageView = device->createImageView(*depthImage.getImage(), VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
+        this->device->addDepthImageView(&depthImageView);
+    }
+
+    void View::destroyImageBuffers() {
+        // Destroy the depth buffer
+        depthImage.destroyResource();   
+        device->removeDepthImageView(&depthImageView);
+    }
+
     View::~View() {
         scene->removeView(this);
 
+        destroyImageBuffers();
+        device->removeDepthImageView(&depthImageView);
+        vkDestroyImageView(device->getVkDevice(), depthImageView, nullptr);
         vkDestroyDescriptorPool(device->getVkDevice(), descriptorPool, nullptr);
         globalParamsBuffer.destroyResource();
     }
@@ -161,6 +191,9 @@ namespace RT64
 
     void View::update() {
         updateGlobalParamsBuffer();
+
+        if (recreateImageBuffers) {
+        }
     }
 
     void View::render(float deltaTimeMs) { 
@@ -186,9 +219,11 @@ namespace RT64
         renderPassInfo.framebuffer = framebuffer;
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = swapChainExtent;
-        VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
-        renderPassInfo.clearValueCount = 1;
-        renderPassInfo.pClearValues = &clearColor;
+        std::array<VkClearValue, 2> clearValues{};
+        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        clearValues[1].depthStencil = {1.0f, 0};
+        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterPipeline);
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterPipelinLayout, 0, 1, &descriptorSets[device->getCurrentFrameIndex()], 0, nullptr);
@@ -211,18 +246,26 @@ namespace RT64
         vkCmdEndRenderPass(commandBuffer);
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
     }
+
+    // Public
+
+    VkImageView& View::getDepthImageView() { return depthImageView; }
+
+    void View::resize() {
+        createImageBuffers();
+    }
 };
 
 // Library exports
 
-DLEXPORT RT64_VIEW *RT64_CreateView(RT64_SCENE *scenePtr) {
+DLEXPORT RT64_VIEW* RT64_CreateView(RT64_SCENE* scenePtr) {
 	assert(scenePtr != nullptr);
-	RT64::Scene *scene = (RT64::Scene *)(scenePtr);
-	return (RT64_VIEW *)(new RT64::View(scene));
+	RT64::Scene* scene = (RT64::Scene*)(scenePtr);
+	return (RT64_VIEW*)(new RT64::View(scene));
 }
 
-DLEXPORT void RT64_DestroyView(RT64_VIEW *viewPtr) {
-	delete (RT64::View *)(viewPtr);
+DLEXPORT void RT64_DestroyView(RT64_VIEW* viewPtr) {
+	delete (RT64::View*)(viewPtr);
 }
 
 #endif
