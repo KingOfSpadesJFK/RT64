@@ -1019,11 +1019,24 @@ namespace RT64
         scenes.erase(std::remove(scenes.begin(), scenes.end(), scene), scenes.end());
     }
 
+    // Adds a scene to the device
+
+    void Device::addShader(Shader *shader) {
+        assert(shader != nullptr);
+        if (shader->hasHitGroups()) {
+            shaders.push_back(shader);
+            // d3dRtStateObjectDirty = true;
+        }
+    }
+
     // Removes a shader from the device
-    // void Device::removeShader(Shader* shader) {
-    //     assert(shader != nullptr);
-    //     shaders.erase(std::remove(shaders.begin(), shaders.end(), shaders), shaders.end());
-    // }
+    void Device::removeShader(Shader *shader) {
+        assert(shader != nullptr);
+        if (shader->hasHitGroups()) {
+            shaders.erase(std::remove(shaders.begin(), shaders.end(), shader), shaders.end());
+            // d3dRtStateObjectDirty = true;
+        }
+    }
 
     // Creates an allocated buffer. You must pass in a pointer to an AllocatedResource. Once the function does its thing, the pointer will point to the newly created AllocatedBuffer with the buffer
     VkResult Device::allocateBuffer(

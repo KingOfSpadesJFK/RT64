@@ -7,6 +7,7 @@
 #include "rt64_common.h"
 
 #include "rt64_scene.h"
+#include "rt64_shader.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <GLFW/glfw3.h>

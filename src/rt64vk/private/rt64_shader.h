@@ -62,9 +62,9 @@ namespace RT64 {
             Shader(Device *device, unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, int flags);
             ~Shader();
             const RasterGroup &getRasterGroup() const;
-            // HitGroup &getSurfaceHitGroup();
-            // HitGroup &getShadowHitGroup();
+            HitGroup &getSurfaceHitGroup();
+            HitGroup &getShadowHitGroup();
             bool hasRasterGroup() const;
-            // bool hasHitGroups() const;
+            bool hasHitGroups() const;
         };
 };

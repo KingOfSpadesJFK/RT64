@@ -419,51 +419,10 @@ namespace RT64
 		// rasterGroup.rootSignature = generateRasterRootSignature(filter, hAddr, vAddr, samplerRegisterIndex);
 
 		// Define the vertex layout.
-		// std::vector<D3D12_INPUT_ELEMENT_DESC> inputElementDescs;
-		// inputElementDescs.push_back({ "POSITION", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, (UINT)(vl.positionOffset), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
-		// inputElementDescs.push_back({ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)(vl.normalOffset), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
-		// if (vertexUV) {
-		// 	inputElementDescs.push_back({ "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, (UINT)(vl.uvOffset), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
-		// }
-		// for (int i = 0; i < cc.inputCount; i++) {
-		// 	inputElementDescs.push_back({ "COLOR", (UINT)(i), cc.opt_alpha ? DXGI_FORMAT_R32G32B32A32_FLOAT : DXGI_FORMAT_R32G32B32_FLOAT, 0, (UINT)(vl.inputOffset[i]), D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
-		// }
 
 		// Blend state.
-		// const D3D12_RENDER_TARGET_BLEND_DESC alphaBlendDesc = {
-		// 	TRUE, FALSE,
-		// 	D3D12_BLEND_SRC_ALPHA, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
-		// 	D3D12_BLEND_ONE, D3D12_BLEND_INV_SRC_ALPHA, D3D12_BLEND_OP_ADD,
-		// 	D3D12_LOGIC_OP_NOOP,
-		// 	D3D12_COLOR_WRITE_ENABLE_ALL
-		// };
 
-		// D3D12_BLEND_DESC bd = {};
-		// bd.AlphaToCoverageEnable = FALSE;
-		// bd.IndependentBlendEnable = FALSE;
-		// for (UINT i = 0; i < D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT; i++) {
-		// 	bd.RenderTarget[i] = alphaBlendDesc;
-		// }
-
-		// Describe and create the graphics pipeline state object (PSO).
-		// D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-		// psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-		// psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-		// psoDesc.BlendState = bd;
-		// psoDesc.DepthStencilState.DepthEnable = FALSE;
-		// psoDesc.DepthStencilState.StencilEnable = FALSE;
-		// psoDesc.SampleMask = UINT_MAX;
-		// psoDesc.NumRenderTargets = 1;
-		// psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
-		// psoDesc.SampleDesc.Count = 1;
-		// psoDesc.InputLayout = { inputElementDescs.data(), (UINT)(inputElementDescs.size()) };
-		// psoDesc.pRootSignature = rasterGroup.rootSignature;
-		// psoDesc.VS.BytecodeLength = rasterGroup.blobVS->GetBufferSize();
-		// psoDesc.VS.pShaderBytecode = rasterGroup.blobVS->GetBufferPointer();
-		// psoDesc.PS.BytecodeLength = rasterGroup.blobPS->GetBufferSize();
-		// psoDesc.PS.pShaderBytecode = rasterGroup.blobPS->GetBufferPointer();
-		// psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-		// D3D12_CHECK(device->getD3D12Device()->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&rasterGroup.pipelineState)));
+		// Describe and create the graphics pipeline.
 	}
 
 	void Shader::compileShaderCode(const std::string& shaderCode, const std::wstring& entryName, const std::wstring& profile, VkShaderModule** shaderBlob) {
@@ -520,6 +479,18 @@ namespace RT64
 
 	bool Shader::hasRasterGroup() const {
 		return (rasterGroup.blobPS != nullptr) || (rasterGroup.blobVS != nullptr);
+	}
+
+	Shader::HitGroup& Shader::getSurfaceHitGroup() {
+		return surfaceHitGroup;
+	}
+
+	Shader::HitGroup& Shader::getShadowHitGroup() {
+		return shadowHitGroup;
+	}
+
+	bool Shader::hasHitGroups() const {
+		return (surfaceHitGroup.blob != nullptr) || (shadowHitGroup.blob != nullptr);
 	}
 
 };

@@ -25,7 +25,7 @@ endif()
 # Include the dxc headers
 if(UNIX)
     set(DXC_HEADER_DIR ${DXC_DIR}/include/linux)
-    file(GLOB DXC_LIBRARIES ${DXC_DIR}/lib/linux-x64/*.so)    
+    file(GLOB DXC_LIBRARIES ${DXC_DIR}/lib/libdxcompiler.so)    
 else()
     set(DXC_HEADER_DIR ${DXC_DIR}/include/win)
 endif()
@@ -65,6 +65,17 @@ target_link_libraries(rt64vk
 )
 
 #######################################################################
+# Build the sample
+
+# Add the sample as a target
+add_executable(sample 
+    ${SAMPLE_DIR}/main.cpp
+)
+target_link_libraries(sample 
+    rt64vk
+)
+
+#######################################################################
 # Shader building
 
 # Build vertex shaders
@@ -73,7 +84,7 @@ foreach(shader ${vertexShaders})
     cmake_path(GET shader STEM shaderName)
     add_custom_command(TARGET rt64vk PRE_BUILD
         COMMAND echo Building vertex shader ${shaderName}...
-        COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T vs_6_3 -E VSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV
+        COMMAND ${DXC_DIR}/bin/dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T vs_6_3 -E VSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV
     )
     # execute_process(COMMAND echo Building vertex shader ${shaderName}...)
     # execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T vs_6_3 -E VSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
@@ -85,7 +96,7 @@ foreach(shader ${pixelShaders})
     cmake_path(GET shader STEM shaderName)
     add_custom_command(TARGET rt64vk PRE_BUILD
         COMMAND echo Building pixel shader ${shaderName}...
-        COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T ps_6_3 -E PSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV
+        COMMAND ${DXC_DIR}/bin/dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T ps_6_3 -E PSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV
     )
     # execute_process(COMMAND echo Building pixel shader ${shaderName}...)
     # execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T ps_6_3 -E PSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
@@ -97,7 +108,7 @@ foreach(shader ${computeShaders})
     cmake_path(GET shader STEM shaderName)
     add_custom_command(TARGET rt64vk PRE_BUILD
         COMMAND echo Building compute shader ${shaderName}...
-        COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T cs_6_3 -E mainCS -Fh ${shader}.h -Vn ${shaderName}_SPIRV
+        COMMAND ${DXC_DIR}/bin/dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T cs_6_3 -E mainCS -Fh ${shader}.h -Vn ${shaderName}_SPIRV
     )
 endforeach()
 
@@ -107,7 +118,7 @@ foreach(shader ${rayShaders})
     cmake_path(GET shader STEM shaderName)
     add_custom_command(TARGET rt64vk PRE_BUILD
         COMMAND echo Building raygen shader ${shaderName}...
-        COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T lib_6_3 -Fh ${shader}.h -Vn ${shaderName}_SPIRV
+        COMMAND ${DXC_DIR}/bin/dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T lib_6_3 -Fh ${shader}.h -Vn ${shaderName}_SPIRV
     )
     # execute_process(COMMAND echo Building raygen shader ${shaderName}...)
     # execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T lib_6_3 -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
@@ -116,20 +127,11 @@ endforeach()
 # Build geometry shaders
 add_custom_command(TARGET rt64vk PRE_BUILD
     COMMAND echo Building geometry shaders ${shaderName}..
-    COMMAND dxc ${SHADER_DIR}/Im3DGSPoints.hlsl -spirv -fspv-target-env=vulkan1.2 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSPoints.hlsl.h -Vn Im3DGSPoints_SPIRV
-    COMMAND dxc ${SHADER_DIR}/Im3DGSLines.hlsl -spirv -fspv-target-env=vulkan1.2 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSLines.hlsl.h -Vn Im3DGSPLines_SPIRV
+    COMMAND ${DXC_DIR}/bin/dxc ${SHADER_DIR}/Im3DGSPoints.hlsl -spirv -fspv-target-env=vulkan1.2 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSPoints.hlsl.h -Vn Im3DGSPoints_SPIRV
+    COMMAND ${DXC_DIR}/bin/dxc ${SHADER_DIR}/Im3DGSLines.hlsl -spirv -fspv-target-env=vulkan1.2 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSLines.hlsl.h -Vn Im3DGSPLines_SPIRV
 )
 
-#######################################################################
-# Build the sample
-
-# Add the sample as a target
-add_executable(sample 
-    ${SAMPLE_DIR}/main.cpp
-)
-target_link_libraries(sample 
-    rt64vk
-)
+##########################################################
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
 set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})
