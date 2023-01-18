@@ -81,6 +81,7 @@ namespace RT64
             VkDescriptorPool descriptorPool;
             std::vector<VkDescriptorSet> descriptorSets;
 
+            bool imageBuffersInit = false;
             bool recreateImageBuffers = false;
 
             AllocatedBuffer globalParamsBuffer;

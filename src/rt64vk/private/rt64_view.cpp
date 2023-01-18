@@ -61,7 +61,10 @@ namespace RT64
 
     void View::createImageBuffers() {
         
-        destroyImageBuffers();
+        // If the image buffers have already been made, then destroy them
+        if (imageBuffersInit) {
+            destroyImageBuffers();
+        }
 
         // Create the depth buffer
         VK_CHECK(device->allocateImage(
@@ -77,20 +80,21 @@ namespace RT64
             &depthImage));
         depthImageView = device->createImageView(*depthImage.getImage(), VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
         this->device->addDepthImageView(&depthImageView);
+
+        imageBuffersInit = true;
     }
 
     void View::destroyImageBuffers() {
         // Destroy the depth buffer
         depthImage.destroyResource();   
         device->removeDepthImageView(&depthImageView);
+        vkDestroyImageView(device->getVkDevice(), depthImageView, nullptr);
     }
 
     View::~View() {
         scene->removeView(this);
 
         destroyImageBuffers();
-        device->removeDepthImageView(&depthImageView);
-        vkDestroyImageView(device->getVkDevice(), depthImageView, nullptr);
         vkDestroyDescriptorPool(device->getVkDevice(), descriptorPool, nullptr);
         globalParamsBuffer.destroyResource();
     }
