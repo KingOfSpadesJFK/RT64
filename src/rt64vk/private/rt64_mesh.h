@@ -15,7 +15,7 @@ namespace RT64
 	class Mesh 
     {
         private:
-            Device *device;
+            Device* device;
             AllocatedBuffer vertexBuffer;             // The actual one; the one optimized for the GPU
             AllocatedBuffer stagingVertexBuffer;      // The temporary one used for like doing stuff on the CPU
             AllocatedBuffer indexBuffer;
@@ -33,11 +33,9 @@ namespace RT64
             virtual ~Mesh();
             void updateVertexBuffer(void* vertexArray, int vertexCount, int vertexStride);
             VkBuffer* getVertexBuffer() const;
-            const VkBufferView* getVertexBufferView() const;
             int getVertexCount() const;
             void updateIndexBuffer(unsigned int* indexArray, int indexCount);
             VkBuffer* getIndexBuffer() const;
-            const VkBufferView* getIndexBufferView() const;
             int getIndexCount() const;
             void updateBottomLevelAS();
             VkBuffer* getBottomLevelASResult() const;

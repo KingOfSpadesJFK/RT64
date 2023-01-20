@@ -110,6 +110,8 @@ namespace RT64 {
     AllocatedImage* Texture::getTexture() { return &texture; };
     VkImageView* Texture::getTextureImageView() { return &textureImageView; };
     VkSampler* Texture::getTextureSampler() { return &textureSampler; };
+    void Texture::setCurrentIndex(int v) { currentIndex = v; }
+    int Texture::getCurrentIndex() const { return currentIndex; }
     int Texture::getWidth() { return width; }
     int Texture::getHeight() { return height; }
 };

@@ -25,9 +25,11 @@ namespace RT64
 	class View {
         private:
             struct RenderInstance {
-                Instance *instance;
-                const VkBufferView* vertexBufferView;
-                const VkBufferView* indexBufferView;
+                Instance* instance;
+                // Don't think Vulkan buffer views work the same way as DX12 buffer views.
+                //  If i'm reading this correctly, VkBufferViews are more for texels than stuff like verticies...
+                // const VkBufferView* vertexBufferView;
+                // const VkBufferView* indexBufferView;
                 int indexCount;
                 VkBuffer* bottomLevelAS;
                 glm::mat4 transform;
@@ -36,7 +38,7 @@ namespace RT64
                 Shader* shader;
                 VkRect2D scissorRect;
                 VkViewport viewport;
-                UINT flags;
+                uint32_t flags;
             };
 
             struct GlobalParams {                
@@ -76,28 +78,41 @@ namespace RT64
                 unsigned int frameCount;
             };
 
-            Device *device;
-            Scene *scene;
-            VkDescriptorPool descriptorPool;
-            std::vector<VkDescriptorSet> descriptorSets;
+            Device* device;
+            Scene* scene;
 
             bool imageBuffersInit = false;
             bool recreateImageBuffers = false;
 
+            std::vector<VkWriteDescriptorSet> rasterDescriptorSetWrite;
             AllocatedBuffer globalParamsBuffer;
             GlobalParams globalParamsData;
             VkDeviceSize globalParamsSize;
+            AllocatedBuffer activeInstancesBufferTransforms;
+            VkDeviceSize activeInstancesBufferTransformsSize;
+            AllocatedBuffer activeInstancesBufferMaterials;
+            VkDeviceSize activeInstancesBufferMaterialsSize;
             AllocatedImage depthImage;
             VkImageView depthImageView;
+            std::vector<RenderInstance> rasterBgInstances;
+            std::vector<RenderInstance> rasterFgInstances;
+            std::vector<RenderInstance> rtInstances;
+		    std::vector<Texture*> usedTextures;
+            bool scissorApplied;
+            bool viewportApplied;
 
             void createImageBuffers();
             void destroyImageBuffers();
 
-            void createDescriptorPool(DescriptorSetBinding* bindings, uint32_t count);
-            void createDescriptorSets(DescriptorSetBinding* bindings, uint32_t count);
+            void createShaderDescriptorSets();
+            void createRasterInstanceDescriptorSet(RenderInstance renderInstance);
 
             void createGlobalParamsBuffer();
             void updateGlobalParamsBuffer();
+            void createInstanceTransformsBuffer();
+            void updateInstanceTransformsBuffer();
+            void createInstanceMaterialsBuffer();
+            void updateInstanceMaterialsBuffer();
             
         public:
             View(Scene *scene);
@@ -107,5 +122,8 @@ namespace RT64
             void resize();
 
             VkImageView& getDepthImageView();
+            AllocatedBuffer& getGlobalParamsBuffer();
+            int getWidth() const;
+            int getHeight() const;
 	};
 };

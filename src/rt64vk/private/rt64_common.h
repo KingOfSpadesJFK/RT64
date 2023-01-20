@@ -31,6 +31,11 @@
 	#define DLEXPORT extern "C" __attribute__((visibility("default")))
 #endif
 
+#define CBV_SHIFT		0
+#define UAV_SHIFT		1024
+#define SRV_SHIFT		2048
+#define SAMPLER_SHIFT	3072
+
 #define HEAP_INDEX(x) (int)(RT64::HeapIndices::x)
 #define UAV_INDEX(x) (int)(RT64::UAVIndices::x)
 #define SRV_INDEX(x) (int)(RT64::SRVIndices::x)
@@ -493,5 +498,7 @@ namespace RT64 {
 		fprintf(stderr, "%s\n", e.what());				\
 	}
 }
+
+#define CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT			256
 
 #define ROUND_UP(v, powerOf2Alignment) (((v) + (powerOf2Alignment)-1) & ~((powerOf2Alignment)-1))

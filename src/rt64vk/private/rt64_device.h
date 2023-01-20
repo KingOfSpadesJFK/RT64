@@ -221,6 +221,8 @@ namespace RT64
             VkRenderPass& getRenderPass();
 		    VkViewport& getViewport();
 		    VkRect2D& getScissors();
+		    int getWidth();
+		    int getHeight();
 		    double getAspectRatio();
             int getCurrentFrameIndex();
 		    VkCommandBuffer& getCurrentCommandBuffer();
@@ -240,6 +242,7 @@ namespace RT64
             void transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer* commandBuffer);
             void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, VkCommandBuffer* commandBuffer);
             VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
+            VkBufferView createBufferView(VkBuffer& buffer, VkFormat format, VkBufferViewCreateFlags flags, VkDeviceSize size);
             void draw(int vsyncInterval, double delta);
 		    void addScene(Scene* scene);
 		    void removeScene(Scene* scene);
@@ -247,7 +250,7 @@ namespace RT64
             void removeShader(Shader* shader);
             void addDepthImageView(VkImageView* depthImageView);
             void removeDepthImageView(VkImageView* depthImageView);
-            VkShaderModule createShaderModule(const void* code, size_t size, ShaderStage stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
+            void createShaderModule(const void* code, size_t size, const char* entryName, VkShaderStageFlagBits stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, VkShaderModule& shader, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
             void createRasterPipeline(DescriptorSetBinding* bindings, uint32_t count);
 
             // More stuff for window resizing

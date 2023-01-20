@@ -23,25 +23,28 @@ namespace RT64 {
             };
 
             struct RasterGroup {
-                VkShaderModule* blobVS = nullptr;
-                VkShaderModule* blobPS = nullptr;
-                VkPipeline* pipeline = nullptr;
-                VkPipelineLayout* rasterPipelinLayout = nullptr;
-                VkDescriptorSetLayout* descriptorSetLayout = nullptr;
-                VkDescriptorSet* descriptorSet = nullptr;
-                std::wstring vertexShaderName;
-                std::wstring pixelShaderName;
+                VkShaderModule vertexModule;
+                VkShaderModule fragmentModule;
+                VkPipeline pipeline;
+                VkPipelineLayout pipelineLayout;
+                VkDescriptorSetLayout descriptorSetLayout;
+                VkDescriptorPool descriptorPool;
+                VkDescriptorSet descriptorSet;
+                std::string vertexShaderName;
+                std::string pixelShaderName;
             };
 
             struct HitGroup {
                 void* id = nullptr;
-                VkShaderModule* blob = nullptr;
-                VkPipelineLayout* rasterPipelinLayout = nullptr;
-                VkDescriptorSetLayout* descriptorSetLayout = nullptr;
-                VkDescriptorSet* descriptorSet = nullptr;
-                std::wstring hitGroupName;
-                std::wstring closestHitName;
-                std::wstring anyHitName;
+                VkShaderModule shaderModule;
+                VkPipelineLayout pipelineLayout;
+                VkPipeline pipeline;
+                VkDescriptorSetLayout descriptorSetLayout;
+                VkDescriptorPool descriptorPool;
+                VkDescriptorSet descriptorSet;
+                std::string hitGroupName;
+                std::string closestHitName;
+                std::string anyHitName;
             };
 
         private:
@@ -49,22 +52,35 @@ namespace RT64 {
             RasterGroup rasterGroup;
             HitGroup surfaceHitGroup;
             HitGroup shadowHitGroup;
+            uint32_t flags;
+            bool descriptorBound = false;
 
             unsigned int uniqueSamplerRegisterIndex(Filter filter, AddressingMode hAddr, AddressingMode vAddr);
-            void generateRasterGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, const std::string &vertexShaderName, const std::string &pixelShaderName);
+            void generateRasterGroup(unsigned int shaderId, 
+                Filter filter, 
+                AddressingMode hAddr, 
+                AddressingMode vAddr, 
+                const std::string &vertexShaderName, 
+                const std::string &pixelShaderName, 
+                bool perspective
+            );
             // void generateSurfaceHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, bool normalMapEnabled, bool specularMapEnabled, const std::string &hitGroupName, const std::string &closestHitName, const std::string &anyHitName);
             // void generateShadowHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, const std::string &hitGroupName, const std::string &closestHitName, const std::string &anyHitName);
             // void fillSamplerDesc(D3D12_STATIC_SAMPLER_DESC &desc, Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex);
             // ID3D12RootSignature *generateRasterRootSignature(Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex);
             // ID3D12RootSignature *generateHitRootSignature(Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex, bool hitBuffers);
-            void compileShaderCode(const std::string& shaderCode, const std::wstring& entryName, const std::wstring& profile, VkShaderModule** shaderBlob);
+            void generateRasterDescriptors(Filter filter, AddressingMode hAddr, AddressingMode vAddr, uint32_t samplerRegisterIndex, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet);
+            void compileShaderCode(const std::string& shaderCode, VkShaderStageFlagBits stage, const std::string& entryName, const std::wstring& profile, VkPipelineShaderStageCreateInfo& shaderStage, VkShaderModule& shaderModule);
         public:
-            Shader(Device *device, unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, int flags);
+            Shader(Device* device, unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, int flags);
             ~Shader();
-            const RasterGroup &getRasterGroup() const;
-            HitGroup &getSurfaceHitGroup();
-            HitGroup &getShadowHitGroup();
+            void updateDescriptorSet(VkWriteDescriptorSet* data, VkDeviceSize size);
+            const RasterGroup& getRasterGroup() const;
+            HitGroup& getSurfaceHitGroup();
+            HitGroup& getShadowHitGroup();
+            uint32_t getFlags() const;
             bool hasRasterGroup() const;
             bool hasHitGroups() const;
+            bool isDescriptorBound() const;
         };
 };

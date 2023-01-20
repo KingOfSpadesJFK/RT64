@@ -81,16 +81,16 @@ struct ColorCombinerParams {
 };
 
 struct VertexLayout {
-	int vertexSize = 0;
-	int positionOffset = 0;
-	int normalOffset = 0;
-	int uvOffset = 0;
-	int inputOffset[4] = { 0,0,0,0 };
-	VertexLayout(bool vertexPosition, bool vertexNormal, bool vertexUV, int inputCount, bool useAlpha) {
-		positionOffset = vertexSize; if (vertexPosition) vertexSize += 16;
-		normalOffset = vertexSize; if (vertexNormal) vertexSize += 12;
-		uvOffset = vertexSize; if (vertexUV) vertexSize += 8;
-		for (int i = 0; i < inputCount; i++) {
+	unsigned int vertexSize = 0;
+	unsigned int positionOffset = 0;
+	unsigned int normalOffset = 0;
+	unsigned int uvOffset = 0;
+	unsigned int inputOffset[4] = { 0,0,0,0 };
+	VertexLayout(bool vertexPosition, bool vertexNormal, bool vertexUV, unsigned int inputCount, bool useAlpha) {
+		positionOffset = vertexSize; if (vertexPosition) vertexSize += sizeof(glm::vec4);
+		normalOffset = vertexSize; if (vertexNormal) vertexSize += sizeof(glm::vec3);
+		uvOffset = vertexSize; if (vertexUV) vertexSize += sizeof(glm::vec2);
+		for (unsigned int i = 0; i < inputCount; i++) {
 			inputOffset[i] = vertexSize;
 			vertexSize += useAlpha ? 16 : 12;
 		}
@@ -283,9 +283,10 @@ RT64::Shader::AddressingMode convertAddressingMode(unsigned int mode) {
 namespace RT64 
 {
 
-	Shader::Shader(Device *device, unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, int flags) {
+	Shader::Shader(Device* device, unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, int flags) {
 		assert(device != nullptr);
 		this->device = device;
+		this->flags = flags;
 
 		bool normalMapEnabled = flags & RT64_SHADER_NORMAL_MAP_ENABLED;
 		bool specularMapEnabled = flags & RT64_SHADER_SPECULAR_MAP_ENABLED;
@@ -299,7 +300,8 @@ namespace RT64
 		if (flags & RT64_SHADER_RASTER_ENABLED) {
 			const std::string vertexShader = baseName + "VS";
 			const std::string pixelShader = baseName + "PS";
-			generateRasterGroup(shaderId, filter, hAddr, vAddr, vertexShader, pixelShader);
+			bool perspective = flags & RT64_SHADER_3D_ENABLED;
+			generateRasterGroup(shaderId, filter, hAddr, vAddr, vertexShader, pixelShader, perspective);
 		}
 
 		// if (flags & RT64_SHADER_RAYTRACE_ENABLED) {
@@ -319,21 +321,33 @@ namespace RT64
 	Shader::~Shader() {
 		device->removeShader(this);
 
-		vkDestroyShaderModule(device->getVkDevice(), *rasterGroup.blobVS, nullptr);
-		vkDestroyShaderModule(device->getVkDevice(), *rasterGroup.blobPS, nullptr);
-		vkDestroyPipeline(device->getVkDevice(), *rasterGroup.pipeline, nullptr);
-		vkDestroyPipelineLayout(device->getVkDevice(), *rasterGroup.rasterPipelinLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device->getVkDevice(), *rasterGroup.descriptorSetLayout, nullptr);
+		vkDestroyShaderModule(device->getVkDevice(), rasterGroup.vertexModule, nullptr);
+		vkDestroyShaderModule(device->getVkDevice(), rasterGroup.fragmentModule, nullptr);
+		vkDestroyPipeline(device->getVkDevice(), rasterGroup.pipeline, nullptr);
+		vkDestroyPipelineLayout(device->getVkDevice(), rasterGroup.pipelineLayout, nullptr);
+		vkDestroyDescriptorSetLayout(device->getVkDevice(), rasterGroup.descriptorSetLayout, nullptr);
+		vkDestroyDescriptorPool(device->getVkDevice(), rasterGroup.descriptorPool, nullptr);
 
-		vkDestroyShaderModule(device->getVkDevice(), *surfaceHitGroup.blob, nullptr);
-		vkDestroyPipelineLayout(device->getVkDevice(), *surfaceHitGroup.rasterPipelinLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device->getVkDevice(), *surfaceHitGroup.descriptorSetLayout, nullptr);
-		vkDestroyShaderModule(device->getVkDevice(), *shadowHitGroup.blob, nullptr);
-		vkDestroyPipelineLayout(device->getVkDevice(), *shadowHitGroup.rasterPipelinLayout, nullptr);
-		vkDestroyDescriptorSetLayout(device->getVkDevice(), *shadowHitGroup.descriptorSetLayout, nullptr);
+		// vkDestroyShaderModule(device->getVkDevice(), surfaceHitGroup.shaderModule, nullptr);
+		// vkDestroyPipelineLayout(device->getVkDevice(), surfaceHitGroup.pipelineLayout, nullptr);
+		// vkDestroyDescriptorSetLayout(device->getVkDevice(), surfaceHitGroup.descriptorSetLayout, nullptr);
+		// vkDestroyDescriptorPool(device->getVkDevice(), surfaceHitGroup.descriptorPool, nullptr);
+
+		// vkDestroyShaderModule(device->getVkDevice(), shadowHitGroup.shaderModule, nullptr);
+		// vkDestroyPipelineLayout(device->getVkDevice(), shadowHitGroup.pipelineLayout, nullptr);
+		// vkDestroyDescriptorSetLayout(device->getVkDevice(), shadowHitGroup.descriptorSetLayout, nullptr);
+		// vkDestroyDescriptorPool(device->getVkDevice(), shadowHitGroup.descriptorPool, nullptr);
 	}
 
-	void Shader::generateRasterGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, const std::string &vertexShaderName, const std::string &pixelShaderName) {
+	void Shader::generateRasterGroup(
+			unsigned int shaderId, 
+			Filter filter, 
+			AddressingMode hAddr, 
+			AddressingMode vAddr, 
+			const std::string &vertexShaderName, 
+			const std::string &pixelShaderName, 
+			bool perspective) 
+	{
 		ColorCombinerParams cc(shaderId);
 		bool vertexUV = cc.useTextures[0] || cc.useTextures[1];
 		VertexLayout vl(true, true, vertexUV, cc.inputCount, cc.opt_alpha);
@@ -341,7 +355,8 @@ namespace RT64
 		std::stringstream ss;
 		SS(INCLUDE_HLSLI(MaterialsHLSLI));
 		SS(INCLUDE_HLSLI(InstancesHLSLI));
-		SS("int instanceId : register(b0);");
+		SS(INCLUDE_HLSLI(GlobalParamsHLSLI));
+		SS("int instanceId : register(b1);");
 
 		unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 		if (cc.useTextures[0]) {
@@ -369,7 +384,11 @@ namespace RT64
 			SS("    out float4 oInput" + std::to_string(i + 1) + " : COLOR" + std::to_string(i) + std::string(((i + 1) < cc.inputCount) ? "," : ""));
 		}
 		SS(") {");
-		SS("    oPosition = iPosition;");
+		if (perspective){
+			SS("    oPosition = mul(projection, mul(view, mul(instanceTransforms[instanceId].objectToWorld, float4(iPosition.xyz, 1.0))));");
+		} else {
+			SS("    oPosition = iPosition;");
+		}
 		SS("    oNormal = iNormal;");
 		if (vertexUV) {
 			SS("    oUV = iUV;");
@@ -410,37 +429,217 @@ namespace RT64
 		}
 		SS("}");
 
+		// Compile the shaders
 		std::string shaderCode = ss.str();
-		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> converter;
-		rasterGroup.pixelShaderName = converter.from_bytes(pixelShaderName);
-		rasterGroup.vertexShaderName = converter.from_bytes(vertexShaderName);
-		compileShaderCode(shaderCode, rasterGroup.pixelShaderName, L"ps_6_3", &rasterGroup.blobPS);
-		compileShaderCode(shaderCode, rasterGroup.vertexShaderName, L"vs_6_3", &rasterGroup.blobVS);
-		// rasterGroup.rootSignature = generateRasterRootSignature(filter, hAddr, vAddr, samplerRegisterIndex);
+		rasterGroup.pixelShaderName = pixelShaderName;
+		rasterGroup.vertexShaderName = vertexShaderName;
+		VkPipelineShaderStageCreateInfo vertexStage = {};
+		VkPipelineShaderStageCreateInfo fragmentStage = {};
+		compileShaderCode(shaderCode, VK_SHADER_STAGE_VERTEX_BIT, vertexShaderName, L"vs_6_3", vertexStage, rasterGroup.vertexModule);
+		compileShaderCode(shaderCode, VK_SHADER_STAGE_FRAGMENT_BIT, pixelShaderName, L"ps_6_3", fragmentStage, rasterGroup.fragmentModule);
+		generateRasterDescriptors(filter, hAddr, vAddr, samplerRegisterIndex, rasterGroup.descriptorSetLayout, rasterGroup.descriptorPool, rasterGroup.descriptorSet);
+
+		// Create the pipeline layout
+        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
+        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pipelineLayoutInfo.setLayoutCount = 1;
+        pipelineLayoutInfo.pSetLayouts = &rasterGroup.descriptorSetLayout; 
+
+        VK_CHECK(vkCreatePipelineLayout(device->getVkDevice(), &pipelineLayoutInfo, nullptr, &rasterGroup.pipelineLayout));
+		
+		// The rest of this involves creating the pipeline
+
+		// Dynamic states
+        std::array<VkPipelineShaderStageCreateInfo, 2> shaderStages {
+			vertexStage, fragmentStage
+		};
+        std::array<VkDynamicState, 2> dynamicStates = {
+            VK_DYNAMIC_STATE_VIEWPORT,
+            VK_DYNAMIC_STATE_SCISSOR
+        };
+
+        VkPipelineDynamicStateCreateInfo dynamicState{};
+        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
+        dynamicState.pDynamicStates = dynamicStates.data();
+        
+        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
+        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+        // Viewport state
+        VkPipelineViewportStateCreateInfo viewportState{};
+        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        viewportState.viewportCount = 1;
+        viewportState.scissorCount = 1;
+
+        // Rasterizer
+        VkPipelineRasterizationStateCreateInfo rasterizer{};
+        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        rasterizer.depthClampEnable = VK_FALSE;
+        rasterizer.rasterizerDiscardEnable = VK_FALSE;
+        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+        rasterizer.lineWidth = 1.0f;
+        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterizer.depthBiasEnable = VK_FALSE;
+
+        VkPipelineMultisampleStateCreateInfo multisampling{};
+        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        multisampling.sampleShadingEnable = VK_FALSE;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        // Color blending
+        VkPipelineColorBlendAttachmentState colorBlendAttachment{};
+        colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+        colorBlendAttachment.blendEnable = VK_FALSE;
+        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
+        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
+        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
+        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
+        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
+        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
+        VkPipelineColorBlendStateCreateInfo colorBlending{};
+        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        colorBlending.logicOpEnable = VK_FALSE;
+        colorBlending.attachmentCount = 1;
+        colorBlending.pAttachments = &colorBlendAttachment;
+
+		// Depth stencil
+        VkPipelineDepthStencilStateCreateInfo depthStencil{};
+        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        depthStencil.depthTestEnable = VK_TRUE;
+        depthStencil.depthWriteEnable = VK_TRUE;
+        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        depthStencil.stencilTestEnable = VK_FALSE;
+        depthStencil.front = {}; // Optional
+        depthStencil.back = {}; // Optional
 
 		// Define the vertex layout.
+        VkVertexInputBindingDescription vertexBind{};
+        vertexBind.binding = 0;
+        vertexBind.stride = vl.vertexSize;
+        vertexBind.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+		// Create the attributes for the vertex inputs
+        std::vector<VkVertexInputAttributeDescription> attributes;
+		attributes.push_back({0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, });
+		attributes.push_back({1, 0, VK_FORMAT_R32G32B32_SFLOAT, vl.normalOffset});
+		if (vertexUV) {
+			attributes.push_back({2, 0, VK_FORMAT_R32G32_SFLOAT, vl.uvOffset});
+		}
+		for (unsigned int i = 0; i < cc.inputCount; i++) {
+			attributes.push_back({vertexUV ? 3 + i : 2 + i, 0, cc.opt_alpha ? VK_FORMAT_R32G32B32A32_SFLOAT : VK_FORMAT_R32G32B32_SFLOAT, vl.inputOffset[i]});
+		}
+        // Bind the vertex inputs
+        VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
+        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+        vertexInputInfo.vertexBindingDescriptionCount = 1;
+        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributes.size());
+        vertexInputInfo.pVertexBindingDescriptions = &vertexBind;
+        vertexInputInfo.pVertexAttributeDescriptions = attributes.data();
 
-		// Blend state.
-
-		// Describe and create the graphics pipeline.
+        // With your powers combined, I am Captain Pipeline!!!
+        VkGraphicsPipelineCreateInfo pipelineInfo{};
+        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        pipelineInfo.stageCount = shaderStages.size();
+        pipelineInfo.pStages = shaderStages.data();
+        pipelineInfo.pVertexInputState = &vertexInputInfo;
+        pipelineInfo.pInputAssemblyState = &inputAssembly;
+        pipelineInfo.pViewportState = &viewportState;
+        pipelineInfo.pRasterizationState = &rasterizer;
+        pipelineInfo.pMultisampleState = &multisampling;
+        pipelineInfo.pDepthStencilState = nullptr; // Optional
+        pipelineInfo.pColorBlendState = &colorBlending;
+        pipelineInfo.pDepthStencilState = &depthStencil;
+        pipelineInfo.pDynamicState = &dynamicState;
+        pipelineInfo.layout = rasterGroup.pipelineLayout;
+        pipelineInfo.renderPass = device->getRenderPass();
+        pipelineInfo.subpass = 0;
+        pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
+        pipelineInfo.basePipelineIndex = -1; // Optional
+        VK_CHECK(vkCreateGraphicsPipelines(device->getVkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &rasterGroup.pipeline));
 	}
 
-	void Shader::compileShaderCode(const std::string& shaderCode, const std::wstring& entryName, const std::wstring& profile, VkShaderModule** shaderBlob) {
+	// Creates the descriptor set layout and pool
+	void Shader::generateRasterDescriptors(Filter filter, AddressingMode hAddr, AddressingMode vAddr, uint32_t samplerRegisterIndex, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet) {
+		VkDevice& device = this->device->getVkDevice();
+
+        std::vector<VkDescriptorSetLayoutBinding> bindings;
+        std::vector<VkDescriptorPoolSize> poolSizes{};
+		bindings.push_back({CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+		poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+		bindings.push_back({1 + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+		poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+        bindings.push_back({SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+		poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+        bindings.push_back({SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+		poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+        bindings.push_back({SRV_INDEX(gTextures) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+		poolSizes.push_back({VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX});
+        bindings.push_back({samplerRegisterIndex + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+		poolSizes.push_back({VK_DESCRIPTOR_TYPE_SAMPLER, 1});
+		
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = bindings.size();
+        layoutInfo.pBindings = bindings.data();
+        VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout));
+
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = poolSizes.size();
+        poolInfo.pPoolSizes = poolSizes.data();
+        poolInfo.maxSets = 1;
+		VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool));
+
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &descriptorSetLayout;
+		VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet));
+	}
+	
+	void Shader::compileShaderCode(const std::string& shaderCode, VkShaderStageFlagBits stage, const std::string& entryName, const std::wstring& profile, VkPipelineShaderStageCreateInfo& shaderStage, VkShaderModule& shaderModule) {
 #ifndef NDEBUG
 		fprintf(stdout, "Compiling...\n\n%s\n", shaderCode.c_str());
 #endif
+		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> stringConverter;		// Because DXC required wstrings for some reason
 		IDxcBlob* dxcBlob;
 		IDxcBlobEncoding* textBlob = nullptr;
 		D3D12_CHECK(device->getDxcLibrary()->CreateBlobWithEncodingFromPinned((LPBYTE)shaderCode.c_str(), (uint32_t)shaderCode.size(), 0, &textBlob));
 
+		// Good ol Microsoft making this shit more complicated than it needed to be
 		std::vector<LPCWSTR> arguments;
+		std::wstring srv_shift = std::to_wstring(SRV_SHIFT);
+		LPCWSTR __srv_shift = srv_shift.c_str();
+		std::wstring uav_shift = std::to_wstring(UAV_SHIFT);
+		LPCWSTR __uav_shift = uav_shift.c_str();
+		std::wstring cbv_shift = std::to_wstring(CBV_SHIFT);
+		LPCWSTR __cbv_shift = cbv_shift.c_str();
+		std::wstring sampler_shift = std::to_wstring(SAMPLER_SHIFT);
+		LPCWSTR __sampler_shift = sampler_shift.c_str();
 		arguments.push_back(L"-spirv");
 		arguments.push_back(L"-fspv-target-env=vulkan1.2");	
+		arguments.push_back(L"-fvk-t-shift");
+		arguments.push_back(__srv_shift);	
+		arguments.push_back(L"0");
+		arguments.push_back(L"-fvk-s-shift");
+		arguments.push_back(__sampler_shift);	
+		arguments.push_back(L"0");
+		arguments.push_back(L"-fvk-u-shift");
+		arguments.push_back(__uav_shift);	
+		arguments.push_back(L"0");
+		arguments.push_back(L"-fvk-b-shift");
+		arguments.push_back(__cbv_shift);
+		arguments.push_back(L"0");
 		arguments.push_back(L"-Qstrip_debug");
-		arguments.push_back(L"-Qstrip_reflect");
+		// Can't do this in SPIR-V
+		// arguments.push_back(L"-Qstrip_reflect");		
 
 		IDxcOperationResult *result = nullptr;
-		D3D12_CHECK(device->getDxcCompiler()->Compile(textBlob, L"", entryName.c_str(), profile.c_str(), arguments.data(), (UINT32)(arguments.size()), nullptr, 0, nullptr, &result));
+		D3D12_CHECK(device->getDxcCompiler()->Compile(textBlob, L"", stringConverter.from_bytes(entryName).c_str(), profile.c_str(), arguments.data(), (UINT32)(arguments.size()), nullptr, 0, nullptr, &result));
 
 		HRESULT resultCode;
 		D3D12_CHECK(result->GetStatus(&resultCode));
@@ -459,7 +658,22 @@ namespace RT64
 			throw std::runtime_error("Shader compilation error: " + std::string(infoLog.data()));
 		}
 
+		// Get the result from the text blob into dxcBlob
 		D3D12_CHECK(result->GetResult(&dxcBlob));
+		
+		// Now we're done with the DXC stuff. Here's some Vulkan stuff
+		// Get the dxcBlob into a void*
+		uint8_t* bobBlobLaw = static_cast<uint8_t*>(dxcBlob->GetBufferPointer());
+		VkDeviceSize gobBluth = dxcBlob->GetBufferSize();
+		// for (int i = 0; i < gobBluth; i++) {
+		// 	printf("Ox%02x", bobBlobLaw[i]);
+		// 	if (i % 16 == 15) {
+		// 		std::cout << "\n";
+		// 	} else {
+		// 		std::cout << " ";
+		// 	}
+		// }
+		device->createShaderModule(bobBlobLaw, gobBluth, entryName.c_str(), stage, shaderStage, shaderModule, nullptr);
 	}
 
 	unsigned int Shader::uniqueSamplerRegisterIndex(Filter filter, AddressingMode hAddr, AddressingMode vAddr) {
@@ -473,25 +687,18 @@ namespace RT64
 
 // Public
 
-	const Shader::RasterGroup &RT64::Shader::getRasterGroup() const {
-		return rasterGroup;
+	void Shader::updateDescriptorSet(VkWriteDescriptorSet* data, VkDeviceSize size) {
+		vkUpdateDescriptorSets(device->getVkDevice(), size, data, 0, nullptr);
+		descriptorBound = true;
 	}
 
-	bool Shader::hasRasterGroup() const {
-		return (rasterGroup.blobPS != nullptr) || (rasterGroup.blobVS != nullptr);
-	}
-
-	Shader::HitGroup& Shader::getSurfaceHitGroup() {
-		return surfaceHitGroup;
-	}
-
-	Shader::HitGroup& Shader::getShadowHitGroup() {
-		return shadowHitGroup;
-	}
-
-	bool Shader::hasHitGroups() const {
-		return (surfaceHitGroup.blob != nullptr) || (shadowHitGroup.blob != nullptr);
-	}
+	const Shader::RasterGroup& RT64::Shader::getRasterGroup() const { return rasterGroup; }
+	bool Shader::hasRasterGroup() const { return (rasterGroup.vertexModule != nullptr) || (rasterGroup.fragmentModule != nullptr); }
+	Shader::HitGroup& Shader::getSurfaceHitGroup() { return surfaceHitGroup; }
+	Shader::HitGroup& Shader::getShadowHitGroup() { return shadowHitGroup; }
+	bool Shader::hasHitGroups() const { return (surfaceHitGroup.shaderModule != nullptr) || (shadowHitGroup.shaderModule != nullptr); }
+	uint32_t Shader::getFlags() const { return flags; }
+	bool Shader::isDescriptorBound() const { return descriptorBound; }
 
 };
 

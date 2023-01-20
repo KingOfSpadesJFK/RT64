@@ -469,8 +469,12 @@ void setupTestScene() {
 	RT64.sceneDesc.giSkyStrength = 0.35f;
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
+	// Setup shader.
+	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_3D_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
+	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
+
 	// Load textures.
-	RT64.textureDif = loadTexturePNG("../assets/nice_cock.png");
+	RT64.textureDif = loadTexturePNG("res/nice_cock.png");
 
 	// Setup view.
 	// RT64.view = RT64.lib.CreateView(RT64.scene);
@@ -500,7 +504,7 @@ void setupTestScene() {
 	std::vector<tinyobj::material_t> materials;
 	std::string warn;
 	std::string err;
-	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "../src/sample/res/teapot.obj", NULL, true);
+	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/teapot.obj", NULL, true);
 	assert(loaded);
 	double maxDistance = __DBL_MIN__;	// Just to scale the object to be bellow 1.0
 	

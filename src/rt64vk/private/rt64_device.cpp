@@ -325,33 +325,22 @@ namespace RT64
 
     #define PS_ENTRY "PSMain"
     #define VS_ENTRY "VSMain"
-    VkShaderModule Device::createShaderModule(const void* code, size_t size, ShaderStage stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages) {
+    void Device::createShaderModule(const void* code, size_t size, const char* entryName, VkShaderStageFlagBits stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, VkShaderModule& shader, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages) {
         VkShaderModuleCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
         createInfo.codeSize = size;
         createInfo.pCode = reinterpret_cast<const uint32_t*>(code);
 
-        VkShaderModule shaderModule;
-        VK_CHECK(vkCreateShaderModule(vkDevice, &createInfo, nullptr, &shaderModule));
+        VK_CHECK(vkCreateShaderModule(vkDevice, &createInfo, nullptr, &shader));
         // Create the shader stage info
         shaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStageInfo.module = shaderModule;
-        switch (stage) {
-            case VertexStage:
-                shaderStageInfo.stage = VK_SHADER_STAGE_VERTEX_BIT;
-                shaderStageInfo.pName = VS_ENTRY;
-                break;
-            case FragmentStage:
-                shaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-                shaderStageInfo.pName = PS_ENTRY;
-                break;
-        }
+        shaderStageInfo.module = shader;
+        shaderStageInfo.pName = entryName;
+        shaderStageInfo.stage = stage;
 
         if (shaderStages) {
             shaderStages->push_back(shaderStageInfo);
         }
-        
-        return shaderModule;
     }
 
     void Device::createDescriptorSetLayout() {
@@ -382,7 +371,7 @@ namespace RT64
     void Device::createGraphicsPipeline() {
 	    RT64_LOG_PRINTF("Pipeline creation started");
 
-        std::vector<VkDynamicState> dynamicStates = {
+        std::array<VkDynamicState, 2> dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
             VK_DYNAMIC_STATE_SCISSOR
         };
@@ -464,8 +453,10 @@ namespace RT64
         std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
         VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
         VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-        VkShaderModule vertShaderModule = createShaderModule(HelloTriangleVS_SPIRV, sizeof(HelloTriangleVS_SPIRV), VertexStage, vertShaderStageInfo, &shaderStages);
-        VkShaderModule fragShaderModule = createShaderModule(HelloTrianglePS_SPIRV, sizeof(HelloTrianglePS_SPIRV), FragmentStage, fragShaderStageInfo, &shaderStages);
+        VkShaderModule vertShaderModule;
+        VkShaderModule fragShaderModule;
+        createShaderModule(HelloTriangleVS_SPIRV, sizeof(HelloTriangleVS_SPIRV), VS_ENTRY, VK_SHADER_STAGE_VERTEX_BIT, vertShaderStageInfo, vertShaderModule, &shaderStages);
+        createShaderModule(HelloTrianglePS_SPIRV, sizeof(HelloTrianglePS_SPIRV), PS_ENTRY, VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderStageInfo, fragShaderModule, &shaderStages);
 
         // We'll probs revisit this when I figure out how to bind vertecies
         VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
@@ -710,12 +701,23 @@ namespace RT64
         }
         
         VkPhysicalDeviceFeatures deviceFeatures{};
+        VkPhysicalDeviceFeatures2 deviceFeatures2{};
+        VkPhysicalDeviceVulkan11Features deviceFeatures11{};
+        VkPhysicalDeviceVulkan12Features deviceFeatures12{};
+        deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+        deviceFeatures11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
+        deviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
+        deviceFeatures2.features = deviceFeatures;
+        deviceFeatures2.pNext = &deviceFeatures12;
+        deviceFeatures12.pNext = &deviceFeatures11;
+        vkGetPhysicalDeviceFeatures2(physicalDevice, &deviceFeatures2);
 
         VkDeviceCreateInfo createInfo{};
         createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
         createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
         createInfo.pQueueCreateInfos = queueCreateInfos.data();
-        createInfo.pEnabledFeatures = &deviceFeatures;
+        // createInfo.pEnabledFeatures = &deviceFeatures;
+        createInfo.pNext = &deviceFeatures2;
 
         createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
         createInfo.ppEnabledExtensionNames = deviceExtensions.data();
@@ -1014,7 +1016,31 @@ namespace RT64
         std::vector<VkDescriptorSetLayoutBinding> bindings;
         for (int i = 0; i < count; i++) {
             VkDescriptorSetLayoutBinding* binding = new VkDescriptorSetLayoutBinding;
-            binding->binding = i;
+            VkDescriptorSetLayoutBinding* sampleBinding;
+            switch (bindingInfos[i].type) 
+            {
+                case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+                    binding->binding = i + CBV_SHIFT;
+                    break;
+                case VK_DESCRIPTOR_TYPE_SAMPLER:
+                    binding->binding = i + SAMPLER_SHIFT;
+                    break;
+                case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+                    binding->binding = i + SRV_SHIFT; 
+                    binding->descriptorCount = 1;
+                    binding->descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+                    binding->stageFlags = bindingInfos[i].stage;
+                    binding->pImmutableSamplers = nullptr; // Optional
+                    bindings.push_back(*binding);
+                    sampleBinding = new VkDescriptorSetLayoutBinding;
+                    sampleBinding->binding = i + SAMPLER_SHIFT; 
+                    sampleBinding->descriptorCount = 1;
+                    sampleBinding->descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+                    sampleBinding->stageFlags = bindingInfos[i].stage;
+                    sampleBinding->pImmutableSamplers = nullptr; // Optional
+                    bindings.push_back(*sampleBinding);
+                    continue;
+            }
             binding->descriptorCount = 1;
             binding->descriptorType = bindingInfos[i].type;
             binding->stageFlags = bindingInfos[i].stage;
@@ -1024,7 +1050,7 @@ namespace RT64
 
         VkDescriptorSetLayoutCreateInfo layoutInfo{};
         layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = count;
+        layoutInfo.bindingCount = bindings.size();
         layoutInfo.pBindings = bindings.data();
         VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &descriptorSetLayout));
 
@@ -1042,6 +1068,8 @@ namespace RT64
     VkDescriptorSetLayout& Device::getDescriptorSetLayout() { return descriptorSetLayout; }
 	VkViewport& Device::getViewport() { return vkViewport; }
 	VkRect2D& Device::getScissors() { return vkScissorRect; }
+	int Device::getWidth() { return swapChainExtent.width; }
+	int Device::getHeight() { return swapChainExtent.height; }
 	double Device::getAspectRatio() { return (double)swapChainExtent.width / (double)swapChainExtent.height; }
 	int Device::getCurrentFrameIndex() { return currentFrame; }
 
@@ -1299,6 +1327,20 @@ namespace RT64
         VkImageView imageView;
         VK_CHECK(vkCreateImageView(vkDevice, &viewInfo, nullptr, &imageView));
         return imageView;
+    }
+
+    VkBufferView Device::createBufferView(VkBuffer& buffer, VkFormat format, VkBufferViewCreateFlags flags, VkDeviceSize size) {
+        VkBufferViewCreateInfo viewInfo {};
+        viewInfo.sType = VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO;
+        viewInfo.buffer = buffer;
+        viewInfo.format = format;
+        viewInfo.flags = flags;
+        viewInfo.offset = 0;
+        viewInfo.range = size;
+
+        VkBufferView bufferView;
+        VK_CHECK(vkCreateBufferView(vkDevice, &viewInfo, nullptr, &bufferView));
+        return bufferView;
     }
 
     // Begin the use of a command buffer that runs temporarily

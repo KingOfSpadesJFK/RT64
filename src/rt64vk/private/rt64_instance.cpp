@@ -34,6 +34,7 @@ namespace RT64{
 		scene->removeInstance(this);
 		delete mesh;
 		delete diffuseTexture;
+		delete shader;
 	}
 
 	void Instance::setMesh(Mesh* mesh) {
