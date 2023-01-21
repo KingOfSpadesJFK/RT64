@@ -54,6 +54,7 @@ namespace RT64 {
             HitGroup shadowHitGroup;
             uint32_t flags;
             bool descriptorBound = false;
+            unsigned int samplerRegisterIndex = 0;
 
             unsigned int uniqueSamplerRegisterIndex(Filter filter, AddressingMode hAddr, AddressingMode vAddr);
             void generateRasterGroup(unsigned int shaderId, 
@@ -69,7 +70,7 @@ namespace RT64 {
             // void fillSamplerDesc(D3D12_STATIC_SAMPLER_DESC &desc, Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex);
             // ID3D12RootSignature *generateRasterRootSignature(Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex);
             // ID3D12RootSignature *generateHitRootSignature(Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex, bool hitBuffers);
-            void generateRasterDescriptors(Filter filter, AddressingMode hAddr, AddressingMode vAddr, uint32_t samplerRegisterIndex, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet);
+            void generateRasterDescriptorSetLayout(Filter filter, AddressingMode hAddr, AddressingMode vAddr, uint32_t samplerRegisterIndex, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet);
             void compileShaderCode(const std::string& shaderCode, VkShaderStageFlagBits stage, const std::string& entryName, const std::wstring& profile, VkPipelineShaderStageCreateInfo& shaderStage, VkShaderModule& shaderModule);
         public:
             Shader(Device* device, unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, int flags);
@@ -82,5 +83,6 @@ namespace RT64 {
             bool hasRasterGroup() const;
             bool hasHitGroups() const;
             bool isDescriptorBound() const;
+            unsigned int getSamplerRegisterIndex() const;
         };
 };

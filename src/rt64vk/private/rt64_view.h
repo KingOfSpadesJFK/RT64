@@ -78,6 +78,30 @@ namespace RT64
                 unsigned int frameCount;
             };
 
+            // A wrapper for the entire descriptor set proccess (or atleast the most important parts)
+            struct DescriptorSet {
+                VkDescriptorSetLayout descSetlayout;
+                VkDescriptorPool descPool;
+                VkDescriptorSet descSet;
+
+                void createDescriptorSetLayout(VkDevice& device, VkDescriptorSetLayoutBinding* bindings, uint32_t bindingCount) {
+                    VkDescriptorSetLayoutCreateInfo layoutInfo{};
+                    layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+                    layoutInfo.bindingCount = bindingCount;
+                    layoutInfo.pBindings = bindings;
+                    VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descSetlayout));
+                }
+
+                void createDescriptorPool(VkDevice& device, VkDescriptorPoolSize* poolSizes, uint32_t poolSizesCount) {
+                    VkDescriptorPoolCreateInfo poolInfo{};
+                    poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+                    poolInfo.poolSizeCount = poolSizesCount;
+                    poolInfo.pPoolSizes = poolSizes;
+                    poolInfo.maxSets = 1;
+                    VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descPool));
+                }
+            };
+
             Device* device;
             Scene* scene;
 
@@ -94,18 +118,19 @@ namespace RT64
             VkDeviceSize activeInstancesBufferMaterialsSize;
             AllocatedImage depthImage;
             VkImageView depthImageView;
+            VkSampler texSampler;
             std::vector<RenderInstance> rasterBgInstances;
             std::vector<RenderInstance> rasterFgInstances;
             std::vector<RenderInstance> rtInstances;
 		    std::vector<Texture*> usedTextures;
+            VkDescriptorSet descriptorSet;
             bool scissorApplied;
             bool viewportApplied;
 
-            void createImageBuffers();
-            void destroyImageBuffers();
+            void createOutputBuffers();
+            void destroyOutputBuffers();
 
-            void createShaderDescriptorSets();
-            void createRasterInstanceDescriptorSet(RenderInstance renderInstance);
+            void createShaderDescriptorSets(bool updateDescriptors);
 
             void createGlobalParamsBuffer();
             void updateGlobalParamsBuffer();

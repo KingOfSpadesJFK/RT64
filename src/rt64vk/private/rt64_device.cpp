@@ -847,7 +847,9 @@ namespace RT64
         const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
         void *pUserData) 
     {
-        std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
+        std::cerr << "********************************************************" << std::endl;
+        std::cerr << "[VALIDATION LAYER] " << pCallbackData->pMessage << std::endl;
+        std::cerr << std::endl;
         return VK_FALSE;
     }
 
@@ -1058,8 +1060,12 @@ namespace RT64
     }
 
     /********************** Getters **********************/
+
+    // Returns Vulkan device
     VkDevice& Device::getVkDevice() { return vkDevice; }
+    // Returns physical device
     VkPhysicalDevice& Device::getPhysicalDevice() { return physicalDevice; }
+    // Returns VMA allocator
     VmaAllocator& Device::getMemAllocator() { return allocator; }
     VkRenderPass& Device::getRenderPass() { return renderPass; };
     VkExtent2D& Device::getSwapchainExtent() { return swapChainExtent; }

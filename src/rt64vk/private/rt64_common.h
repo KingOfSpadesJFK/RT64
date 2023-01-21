@@ -240,6 +240,7 @@ namespace RT64 {
 	class AllocatedBuffer : public AllocatedResource {
 		private:
 			VkBuffer* buffer = nullptr;
+			VkDescriptorBufferInfo info;
 			
 		public:
 			AllocatedBuffer() { }
@@ -291,13 +292,27 @@ namespace RT64 {
 					allocator = nullptr;
 					buffer = nullptr;
 					mapped = false;
+					info.buffer = nullptr;
+					info.offset = 0;
+					info.range = 0;
 				}
+			}
+
+			void setDescriptorInfo(VkDeviceSize size, uint64_t offset) {
+				info.buffer = *buffer;
+				info.offset = offset;
+				info.range = size;
+			}
+
+			VkDescriptorBufferInfo& getDescriptorInfo() {
+				return info;
 			}
 		};
 
 	class AllocatedImage :  public AllocatedResource {
 		private:
 			VkImage* image = nullptr;
+			VkDescriptorImageInfo info;
 			
 		public:
 			AllocatedImage() { }
@@ -350,6 +365,15 @@ namespace RT64 {
 					image = nullptr;
 					mapped = false;
 				}
+			}
+
+			void setDescriptorInfo(VkImageView* imageView, VkSampler* sampler) {
+				info.imageView = *imageView;
+				info.sampler = *sampler;
+			}
+
+			VkDescriptorImageInfo& getDescriptorInfo() {
+				return info;
 			}
 	};
 

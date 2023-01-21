@@ -497,7 +497,7 @@ void setupTestScene() {
 	RT64.viewMatrix.m[3][3] = 1.0f;
 
 	// Create mesh from obj file.
-	std::vector<TEST_VERTEX> objVertices;
+	std::vector<VERTEX> objVertices;
 	std::vector<unsigned int> objIndices;
 	tinyobj::attrib_t attrib;
 	std::vector<tinyobj::shape_t> shapes;
@@ -514,11 +514,11 @@ void setupTestScene() {
 			size_t fnum = shapes[i].mesh.num_face_vertices[f];
 			for (size_t v = 0; v < fnum; v++) {
 				tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
-				TEST_VERTEX vertex;
+				VERTEX vertex;
 				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2], 1.0f };
 				vertex.normal = { attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2] };
 				vertex.uv = { acosf(vertex.normal.x), acosf(vertex.normal.y) };
-				// vertex.input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
+				vertex.input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 				// Just for testing
 				double distance = (double)(vertex.position.x * vertex.position.x);
@@ -544,7 +544,7 @@ void setupTestScene() {
 	}
 	
 	RT64_MESH* objMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT);
-	RT64.lib.SetMesh(objMesh, objVertices.data(), (int)(objVertices.size()), sizeof(TEST_VERTEX), objIndices.data(), (int)(objIndices.size()));
+	RT64.lib.SetMesh(objMesh, objVertices.data(), (int)(objVertices.size()), sizeof(VERTEX), objIndices.data(), (int)(objIndices.size()));
 
 	// Configure material.
 	RT64.baseMaterial.ignoreNormalFactor = 0.0f;

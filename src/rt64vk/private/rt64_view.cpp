@@ -27,7 +27,7 @@ namespace RT64
         this->scene = scene;
         this->device = scene->getDevice();
 
-        createImageBuffers();
+        createOutputBuffers();
 
         createGlobalParamsBuffer();
 
@@ -53,14 +53,34 @@ namespace RT64
         
         // device->createRasterPipeline(bindings.data(), bindings.size());
 
+        // Create a generic texture sampler
+        VkSamplerCreateInfo samplerInfo{};
+        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.anisotropyEnable = VK_FALSE;
+        samplerInfo.maxAnisotropy = 1.0f;
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE;
+        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.mipLodBias = 0.0f;
+        samplerInfo.minLod = 0.0f;
+        samplerInfo.maxLod = 0.0f;
+        vkCreateSampler(device->getVkDevice(), &samplerInfo, nullptr, &texSampler);
+
 	    scene->addView(this);
     }
 
-    void View::createImageBuffers() {
+    void View::createOutputBuffers() {
         
         // If the image buffers have already been made, then destroy them
         if (imageBuffersInit) {
-            destroyImageBuffers();
+            destroyOutputBuffers();
         }
 
         // Create the depth buffer
@@ -81,7 +101,7 @@ namespace RT64
         imageBuffersInit = true;
     }
 
-    void View::destroyImageBuffers() {
+    void View::destroyOutputBuffers() {
         // Destroy the depth buffer
         depthImage.destroyResource();   
         device->removeDepthImageView(&depthImageView);
@@ -91,85 +111,14 @@ namespace RT64
     View::~View() {
         scene->removeView(this);
 
-        destroyImageBuffers();
+        destroyOutputBuffers();
         globalParamsBuffer.destroyResource();
-    }
-
-    void View::createShaderDescriptorSets() { 
-	    assert(usedTextures.size() <= SRV_TEXTURES_MAX);
-
-        // Create descriptor sets for the instances
-        {
-            
-        }
-    }
-
-    // Create a descriptor set for the passed-in instance
-    void View::createRasterInstanceDescriptorSet(RenderInstance renderInstance) {
-        if (renderInstance.shader->isDescriptorBound()) {
-            return;
-        }
-
-        std::vector<VkWriteDescriptorSet> descriptorWrites{};
-        VkDescriptorBufferInfo gParams_Info {};
-        gParams_Info.buffer = *globalParamsBuffer.getBuffer();
-        gParams_Info.range = globalParamsSize;
-        VkDescriptorBufferInfo instId {};
-        instId.buffer = *globalParamsBuffer.getBuffer();
-        instId.range = sizeof(uint32_t);
-        VkDescriptorBufferInfo transform_Info {};
-        transform_Info.buffer = *activeInstancesBufferTransforms.getBuffer();
-        transform_Info.range = activeInstancesBufferTransformsSize;
-        VkDescriptorBufferInfo materials_Info {};
-        materials_Info.buffer = *activeInstancesBufferMaterials.getBuffer();
-        materials_Info.range = activeInstancesBufferMaterialsSize;
-        VkDescriptorImageInfo textures_Info {};
-        textures_Info.imageView = *renderInstance.instance->getDiffuseTexture()->getTextureImageView();
-        VkDescriptorImageInfo sampler_Info {};
-        sampler_Info.sampler = *renderInstance.instance->getDiffuseTexture()->getTextureSampler();
-
-        VkWriteDescriptorSet write {};
-        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write.dstSet = renderInstance.shader->getRasterGroup().descriptorSet;
-        write.dstBinding = CBV_INDEX(gParams) + CBV_SHIFT;
-        write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        write.descriptorCount = 1;
-        write.pBufferInfo = &gParams_Info;
-        descriptorWrites.push_back(write);
-        
-        write.dstBinding = 1 + CBV_SHIFT;
-        write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        write.pBufferInfo = &instId;
-        descriptorWrites.push_back(write);
-        
-        write.dstBinding = SRV_INDEX(instanceTransforms) + SRV_SHIFT;
-        write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        write.pBufferInfo = &transform_Info;
-        descriptorWrites.push_back(write);
-        
-        write.dstBinding = SRV_INDEX(instanceMaterials) + SRV_SHIFT;
-        write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        write.pBufferInfo = &materials_Info;
-        descriptorWrites.push_back(write);
-        
-        write.dstBinding = SRV_INDEX(gTextures) + SRV_SHIFT;
-        write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-        write.descriptorCount = 1;
-        write.pBufferInfo = nullptr;
-        write.pImageInfo = &textures_Info;
-        descriptorWrites.push_back(write);
-        
-        write.dstBinding = 10 + SAMPLER_SHIFT; // Very much not good code
-        write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-        write.descriptorCount = 1;
-        write.pImageInfo = &sampler_Info;
-        descriptorWrites.push_back(write);
-
-        vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+        activeInstancesBufferMaterials.destroyResource();
+        activeInstancesBufferTransforms.destroyResource();
     }
 
     void View::createGlobalParamsBuffer() {
-        globalParamsSize = sizeof(GlobalParams);
+        globalParamsSize = ROUND_UP(sizeof(GlobalParams), CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
         device->allocateBuffer(
             globalParamsSize,
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -177,6 +126,7 @@ namespace RT64
             VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
             &globalParamsBuffer
         );
+        globalParamsBuffer.setDescriptorInfo(globalParamsSize, 0);
     }
 
     void View::updateGlobalParamsBuffer() {
@@ -194,15 +144,16 @@ namespace RT64
 
     void View::createInstanceTransformsBuffer() {
         uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size());
-        uint32_t newBufferSize = totalInstances * sizeof(InstanceTransforms);
+        uint32_t newBufferSize = ROUND_UP(totalInstances * sizeof(InstanceTransforms), CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
         if (activeInstancesBufferTransformsSize != newBufferSize) {
             activeInstancesBufferTransforms.destroyResource();
             scene->getDevice()->allocateBuffer(
-                newBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                newBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                 VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
                 VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
                 &activeInstancesBufferTransforms
             );
+            activeInstancesBufferTransforms.setDescriptorInfo(newBufferSize, 0);
             activeInstancesBufferTransformsSize = newBufferSize;
         }
     }
@@ -231,7 +182,7 @@ namespace RT64
             current->objectToWorldNormal = glm::transpose(glm::inverse(upper3x3));
 
             current++;
-        }
+        } 
 
         activeInstancesBufferTransforms.unmapMemory();
     }
@@ -242,26 +193,27 @@ namespace RT64
         if (activeInstancesBufferMaterialsSize != newBufferSize) {
             activeInstancesBufferMaterials.destroyResource();
             device->allocateBuffer(
-                newBufferSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+                newBufferSize, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                 VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
                 VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
                 &activeInstancesBufferMaterials
             );
 
+            activeInstancesBufferMaterials.setDescriptorInfo(newBufferSize, 0);
             activeInstancesBufferMaterialsSize = newBufferSize;
         }
     }
 
     void View::updateInstanceMaterialsBuffer() {
         RT64_MATERIAL* current = nullptr;
-        activeInstancesBufferMaterials.mapMemory(reinterpret_cast<void **>(&current));
+        activeInstancesBufferMaterials.mapMemory(reinterpret_cast<void**>(&current));
 
-        for (const RenderInstance &inst : rtInstances) {
+        for (const RenderInstance& inst : rtInstances) {
             *current = inst.material;
             current++;
         }
 
-        for (const RenderInstance &inst : rasterBgInstances) {
+        for (const RenderInstance& inst : rasterBgInstances) {
             *current = inst.material;
             current++;
         }
@@ -272,6 +224,86 @@ namespace RT64
         }
 
         activeInstancesBufferMaterials.unmapMemory();
+    }
+
+    void View::createShaderDescriptorSets(bool updateDescriptors) { 
+	    assert(usedTextures.size() <= SRV_TEXTURES_MAX);
+
+        VkWriteDescriptorSet write {};
+        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+
+        // Create descriptor sets for the instances
+        if (updateDescriptors)
+        {
+            // First step is create the infos
+            VkDescriptorBufferInfo gParams_Info {};
+            gParams_Info.buffer = *globalParamsBuffer.getBuffer();
+            gParams_Info.range = globalParamsSize;
+            VkDescriptorBufferInfo instId {};
+            instId.buffer = *globalParamsBuffer.getBuffer();
+            instId.range = sizeof(uint32_t);
+            VkDescriptorBufferInfo transform_Info {};
+            transform_Info.buffer = *activeInstancesBufferTransforms.getBuffer();
+            transform_Info.range = activeInstancesBufferTransformsSize;
+            VkDescriptorBufferInfo materials_Info {};
+            materials_Info.buffer = *activeInstancesBufferMaterials.getBuffer();
+            materials_Info.range = activeInstancesBufferMaterialsSize;
+            std::vector<VkDescriptorImageInfo> texture_infos;
+            texture_infos.resize(usedTextures.size());
+            for (int i = 0; i < usedTextures.size(); i++) {
+                VkDescriptorImageInfo currTexInfo {};
+                currTexInfo.imageView = *usedTextures[i]->getTextureImageView();
+                currTexInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                texture_infos[i] = currTexInfo;
+            }
+            VkDescriptorImageInfo sampler_Info {};
+            sampler_Info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            sampler_Info.sampler = texSampler;
+
+            // Then create the descriptor writes
+            std::vector<VkWriteDescriptorSet> descriptorWrites{};
+            write.descriptorCount = 1;
+            write.dstBinding = CBV_INDEX(gParams) + CBV_SHIFT;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            write.pBufferInfo = &gParams_Info;
+            descriptorWrites.push_back(write);
+            
+            write.dstBinding = 1 + CBV_SHIFT;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            write.pBufferInfo = &instId;
+            descriptorWrites.push_back(write);
+            
+            write.dstBinding = SRV_INDEX(instanceTransforms) + SRV_SHIFT;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            write.pBufferInfo = &transform_Info;
+            descriptorWrites.push_back(write);
+            
+            write.dstBinding = SRV_INDEX(instanceMaterials) + SRV_SHIFT;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            write.pBufferInfo = &materials_Info;
+            descriptorWrites.push_back(write);
+            
+            write.dstBinding = SRV_INDEX(gTextures) + SRV_SHIFT;
+            write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            write.descriptorCount = texture_infos.size();
+            write.pBufferInfo = nullptr;
+            write.pImageInfo = texture_infos.data();
+            descriptorWrites.push_back(write);
+            
+            write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+            write.descriptorCount = 1;
+            write.pImageInfo = &sampler_Info;
+            descriptorWrites.push_back(write);
+
+            // Write to the instances' descriptor sets
+            for (RenderInstance& r : rtInstances) {
+                for (VkWriteDescriptorSet& w : descriptorWrites) {
+                    w.dstSet = r.shader->getRasterGroup().descriptorSet;
+                }
+                descriptorWrites[5].dstBinding = r.shader->getSamplerRegisterIndex() + SAMPLER_SHIFT;
+                vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            }
+        }
     }
 
     void View::update() 
@@ -303,6 +335,7 @@ namespace RT64
             Mesh* usedMesh = nullptr;
             Texture *usedDiffuse = nullptr;
             size_t totalInstances = scene->getInstances().size();
+		    bool updateDescriptors = (totalInstances != (rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size()));
             unsigned int instFlags = 0;
             unsigned int screenHeight = getHeight();
             rtInstances.clear();
@@ -318,6 +351,7 @@ namespace RT64
                 usedMesh = instance->getMesh();
                 renderInstance.instance = instance;
                 // renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
+                renderInstance.bottomLevelAS = nullptr;
                 renderInstance.transform = instance->getTransform();
                 renderInstance.transformPrevious = instance->getPreviousTransform();
                 renderInstance.material = instance->getMaterial();
@@ -359,7 +393,8 @@ namespace RT64
                     rasterBgInstances.push_back(renderInstance);
                 }
                 else {
-                    rasterFgInstances.push_back(renderInstance);
+                    rtInstances.push_back(renderInstance);
+                    // rasterFgInstances.push_back(renderInstance);
                 }
             }
 
@@ -372,10 +407,10 @@ namespace RT64
             createInstanceTransformsBuffer();
             createInstanceMaterialsBuffer();
             
-            // Create the buffer containing the raytracing result (always output in a
-            // UAV), and create the heap referencing the resources used by the raytracing,
-            // such as the acceleration structure
-            // createShaderResourceHeap();
+            // Create the buffer containing the raytracing result (or atleast soon), 
+            //  and create the descriptor sets referencing the resources used 
+            //  by the raytracing, such as the acceleration structure
+            createShaderDescriptorSets(updateDescriptors);
             
             // Create the shader binding table and indicating which shaders
             // are invoked for each instance in the AS.
@@ -394,7 +429,7 @@ namespace RT64
     }
 
     void View::render(float deltaTimeMs) { 
-        VkCommandBuffer& commandBuffer = scene->getDevice()->getCurrentCommandBuffer();
+        VkCommandBuffer commandBuffer = scene->getDevice()->getCurrentCommandBuffer();
         VkViewport viewport = scene->getDevice()->getViewport();
         VkRect2D scissors = scene->getDevice()->getScissors();
         VkRenderPass renderPass = scene->getDevice()->getRenderPass();
@@ -435,6 +470,7 @@ namespace RT64
         auto drawInstances = [commandBuffer, &scissors, applyScissor, applyViewport, this](const std::vector<RT64::View::RenderInstance>& rasterInstances, uint32_t baseInstanceIndex, bool applyScissorsAndViewports) {
             uint32_t rasterSize = rasterInstances.size();
             Shader* previousShader = nullptr;
+            
             for (uint32_t j = 0; j < rasterSize; j++) {
 			    const RenderInstance& renderInstance = rasterInstances[j];
                 if (applyScissorsAndViewports) {
@@ -444,12 +480,11 @@ namespace RT64
                 if (previousShader != renderInstance.shader) {
                     const auto &rasterGroup = renderInstance.shader->getRasterGroup();
                     vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterGroup.pipeline);
-                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterGroup.pipelineLayout, 0, 1, &rasterGroup.descriptorSet, 0, nullptr);
+                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterGroup.pipelineLayout, 0, 1, &renderInstance.shader->getRasterGroup().descriptorSet, 0, nullptr);
                     previousShader = renderInstance.shader;
                 }
 
                 VkDeviceSize offsets[] = {0};
-                createRasterInstanceDescriptorSet(renderInstance);
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, renderInstance.instance->getMesh()->getVertexBuffer(), offsets);
                 vkCmdBindIndexBuffer(commandBuffer, *renderInstance.instance->getMesh()->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
                 vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(renderInstance.instance->getMesh()->getIndexCount()), 1, 0, 0, 0);
@@ -484,7 +519,7 @@ namespace RT64
         RT64_LOG_PRINTF("Drawing background instances");
         resetScissor();
         resetViewport();
-	    drawInstances(rasterFgInstances, (uint32_t)(rasterBgInstances.size() + rtInstances.size()), true);
+	    drawInstances(rtInstances, (uint32_t)(rasterBgInstances.size() + rtInstances.size()), true);
 
         vkCmdEndRenderPass(commandBuffer);
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
@@ -495,7 +530,7 @@ namespace RT64
     VkImageView& View::getDepthImageView() { return depthImageView; }
 
     void View::resize() {
-        createImageBuffers();
+        createOutputBuffers();
     }
 
     int View::getWidth() const {
