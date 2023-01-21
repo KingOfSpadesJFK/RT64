@@ -343,166 +343,6 @@ namespace RT64
         }
     }
 
-    void Device::createDescriptorSetLayout() {
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
-        VkDescriptorSetLayoutBinding uboLayoutBinding{};
-        uboLayoutBinding.binding = 0;
-        uboLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        uboLayoutBinding.descriptorCount = 1;
-        uboLayoutBinding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-        uboLayoutBinding.pImmutableSamplers = nullptr; // Optional
-        bindings.push_back(uboLayoutBinding);
-
-        VkDescriptorSetLayoutBinding samplerLayoutBinding{};
-        samplerLayoutBinding.binding = 1;
-        samplerLayoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        samplerLayoutBinding.descriptorCount = 1;
-        samplerLayoutBinding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        samplerLayoutBinding.pImmutableSamplers = nullptr;
-        bindings.push_back(samplerLayoutBinding);
-
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
-        layoutInfo.pBindings = bindings.data();
-        VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &descriptorSetLayout));
-    }
-
-    void Device::createGraphicsPipeline() {
-	    RT64_LOG_PRINTF("Pipeline creation started");
-
-        std::array<VkDynamicState, 2> dynamicStates = {
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR
-        };
-
-        VkPipelineDynamicStateCreateInfo dynamicState{};
-        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-        dynamicState.dynamicStateCount = static_cast<uint32_t>(dynamicStates.size());
-        dynamicState.pDynamicStates = dynamicStates.data();
-        
-        VkPipelineInputAssemblyStateCreateInfo inputAssembly{};
-        inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-        inputAssembly.primitiveRestartEnable = VK_FALSE;
-
-        // Viewport state
-        VkPipelineViewportStateCreateInfo viewportState{};
-        viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-        viewportState.viewportCount = 1;
-        viewportState.scissorCount = 1;
-
-        // Rasterizer
-        //  Yeah we still have to rasterize in our ray-tracer
-        VkPipelineRasterizationStateCreateInfo rasterizer{};
-        rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        rasterizer.depthClampEnable = VK_FALSE;
-        rasterizer.rasterizerDiscardEnable = VK_FALSE;      // Possibly might have to disable this???
-        rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-        rasterizer.lineWidth = 1.0f;
-        rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-        rasterizer.depthBiasEnable = VK_FALSE;
-        rasterizer.depthBiasConstantFactor = 0.0f; // Optional
-        rasterizer.depthBiasClamp = 0.0f; // Optional
-        rasterizer.depthBiasSlopeFactor = 0.0f; // Optional
-
-        VkPipelineMultisampleStateCreateInfo multisampling{};
-        multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-        multisampling.sampleShadingEnable = VK_FALSE;
-        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-        multisampling.minSampleShading = 1.0f; // Optional
-        multisampling.pSampleMask = nullptr; // Optional
-        multisampling.alphaToCoverageEnable = VK_FALSE; // Optional
-        multisampling.alphaToOneEnable = VK_FALSE; // Optional
-
-        // Color blending
-        VkPipelineColorBlendAttachmentState colorBlendAttachment{};
-        colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-        colorBlendAttachment.blendEnable = VK_FALSE;
-        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
-        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
-        VkPipelineColorBlendStateCreateInfo colorBlending{};
-        colorBlending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-        colorBlending.logicOpEnable = VK_FALSE;
-        colorBlending.logicOp = VK_LOGIC_OP_COPY; // Optional
-        colorBlending.attachmentCount = 1;
-        colorBlending.pAttachments = &colorBlendAttachment;
-        colorBlending.blendConstants[0] = 0.0f; // Optional
-        colorBlending.blendConstants[1] = 0.0f; // Optional
-        colorBlending.blendConstants[2] = 0.0f; // Optional
-        colorBlending.blendConstants[3] = 0.0f; // Optional
-
-        VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
-        pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        pipelineLayoutInfo.setLayoutCount = 1;
-        pipelineLayoutInfo.pSetLayouts = &descriptorSetLayout; 
-        pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
-        pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
-
-        VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &rasterPipelineLayout));
-
-        /******************************************
-        * The shaders
-        */
-
-        std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
-        VkPipelineShaderStageCreateInfo vertShaderStageInfo{};
-        VkPipelineShaderStageCreateInfo fragShaderStageInfo{};
-        VkShaderModule vertShaderModule;
-        VkShaderModule fragShaderModule;
-        createShaderModule(HelloTriangleVS_SPIRV, sizeof(HelloTriangleVS_SPIRV), VS_ENTRY, VK_SHADER_STAGE_VERTEX_BIT, vertShaderStageInfo, vertShaderModule, &shaderStages);
-        createShaderModule(HelloTrianglePS_SPIRV, sizeof(HelloTrianglePS_SPIRV), PS_ENTRY, VK_SHADER_STAGE_FRAGMENT_BIT, fragShaderStageInfo, fragShaderModule, &shaderStages);
-
-        // We'll probs revisit this when I figure out how to bind vertecies
-        VkPipelineVertexInputStateCreateInfo vertexInputInfo{};
-        vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        // Bind the vertex inputs
-        auto bindingDescription = TestVertex::getBindingDescription();
-        auto attributeDescriptions = TestVertex::getAttributeDescriptions();
-        vertexInputInfo.vertexBindingDescriptionCount = 1;
-        vertexInputInfo.vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size());
-        vertexInputInfo.pVertexBindingDescriptions = &bindingDescription;
-        vertexInputInfo.pVertexAttributeDescriptions = attributeDescriptions.data();
-        VkPipelineDepthStencilStateCreateInfo depthStencil{};
-        depthStencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-        depthStencil.depthTestEnable = VK_TRUE;
-        depthStencil.depthWriteEnable = VK_TRUE;
-        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
-        depthStencil.stencilTestEnable = VK_FALSE;
-        depthStencil.front = {}; // Optional
-        depthStencil.back = {}; // Optional
-
-        // With your powers combined, I am Captain Pipeline!!!
-        VkGraphicsPipelineCreateInfo pipelineInfo{};
-        pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        pipelineInfo.stageCount = shaderStages.size();
-        pipelineInfo.pStages = shaderStages.data();
-        pipelineInfo.pVertexInputState = &vertexInputInfo;
-        pipelineInfo.pInputAssemblyState = &inputAssembly;
-        pipelineInfo.pViewportState = &viewportState;
-        pipelineInfo.pRasterizationState = &rasterizer;
-        pipelineInfo.pMultisampleState = &multisampling;
-        pipelineInfo.pDepthStencilState = nullptr; // Optional
-        pipelineInfo.pColorBlendState = &colorBlending;
-        pipelineInfo.pDepthStencilState = &depthStencil;
-        pipelineInfo.pDynamicState = &dynamicState;
-        pipelineInfo.layout = rasterPipelineLayout;
-        pipelineInfo.renderPass = renderPass;
-        pipelineInfo.subpass = 0;
-        pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
-        pipelineInfo.basePipelineIndex = -1; // Optional
-        VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &rasterPipeline));
-        // vkCreateGraphicsPipelines() actually takes more parameters than this. Maybe check that out?
-
-        vkDestroyShaderModule(vkDevice, fragShaderModule, nullptr);
-        vkDestroyShaderModule(vkDevice, vertShaderModule, nullptr);
-    }
-
     void Device::createSwapChain() {
         SwapChainSupportDetails swapChainSupport = querySwapChainSupport(physicalDevice);
 
@@ -978,8 +818,6 @@ namespace RT64
 
         cleanupSwapChain();
         vkDestroySurfaceKHR(vkInstance, vkSurface, nullptr);
-        vkDestroyPipelineLayout(vkDevice, rasterPipelineLayout, nullptr);
-        vkDestroyPipeline(vkDevice, rasterPipeline, nullptr);
         vkDestroyRenderPass(vkDevice, renderPass, nullptr);
         vkDestroyCommandPool(vkDevice, commandPool, nullptr);
         for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -988,7 +826,6 @@ namespace RT64
             vkDestroyFence(vkDevice, inFlightFences[i], nullptr);
         }
 
-        vkDestroyDescriptorSetLayout(vkDevice, descriptorSetLayout, nullptr);
         // Destroy the scenes
         auto scenesCopy = scenes;
         for (Scene* scene : scenesCopy) {
@@ -1013,52 +850,6 @@ namespace RT64
 
 #ifndef RT64_MINIMAL
 
-    void Device::createRasterPipeline(DescriptorSetBinding* bindingInfos, uint32_t count)
-    {
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
-        for (int i = 0; i < count; i++) {
-            VkDescriptorSetLayoutBinding* binding = new VkDescriptorSetLayoutBinding;
-            VkDescriptorSetLayoutBinding* sampleBinding;
-            switch (bindingInfos[i].type) 
-            {
-                case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-                    binding->binding = i + CBV_SHIFT;
-                    break;
-                case VK_DESCRIPTOR_TYPE_SAMPLER:
-                    binding->binding = i + SAMPLER_SHIFT;
-                    break;
-                case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
-                    binding->binding = i + SRV_SHIFT; 
-                    binding->descriptorCount = 1;
-                    binding->descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-                    binding->stageFlags = bindingInfos[i].stage;
-                    binding->pImmutableSamplers = nullptr; // Optional
-                    bindings.push_back(*binding);
-                    sampleBinding = new VkDescriptorSetLayoutBinding;
-                    sampleBinding->binding = i + SAMPLER_SHIFT; 
-                    sampleBinding->descriptorCount = 1;
-                    sampleBinding->descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-                    sampleBinding->stageFlags = bindingInfos[i].stage;
-                    sampleBinding->pImmutableSamplers = nullptr; // Optional
-                    bindings.push_back(*sampleBinding);
-                    continue;
-            }
-            binding->descriptorCount = 1;
-            binding->descriptorType = bindingInfos[i].type;
-            binding->stageFlags = bindingInfos[i].stage;
-            binding->pImmutableSamplers = nullptr; // Optional
-            bindings.push_back(*binding);
-        }
-
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = bindings.size();
-        layoutInfo.pBindings = bindings.data();
-        VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &descriptorSetLayout));
-
-        createGraphicsPipeline();
-    }
-
     /********************** Getters **********************/
 
     // Returns Vulkan device
@@ -1069,9 +860,6 @@ namespace RT64
     VmaAllocator& Device::getMemAllocator() { return allocator; }
     VkRenderPass& Device::getRenderPass() { return renderPass; };
     VkExtent2D& Device::getSwapchainExtent() { return swapChainExtent; }
-    VkPipeline& Device::getRasterPipeline() { return rasterPipeline; }
-    VkPipelineLayout& Device::getRasterPipelineLayout() { return rasterPipelineLayout; }
-    VkDescriptorSetLayout& Device::getDescriptorSetLayout() { return descriptorSetLayout; }
 	VkViewport& Device::getViewport() { return vkViewport; }
 	VkRect2D& Device::getScissors() { return vkScissorRect; }
 	int Device::getWidth() { return swapChainExtent.width; }

@@ -47,53 +47,6 @@ namespace RT64
         std::vector<VkSurfaceFormatKHR> formats;
         std::vector<VkPresentModeKHR> presentModes;
     };
-
-    struct DescriptorSetBinding {
-        AllocatedResource* resource;
-        VkImageView* imageView;
-        VkSampler* sampler;
-        VkDeviceSize size;
-        VkDescriptorType type;
-        VkShaderStageFlagBits stage;
-    };
-
-    enum ShaderStage {
-        VertexStage,
-        FragmentStage,
-        ComputeStage,
-        GeometryStage,
-        RaytraceStage
-    };
-    
-    // For the test shader
-    struct TestVertex {
-        glm::vec4 pos;
-        glm::vec3 normal;
-        glm::vec2 uv;
-        static VkVertexInputBindingDescription getBindingDescription() {
-            VkVertexInputBindingDescription bindingDescription{};
-            bindingDescription.binding = 0;
-            bindingDescription.stride = sizeof(TestVertex);
-            bindingDescription.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-            return bindingDescription;
-        }
-        static std::array<VkVertexInputAttributeDescription, 3> getAttributeDescriptions() {
-            std::array<VkVertexInputAttributeDescription, 3> attributeDescriptions{};
-            attributeDescriptions[0].binding = 0;   // You know that (location = 0) thing in the glsl shaders? Yeah that's what
-            attributeDescriptions[0].location = 0;
-            attributeDescriptions[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-            attributeDescriptions[0].offset = offsetof(TestVertex, pos);
-            attributeDescriptions[1].binding = 0;
-            attributeDescriptions[1].location = 1;
-            attributeDescriptions[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-            attributeDescriptions[1].offset = offsetof(TestVertex, normal);
-            attributeDescriptions[2].binding = 0;
-            attributeDescriptions[2].location = 2;
-            attributeDescriptions[2].format = VK_FORMAT_R32G32_SFLOAT;
-            attributeDescriptions[2].offset = offsetof(TestVertex, uv);
-            return attributeDescriptions;
-        }
-    };
     
     class Device
     {
@@ -141,9 +94,6 @@ namespace RT64
             void createCommandBuffers();
             void createSyncObjects();
 
-            void createDescriptorSetLayout();
-		    void createGraphicsPipeline();
-
             void initRayTracing();
             void recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
             void recreateSwapChain();
@@ -164,10 +114,7 @@ namespace RT64
             std::vector<Inspector*> inspectors;
 		    Mipmaps *mipmaps;
             VmaAllocator allocator;
-            VkDescriptorSetLayout descriptorSetLayout;
-            VkPipelineLayout rasterPipelineLayout;
             VkRenderPass renderPass;
-            VkPipeline rasterPipeline;
             std::vector<VkFramebuffer> swapChainFramebuffers;
             VkCommandPool commandPool;
             std::vector<VkCommandBuffer> commandBuffers;
@@ -215,9 +162,6 @@ namespace RT64
 		    // nvvk::RaytracingBuilderKHR& getRTBuilder();
 		    VmaAllocator& getMemAllocator();
 		    VkExtent2D& getSwapchainExtent();
-            VkDescriptorSetLayout& getDescriptorSetLayout();
-            VkPipelineLayout& getRasterPipelineLayout();
-            VkPipeline& getRasterPipeline();
             VkRenderPass& getRenderPass();
 		    VkViewport& getViewport();
 		    VkRect2D& getScissors();
@@ -251,7 +195,6 @@ namespace RT64
             void addDepthImageView(VkImageView* depthImageView);
             void removeDepthImageView(VkImageView* depthImageView);
             void createShaderModule(const void* code, size_t size, const char* entryName, VkShaderStageFlagBits stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, VkShaderModule& shader, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
-            void createRasterPipeline(DescriptorSetBinding* bindings, uint32_t count);
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }

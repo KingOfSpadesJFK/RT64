@@ -123,7 +123,6 @@ namespace RT64
             std::vector<RenderInstance> rasterFgInstances;
             std::vector<RenderInstance> rtInstances;
 		    std::vector<Texture*> usedTextures;
-            VkDescriptorSet descriptorSet;
             bool scissorApplied;
             bool viewportApplied;
 

@@ -31,28 +31,6 @@ namespace RT64
 
         createGlobalParamsBuffer();
 
-        // Create binding info for the descriptor sets
-        // std::vector<DescriptorSetBinding> bindings;
-        // DescriptorSetBinding globalParamsBind;
-        // globalParamsBind.resource = &globalParamsBuffer;
-        // globalParamsBind.size = globalParamsSize;
-        // globalParamsBind.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-        // globalParamsBind.stage = VK_SHADER_STAGE_VERTEX_BIT;
-        // bindings.push_back(globalParamsBind);
-
-        // for (Instance* i : scene->getInstances()) {
-        //     DescriptorSetBinding instanceBind;
-        //     instanceBind.resource = i->getDiffuseTexture()->getTexture();
-        //     instanceBind.size = i->getDiffuseTexture()->getWidth() * i->getDiffuseTexture()->getHeight();
-        //     instanceBind.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        //     instanceBind.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        //     instanceBind.imageView = i->getDiffuseTexture()->getTextureImageView();
-        //     instanceBind.sampler = i->getDiffuseTexture()->getTextureSampler();
-        //     bindings.push_back(instanceBind);
-        // }
-        
-        // device->createRasterPipeline(bindings.data(), bindings.size());
-
         // Create a generic texture sampler
         VkSamplerCreateInfo samplerInfo{};
         samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -111,6 +89,7 @@ namespace RT64
     View::~View() {
         scene->removeView(this);
 
+        vkDestroySampler(device->getVkDevice(), texSampler, nullptr);
         destroyOutputBuffers();
         globalParamsBuffer.destroyResource();
         activeInstancesBufferMaterials.destroyResource();
