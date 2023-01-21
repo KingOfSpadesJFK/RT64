@@ -329,14 +329,14 @@ namespace RT64
 		vkDestroyDescriptorPool(device->getVkDevice(), rasterGroup.descriptorPool, nullptr);
 
 		vkDestroyShaderModule(device->getVkDevice(), surfaceHitGroup.shaderModule, nullptr);
-		vkDestroyPipeline(device->getVkDevice(), surfaceHitGroup.pipeline, nullptr);
-		vkDestroyPipelineLayout(device->getVkDevice(), surfaceHitGroup.pipelineLayout, nullptr);
+		// vkDestroyPipeline(device->getVkDevice(), surfaceHitGroup.pipeline, nullptr);
+		// vkDestroyPipelineLayout(device->getVkDevice(), surfaceHitGroup.pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device->getVkDevice(), surfaceHitGroup.descriptorSetLayout, nullptr);
 		vkDestroyDescriptorPool(device->getVkDevice(), surfaceHitGroup.descriptorPool, nullptr);
 
 		vkDestroyShaderModule(device->getVkDevice(), shadowHitGroup.shaderModule, nullptr);
-		vkDestroyPipeline(device->getVkDevice(), shadowHitGroup.pipeline, nullptr);
-		vkDestroyPipelineLayout(device->getVkDevice(), shadowHitGroup.pipelineLayout, nullptr);
+		// vkDestroyPipeline(device->getVkDevice(), shadowHitGroup.pipeline, nullptr);
+		// vkDestroyPipelineLayout(device->getVkDevice(), shadowHitGroup.pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device->getVkDevice(), shadowHitGroup.descriptorSetLayout, nullptr);
 		vkDestroyDescriptorPool(device->getVkDevice(), shadowHitGroup.descriptorPool, nullptr);
 	}
@@ -700,7 +700,7 @@ namespace RT64
 		std::string shaderCode = ss.str();
 		VkPipelineShaderStageCreateInfo rayHitStage = {};
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", rayHitStage, surfaceHitGroup.shaderModule);
-		// surfaceHitGroup.rootSignature = generateHitRootSignature(filter, hAddr, vAddr, samplerRegisterIndex, true);
+		generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, true, surfaceHitGroup.descriptorSetLayout, surfaceHitGroup.descriptorPool, surfaceHitGroup.descriptorSet);
 		surfaceHitGroup.hitGroupName = hitGroupName;
 		surfaceHitGroup.closestHitName = closestHitName;
 		surfaceHitGroup.anyHitName = anyHitName;
@@ -783,13 +783,13 @@ namespace RT64
 		std::string shaderCode = ss.str();
 		VkPipelineShaderStageCreateInfo rayHitStage = {};
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", rayHitStage, shadowHitGroup.shaderModule);
-		// shadowHitGroup.rootSignature = generateHitRootSignature(filter, hAddr, vAddr, samplerRegisterIndex, false);
+		generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, false, shadowHitGroup.descriptorSetLayout, shadowHitGroup.descriptorPool, shadowHitGroup.descriptorSet);
 		shadowHitGroup.hitGroupName = hitGroupName;
 		shadowHitGroup.closestHitName = closestHitName;
 		shadowHitGroup.anyHitName = anyHitName;
 	}
 
-	void Shader::generateHitDescriptorSetLayout(Filter filter, AddressingMode hAddr, AddressingMode vAddr, uint32_t samplerRegisterIndex, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet) {
+	void Shader::generateHitDescriptorSetLayout(Filter filter, AddressingMode hAddr, AddressingMode vAddr, uint32_t samplerRegisterIndex, bool hitBuffers, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet) {
 		VkDevice& device = this->device->getVkDevice();
 		VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
 
@@ -799,7 +799,56 @@ namespace RT64
 		poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
 		bindings.push_back({SRV_INDEX(indexBuffer) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
 		poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
-		
+		if (hitBuffers) {
+			bindings.push_back({UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+			poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
+			bindings.push_back({UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+			poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
+			bindings.push_back({UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+			poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
+			bindings.push_back({UAV_INDEX(gHitSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+			poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
+			bindings.push_back({UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+			poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
+		}
+        bindings.push_back({SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+		poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
+        bindings.push_back({SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+		poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
+        bindings.push_back({SRV_INDEX(gTextures) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+		poolSizes.push_back({VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX});
+		bindings.push_back({CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
+		poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+        bindings.push_back({samplerRegisterIndex + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+		poolSizes.push_back({VK_DESCRIPTOR_TYPE_SAMPLER, 1});
+
+        std::vector<VkDescriptorBindingFlags> vectorOfFlags(bindings.size(), flags);
+		VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo {};
+		flagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+		flagsInfo.bindingCount = vectorOfFlags.size();
+		flagsInfo.pBindingFlags = vectorOfFlags.data();
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = bindings.size();
+        layoutInfo.pBindings = bindings.data();
+		layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+		layoutInfo.pNext = &flagsInfo;
+        VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout));
+
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = poolSizes.size();
+        poolInfo.pPoolSizes = poolSizes.data();
+		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+        poolInfo.maxSets = 1;
+		VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool));
+
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &descriptorSetLayout;
+        VkResult res = vkAllocateDescriptorSets(device, &allocInfo, &descriptorSet);
 	}
 
 	// Creates the descriptor set layout and pool for the raster instance

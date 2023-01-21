@@ -103,8 +103,6 @@ namespace RT64
     // vIndexBuffers is another tuple vector, a pairing of an index buffer
     //  (a buffer of pointers into the vertex buffer) and the number of
     //  indicies.
-    //      Index buffers are used to point to indexes as a means to not
-    //       be redundant and reduce the amount of duplicate verticies
     void Mesh::createBottomLevelAS(std::vector<std::pair<VkBuffer*, uint32_t>> vVertexBuffers, std::vector<std::pair<VkBuffer*, uint32_t>> vIndexBuffers) {
         // bool updatable = flags & RT64_MESH_RAYTRACE_UPDATABLE;
         // bool fastTrace = flags & RT64_MESH_RAYTRACE_FAST_TRACE;
