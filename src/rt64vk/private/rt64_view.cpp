@@ -329,7 +329,7 @@ namespace RT64
                 instFlags = instance->getFlags();
                 usedMesh = instance->getMesh();
                 renderInstance.instance = instance;
-                // renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
+                renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
                 renderInstance.bottomLevelAS = nullptr;
                 renderInstance.transform = instance->getTransform();
                 renderInstance.transformPrevious = instance->getPreviousTransform();

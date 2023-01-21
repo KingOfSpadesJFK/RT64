@@ -7,6 +7,7 @@
 #include "rt64_common.h"
 #include "rt64_device.h"
 #include <vulkan/vulkan.h>
+#include <nvpro_core/nvvk/buffers_vk.hpp>
 
 namespace RT64 
 {
@@ -24,10 +25,11 @@ namespace RT64
             int vertexStride;
             int indexCount;
             AccelerationStructureBuffers blasBuffers;
+            nvvk::RaytracingBuilderKHR rtBuilder;
             int flags;
 
             void createBottomLevelAS(std::vector<std::pair<VkBuffer*, uint32_t>> vVertexBuffers, std::vector<std::pair<VkBuffer *, uint32_t>> vIndexBuffers);
-            // nvvk::RaytracingBuilderKHR::BlasInput modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount);
+            auto modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount);
         public:
             Mesh(Device* device, int flags);
             virtual ~Mesh();

@@ -14,6 +14,7 @@ set(SHADER_DIR ${LIBRT64VK_DIR}/shaders)
 set(IMGUI_DIR ${CONTRIB_DIR}/imgui)
 set(VMA_DIR ${CONTRIB_DIR}/VulkanMemoryAllocator)
 set(DXC_DIR ${CONTRIB_DIR}/dxc)
+set(NVPRO_DIR ${CONTRIB_DIR}/nvpro_core)
 
 # DX12 Register shift variables
 #   These map the different dx12 registers to binding values on Vulkan
@@ -47,6 +48,9 @@ include_directories(
     ${LIBRT64VK_DIR}/public/
 )
 
+file(GLOB NVH_SOURCE ${NVPRO_DIR}/nvh/*.hpp ${NVPRO_DIR}/nvh/*.cpp ${NVPRO_DIR}/nvh/*.h ${NVPRO_DIR}/nvh/*.inl)
+file(GLOB NVVK_SOURCE ${NVPRO_DIR}/nvvk/*.hpp ${NVPRO_DIR}/nvvk/*.cpp ${NVPRO_DIR}/nvvk/*.h ${NVPRO_DIR}/nvvk/*.inl)
+file(GLOB NVMATH_SOURCE ${NVPRO_DIR}/*.hpp ${NVPRO_DIR}/nvmath/*.cpp ${NVPRO_DIR}/nvmath/*.h ${NVPRO_DIR}/nvmath/*.inl)
 file(GLOB SHADER_HEADERS ${SHADER_DIR}/*.hlsl.h)   
 
 # Add the library as a target
@@ -60,7 +64,11 @@ add_library(rt64vk SHARED
     ${LIBRT64VK_DIR}/private/rt64_texture.cpp
     ${LIBRT64VK_DIR}/private/rt64_shader.cpp
     ${LIBRT64VK_DIR}/private/rt64_instance.cpp
+    ${NVPRO_DIR}/nvp/perproject_globals.cpp
     ${SHADER_HEADERS}
+    ${NVVK_SOURCE}
+    ${NVH_SOURCE}
+    ${NVMATH_SOURCE}
 )
 target_include_directories(rt64vk PRIVATE 
     ${LIBRT64VK_DIR}
@@ -69,6 +77,7 @@ target_include_directories(rt64vk PRIVATE
     ${IMGUI_DIR}
     ${DXC_DIR}
     ${PLATFORM}
+    ${NVPRO_DIR}
 )
 target_link_libraries(rt64vk
     vulkan

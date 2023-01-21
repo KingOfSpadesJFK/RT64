@@ -16,6 +16,8 @@
 #include <optional>
 #include <vulkan/vulkan.h>
 #include <array>
+#include <nvvk/raytraceKHR_vk.hpp>
+#include <nvvk/resourceallocator_vk.hpp>
 
 #ifdef _WIN32
     #define VK_USE_PLATFORM_WIN32_KHR
@@ -122,6 +124,7 @@ namespace RT64
             std::vector<VkSemaphore> renderFinishedSemaphores;
             std::vector<VkFence> inFlightFences;
             std::vector<VkImageView*> depthViews;
+            nvvk::ResourceAllocator rtAllocator;
             uint32_t currentFrame = 0;
             uint32_t framebufferIndex = 0;
 
@@ -159,7 +162,6 @@ namespace RT64
             /********************** Getters **********************/
 		    VkDevice& getVkDevice();
 		    VkPhysicalDevice& getPhysicalDevice();
-		    // nvvk::RaytracingBuilderKHR& getRTBuilder();
 		    VmaAllocator& getMemAllocator();
 		    VkExtent2D& getSwapchainExtent();
             VkRenderPass& getRenderPass();
@@ -195,6 +197,7 @@ namespace RT64
             void addDepthImageView(VkImageView* depthImageView);
             void removeDepthImageView(VkImageView* depthImageView);
             void createShaderModule(const void* code, size_t size, const char* entryName, VkShaderStageFlagBits stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, VkShaderModule& shader, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
+            void createRtBuilder(nvvk::RaytracingBuilderKHR& rtBuilder);
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }

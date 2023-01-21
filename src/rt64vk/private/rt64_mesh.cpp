@@ -104,22 +104,75 @@ namespace RT64
     //  (a buffer of pointers into the vertex buffer) and the number of
     //  indicies.
     void Mesh::createBottomLevelAS(std::vector<std::pair<VkBuffer*, uint32_t>> vVertexBuffers, std::vector<std::pair<VkBuffer*, uint32_t>> vIndexBuffers) {
-        // bool updatable = flags & RT64_MESH_RAYTRACE_UPDATABLE;
-        // bool fastTrace = flags & RT64_MESH_RAYTRACE_FAST_TRACE;
-        // bool compact = flags & RT64_MESH_RAYTRACE_COMPACT;
-        // if (!updatable) {
-        //     // Release the previously stored AS buffers if there's any.
-        //     blasBuffers.destroyResource();
-        // }
+        bool updatable = flags & RT64_MESH_RAYTRACE_UPDATABLE;
+        bool fastTrace = flags & RT64_MESH_RAYTRACE_FAST_TRACE;
+        bool compact = flags & RT64_MESH_RAYTRACE_COMPACT;
+        if (!updatable) {
+            // Release the previously stored AS buffers if there's any.
+            blasBuffers.destroyResource();
+        }
 
-        // std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
-        // allBlas.reserve(vVertexBuffers.size());
-        // for (size_t i = 0; i < vVertexBuffers.size(); i++) {
-        //     nvvk::RaytracingBuilderKHR::BlasInput blas = modelIntoVkGeo(vVertexBuffers[i].first, vVertexBuffers[i].second, vIndexBuffers[i].first, vIndexBuffers[i].second);
-        //     allBlas.emplace_back(blas);
-        // }
+        std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
+        allBlas.reserve(vVertexBuffers.size());
+        for (size_t i = 0; i < vVertexBuffers.size(); i++) {
+            nvvk::RaytracingBuilderKHR::BlasInput blas = modelIntoVkGeo(vVertexBuffers[i].first, vVertexBuffers[i].second, vIndexBuffers[i].first, vIndexBuffers[i].second);
+            allBlas.emplace_back(blas);
+        }
 
-        // device->getRTBuilder().buildBlas(allBlas, flags >> 1);
+        rtBuilder.buildBlas(allBlas, flags >> 1);
+    }
+
+    //--------------------------------------------------------------------------------------------------
+    // Convert the mesh into the ray tracing geometry used to build the BLAS
+    //  From nvpro-samples/vk_raytracing_tutorial_KHR
+    //
+    auto Mesh::modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount)
+    {
+        // BLAS builder requires raw device addresses.
+        VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(device->getVkDevice(), *vertexBuffer);
+        VkDeviceAddress indexAddress  = nvvk::getBufferDeviceAddress(device->getVkDevice(), *indexBuffer);
+
+        uint32_t maxPrimitiveCount = indexCount / 3;
+
+        // Describe buffer as array of VertexObj.
+        VkAccelerationStructureGeometryTrianglesDataKHR triangles{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_TRIANGLES_DATA_KHR};
+        triangles.vertexFormat             = VK_FORMAT_R32G32B32_SFLOAT;  // vec3 vertex position data.
+        triangles.vertexData.deviceAddress = vertexAddress;
+        triangles.vertexStride             = vertexStride;
+        // Describe index data (32-bit unsigned int)
+        triangles.indexType               = VK_INDEX_TYPE_UINT32;
+        triangles.indexData.deviceAddress = indexAddress;
+        // Indicate identity transform by setting transformData to null device pointer.
+        //triangles.transformData = {};
+        triangles.maxVertex = vertexCount;
+
+        // Identify the above data as containing opaque triangles.
+        VkAccelerationStructureGeometryKHR asGeom{VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_GEOMETRY_KHR};
+        asGeom.geometryType       = VK_GEOMETRY_TYPE_TRIANGLES_KHR;
+        asGeom.flags              = VK_GEOMETRY_OPAQUE_BIT_KHR;
+        asGeom.geometry.triangles = triangles;
+
+        // The entire array will be used to build the BLAS.
+        VkAccelerationStructureBuildRangeInfoKHR offset;
+        offset.firstVertex     = 0;
+        offset.primitiveCount  = maxPrimitiveCount;
+        offset.primitiveOffset = 0;
+        offset.transformOffset = 0;
+
+        // Our blas is made from only one geometry, but could be made of many geometries
+        nvvk::RaytracingBuilderKHR::BlasInput input;
+        input.asGeometry.emplace_back(asGeom);
+        input.asBuildOffsetInfo.emplace_back(offset);
+
+        return input;
+    }
+
+    void Mesh::updateBottomLevelAS() {
+        if (flags & RT64_MESH_RAYTRACE_ENABLED) {
+            // Create and store the bottom level AS buffers.
+            device->createRtBuilder(rtBuilder);
+            createBottomLevelAS({ { getVertexBuffer(), getVertexCount() } }, { { getIndexBuffer(), getIndexCount() } });
+        }
     }
 
     // Public 
@@ -128,6 +181,9 @@ namespace RT64
     VkBuffer* Mesh::getIndexBuffer() const { return indexBuffer.getBuffer(); }
     int Mesh::getIndexCount() const { return indexCount; }
     int Mesh::getVertexCount() const { return vertexCount; }
+    VkBuffer* Mesh::getBottomLevelASResult() const {
+        
+    }
 };
 
 // Library Exports
@@ -146,7 +202,7 @@ DLEXPORT void RT64_SetMesh(RT64_MESH* meshPtr, void* vertexArray, int vertexCoun
 	RT64::Mesh* mesh = (RT64::Mesh*)(meshPtr);
 	mesh->updateVertexBuffer(vertexArray, vertexCount, vertexStride);
 	mesh->updateIndexBuffer(indexArray, indexCount);
-	// mesh->updateBottomLevelAS();
+	mesh->updateBottomLevelAS();
 }
 
 DLEXPORT void RT64_DestroyMesh(RT64_MESH * meshPtr) {

@@ -56,11 +56,6 @@ namespace RT64
         createImageViews();
         createRenderPass();
         createCommandPool();
-        // I'd say you probs can put createGraphicsPipeline and descriptorSetLayout anywhere after this
-        // ...... like an RT64 shader. Since the descriptor sets and pipeline are bound to shaders
-
-        // createDescriptorSetLayout();
-        // createGraphicsPipeline();
 
         createCommandBuffers();
         createSyncObjects();
@@ -642,8 +637,6 @@ namespace RT64
         VkPhysicalDeviceProperties2 prop2{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2};
         prop2.pNext = &rtProperties;
         vkGetPhysicalDeviceProperties2(physicalDevice, &prop2);
-        // From the NVIDIA vulkan raytracing tutorial. Possibly not needed if you're using a different memory allocator????
-        // rtBuilder.setup(vkDevice, &memAlloc, queueFam.graphicsFamily.value());
     }
 
     void Device::createImageViews() {
@@ -662,6 +655,7 @@ namespace RT64
             swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
         }
         return indices.isComplete() && extensionsSupported && swapChainAdequate;
+
     }
 
     bool Device::checkDeviceExtensionSupport(VkPhysicalDevice device) {
@@ -1173,7 +1167,13 @@ namespace RT64
 
         vkFreeCommandBuffers(vkDevice, commandPool, 1, commandBuffer);
     }
-    #endif
+
+    void Device::createRtBuilder(nvvk::RaytracingBuilderKHR& rtBuilder) {
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+        rtBuilder.setup(vkDevice, &rtAllocator, indices.graphicsFamily.value());
+    }
+
+#endif
 
 }
 
