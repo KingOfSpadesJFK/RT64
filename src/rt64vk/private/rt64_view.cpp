@@ -96,7 +96,7 @@ namespace RT64
         activeInstancesBufferMaterials.destroyResource();
         activeInstancesBufferTransforms.destroyResource();
 
-        rtBuilder.destroy();
+        rtBuilder.destroyTlas();
     }
 
     void View::createGlobalParamsBuffer() {
@@ -326,16 +326,12 @@ namespace RT64
             rtInstances.reserve(totalInstances);
             rasterBgInstances.reserve(totalInstances);
             rasterFgInstances.reserve(totalInstances);
-            
-            rtBuilder.destroy();
 
-            unsigned int currId = 0;
             for (Instance *instance : scene->getInstances()) {
                 instFlags = instance->getFlags();
                 usedMesh = instance->getMesh();
-                usedMesh->updateBottomLevelAS(rtBuilder, currId);
                 renderInstance.instance = instance;
-                renderInstance.id = -1;
+                renderInstance.blas = &usedMesh->getBlas();
                 // renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
                 renderInstance.transform = convertGLMtoNVMATHMatrix(instance->getTransform());
                 renderInstance.transformPrevious = convertGLMtoNVMATHMatrix(instance->getPreviousTransform());
@@ -371,10 +367,8 @@ namespace RT64
                     renderInstance.viewport = {0.0f, 0.0f, 0.0f, 0.0f};
                 }
 
-                if (usedMesh->getBlasId() != -1L) {
-                    renderInstance.id = currId;
+                if (usedMesh->getBlasAddress() != (VkDeviceAddress)nullptr) {
                     rtInstances.push_back(renderInstance);
-                    currId++;
                 }
                 else if (instFlags & RT64_INSTANCE_RASTER_BACKGROUND) {
                     rasterBgInstances.push_back(renderInstance);
@@ -418,16 +412,20 @@ namespace RT64
     void View::createTopLevelAS(const std::vector<RenderInstance>& renderInstances) {
         std::vector<VkAccelerationStructureInstanceKHR> tlas;
         tlas.reserve(renderInstances.size());
+        rtBuilder.destroyTlas();
 
+        int id = 0;
         for (RenderInstance r : renderInstances) {
             // Build the blas of each of the render instances
+            rtBuilder.emplaceBlas(r.instance->getMesh()->getBlas());
             VkAccelerationStructureInstanceKHR rayInst{};
             rayInst.transform = nvvk::toTransformMatrixKHR(r.transform);
-            rayInst.instanceCustomIndex = r.id;
-            rayInst.accelerationStructureReference = rtBuilder.getBlasDeviceAddress(r.id);
+            rayInst.instanceCustomIndex = id;
+            rayInst.accelerationStructureReference = r.instance->getMesh()->getBlasAddress();
             rayInst.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
             rayInst.mask = 0xFF;
             tlas.emplace_back(rayInst);
+            id++;
         }
         rtBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
     }

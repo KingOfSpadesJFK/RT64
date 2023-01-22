@@ -888,6 +888,8 @@ namespace RT64
     VkPhysicalDevice& Device::getPhysicalDevice() { return physicalDevice; }
     // Returns VMA allocator
     VmaAllocator& Device::getMemAllocator() { return allocator; }
+    // Returns RT allocator
+	nvvk::ResourceAllocator& Device::getRTAllocator() { return rtAllocator; }
 
     VkRenderPass& Device::getRenderPass() { return renderPass; };
     VkExtent2D& Device::getSwapchainExtent() { return swapChainExtent; }
@@ -904,8 +906,7 @@ namespace RT64
     IDxcLibrary* Device::getDxcLibrary() { return d3dDxcLibrary; }
 
     void Device::initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder) {
-        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
-        rtBuilder.setup(vkDevice, &rtAllocator, indices.graphicsFamily.value());
+        rtBuilder.setup(vkDevice, &rtAllocator, vkctx.m_queueGCT.queueIndex);
     }
 
     // Adds a scene to the device

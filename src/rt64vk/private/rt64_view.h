@@ -32,7 +32,7 @@ namespace RT64
                 // const VkBufferView* vertexBufferView;
                 // const VkBufferView* indexBufferView;
                 int indexCount;
-                std::vector<nvvk::RaytracingBuilderKHR::BlasInput>* blases;
+                nvvk::AccelKHR* blas;
                 nvmath::mat4f transform;
                 nvmath::mat4f transformPrevious;
                 RT64_MATERIAL material;

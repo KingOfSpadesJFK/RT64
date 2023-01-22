@@ -127,6 +127,7 @@ namespace RT64
             std::vector<VkSemaphore> renderFinishedSemaphores;
             std::vector<VkFence> inFlightFences;
             std::vector<VkImageView*> depthViews;
+            nvvk::RaytracingBuilderKHR rtBlasBuilder;
             nvvk::ResourceAllocatorDma rtAllocator;
             uint32_t currentFrame = 0;
             uint32_t framebufferIndex = 0;
@@ -165,6 +166,7 @@ namespace RT64
             /********************** Getters **********************/
 		    VkDevice& getVkDevice();
 		    VkPhysicalDevice& getPhysicalDevice();
+		    nvvk::ResourceAllocator& getRTAllocator();
 		    VmaAllocator& getMemAllocator();
 		    VkExtent2D& getSwapchainExtent();
             VkRenderPass& getRenderPass();

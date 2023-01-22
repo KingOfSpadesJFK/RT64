@@ -111,6 +111,15 @@ public:
   // Destroying all allocations
   void destroy();
 
+  // (Kos) Destroy just the TLAS
+  void destroyTlas();
+
+  // (Kos) Get the first of the array of bottom-level acceleration structures
+  AccelKHR& getFirstBlas();
+
+  // (Kos) Puts a bottom-level acceleration structure into the BLAS vector
+  void emplaceBlas(AccelKHR& blas);
+
   // Returning the constructed top-level acceleration structure
   VkAccelerationStructureKHR getAccelerationStructure() const;
 

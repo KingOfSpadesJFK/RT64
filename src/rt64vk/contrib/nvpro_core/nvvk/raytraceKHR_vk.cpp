@@ -49,6 +49,28 @@ void nvvk::RaytracingBuilderKHR::destroy()
 }
 
 //--------------------------------------------------------------------------------------------------
+// (KoS) Destroy just the TLAS
+//
+void nvvk::RaytracingBuilderKHR::destroyTlas() {
+  m_alloc->destroy(m_tlas);
+  m_blas.clear();
+}
+
+//--------------------------------------------------------------------------------------------------
+// (KoS) Get the first BLAS of the builder
+//
+nvvk::AccelKHR& nvvk::RaytracingBuilderKHR::getFirstBlas() {
+  return m_blas[0];
+}
+
+//--------------------------------------------------------------------------------------------------
+// (KoS) Emplace an already existing BLAS into the builder
+//
+void nvvk::RaytracingBuilderKHR::emplaceBlas(nvvk::AccelKHR& blas) {
+  m_blas.emplace_back(blas);
+}
+
+//--------------------------------------------------------------------------------------------------
 // Returning the constructed top-level acceleration structure
 //
 VkAccelerationStructureKHR nvvk::RaytracingBuilderKHR::getAccelerationStructure() const

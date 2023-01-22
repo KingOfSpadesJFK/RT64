@@ -25,14 +25,13 @@ namespace RT64
             int vertexCount;
             int vertexStride;
             int indexCount;
-            std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
-            nvvk::RaytracingBuilderKHR::BlasInput blas;
-            long blasID;
+            bool builderActive = false;
+            nvvk::RaytracingBuilderKHR builder;
             VkDeviceAddress blasAddress;
             int flags;
 
-            void createBottomLevelAS(nvvk::RaytracingBuilderKHR& rtBuilder, const unsigned int id, std::pair<VkBuffer*, uint32_t> vVertexBuffers, std::pair<VkBuffer*, uint32_t> vIndexBuffers);
-            nvvk::RaytracingBuilderKHR::BlasInput modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount);
+            void createBottomLevelAS(std::pair<VkBuffer*, uint32_t> vVertexBuffers, std::pair<VkBuffer*, uint32_t> vIndexBuffers);
+            void modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount, nvvk::RaytracingBuilderKHR::BlasInput& input);
         public:
             Mesh(Device* device, int flags);
             virtual ~Mesh();
@@ -42,7 +41,8 @@ namespace RT64
             void updateIndexBuffer(unsigned int* indexArray, int indexCount);
             VkBuffer* getIndexBuffer() const;
             int getIndexCount() const;
-            void updateBottomLevelAS(nvvk::RaytracingBuilderKHR& rtBuilder, const unsigned int id);
-            long getBlasId() const;
+            nvvk::AccelKHR& getBlas();
+            VkDeviceAddress getBlasAddress() const;
+            void updateBottomLevelAS();
 	};
 };

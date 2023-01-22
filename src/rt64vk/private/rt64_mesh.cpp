@@ -19,7 +19,7 @@ namespace RT64
         indexCount = 0;
         vertexStride = 0;
         blasAddress = (VkDeviceAddress)nullptr;
-        blasID = -1L;
+        this->device->initRTBuilder(builder);
     }
 
     Mesh::~Mesh() {
@@ -27,7 +27,7 @@ namespace RT64
         stagingVertexBuffer.destroyResource();
         indexBuffer.destroyResource();
         stagingIndexBuffer.destroyResource();
-        allBlas.clear();
+        builder.destroy();
     }
 
     // This function copies the passed in vertex array into the buffer
@@ -39,7 +39,8 @@ namespace RT64
             vertexBuffer.destroyResource();
             stagingVertexBuffer.destroyResource();
             // Discard the BLAS since it won't be compatible anymore even if it's updatable.
-            // blasBuffers.destroyResource();
+            builderActive = false;
+            builder.destroy();
         }
 
         if (vertexBuffer.isNull()) {
@@ -74,6 +75,8 @@ namespace RT64
         if (!indexBuffer.isNull() && ((this->indexCount != indexCount))) {
             indexBuffer.destroyResource();
             stagingIndexBuffer.destroyResource();
+            builder.destroy();
+            builderActive = false;
             // Discard the BLAS since it won't be compatible anymore even if it's updatable.
             // blasBuffers.destroyResource();
         }
@@ -105,22 +108,27 @@ namespace RT64
     // vIndexBuffers is another tuple, a pairing of an index buffer
     //  (a buffer of pointers into the vertex buffer) and the number of
     //  indicies.
-    void Mesh::createBottomLevelAS(nvvk::RaytracingBuilderKHR& rtBuilder, const unsigned int id, std::pair<VkBuffer*, uint32_t> vVertexBuffers, std::pair<VkBuffer*, uint32_t> vIndexBuffers) {
+    void Mesh::createBottomLevelAS(std::pair<VkBuffer*, uint32_t> vVertexBuffers, std::pair<VkBuffer*, uint32_t> vIndexBuffers) {
         bool updatable = flags & RT64_MESH_RAYTRACE_UPDATABLE;
         bool fastTrace = flags & RT64_MESH_RAYTRACE_FAST_TRACE;
         bool compact = flags & RT64_MESH_RAYTRACE_COMPACT;
-
+        
         // BLAS - Storing each primitive in a geometry
-        nvvk::RaytracingBuilderKHR::BlasInput blas = modelIntoVkGeo(vVertexBuffers.first, vVertexBuffers.second, vIndexBuffers.first, vIndexBuffers.second);
+        nvvk::RaytracingBuilderKHR::BlasInput blasInput;
+        modelIntoVkGeo(vVertexBuffers.first, vVertexBuffers.second, vIndexBuffers.first, vIndexBuffers.second, blasInput);
         if (updatable) {
-            // Release the previously stored AS buffers if there's any.
-            rtBuilder.updateBlas(id, blas, (flags & !RT64_MESH_RAYTRACE_UPDATABLE) << 1);
+            builder.updateBlas(0, blasInput, (flags & !RT64_MESH_RAYTRACE_UPDATABLE) << 1);
         } else {
-            std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
-            allBlas.reserve(1);
-            allBlas.emplace_back(blas);
-            rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
-            blasAddress = rtBuilder.getBlasDeviceAddress(id);
+            if (builderActive) {
+                builder.destroy();
+                builderActive = false;
+            }
+            std::vector<nvvk::RaytracingBuilderKHR::BlasInput> blas;
+            blas.reserve(1);
+            blas.emplace_back(blasInput);
+            builder.buildBlas(blas, (flags & !RT64_MESH_RAYTRACE_UPDATABLE) << 1);
+            builderActive = true;
+            blasAddress = builder.getBlasDeviceAddress(0);
         }
     }
 
@@ -128,7 +136,7 @@ namespace RT64
     // Convert the mesh into the ray tracing geometry used to build the BLAS
     //  From nvpro-samples/vk_raytracing_tutorial_KHR
     //
-    nvvk::RaytracingBuilderKHR::BlasInput Mesh::modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount)
+    void Mesh::modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount, nvvk::RaytracingBuilderKHR::BlasInput& input)
     {
         // BLAS builder requires raw device addresses.
         VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(device->getVkDevice(), *vertexBuffer);
@@ -162,21 +170,8 @@ namespace RT64
         offset.transformOffset = 0;
 
         // Our blas is made from only one geometry, but could be made of many geometries
-        nvvk::RaytracingBuilderKHR::BlasInput input;
         input.asGeometry.emplace_back(asGeom);
         input.asBuildOffsetInfo.emplace_back(offset);
-
-        return input;
-    }
-
-    void Mesh::updateBottomLevelAS(nvvk::RaytracingBuilderKHR& rtBuilder, const unsigned int id) {
-        if (flags & RT64_MESH_RAYTRACE_ENABLED) {
-            // Create and store the bottom level AS buffers.
-            if (blasAddress != (VkDeviceAddress)nullptr) {
-            }
-            createBottomLevelAS(rtBuilder, id, { getVertexBuffer(), getVertexCount() }, { getIndexBuffer(), getIndexCount() });
-            blasID = static_cast<long>(id);
-        }
     }
 
     // Public 
@@ -185,7 +180,15 @@ namespace RT64
     VkBuffer* Mesh::getIndexBuffer() const { return indexBuffer.getBuffer(); }
     int Mesh::getIndexCount() const { return indexCount; }
     int Mesh::getVertexCount() const { return vertexCount; }
-    long Mesh::getBlasId() const { return blasID; }
+    nvvk::AccelKHR& Mesh::getBlas() { return builder.getFirstBlas(); }
+    VkDeviceAddress Mesh::getBlasAddress() const { return blasAddress; }
+
+    void Mesh::updateBottomLevelAS() {
+        if (flags & RT64_MESH_RAYTRACE_ENABLED) {
+            // Create and store the bottom level AS buffers.
+            createBottomLevelAS({ getVertexBuffer(), getVertexCount() }, { getIndexBuffer(), getIndexCount() });
+        }
+    }
 
 };
 
@@ -205,7 +208,7 @@ DLEXPORT void RT64_SetMesh(RT64_MESH* meshPtr, void* vertexArray, int vertexCoun
 	RT64::Mesh* mesh = (RT64::Mesh*)(meshPtr);
 	mesh->updateVertexBuffer(vertexArray, vertexCount, vertexStride);
 	mesh->updateIndexBuffer(indexArray, indexCount);
-	// mesh->updateBottomLevelAS();
+	mesh->updateBottomLevelAS();
 }
 
 DLEXPORT void RT64_DestroyMesh(RT64_MESH * meshPtr) {
