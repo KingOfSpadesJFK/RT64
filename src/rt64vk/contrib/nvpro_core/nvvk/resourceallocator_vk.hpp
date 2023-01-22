@@ -437,7 +437,7 @@ public:
   const nvvk::DeviceMemoryAllocator*  getDMA() const { return m_dma.get(); }
 
 protected:
-  std::unique_ptr<nvvk::DeviceMemoryAllocator> m_dma;
+  std::shared_ptr<nvvk::DeviceMemoryAllocator> m_dma;
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

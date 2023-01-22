@@ -326,6 +326,8 @@ namespace RT64
             rtInstances.reserve(totalInstances);
             rasterBgInstances.reserve(totalInstances);
             rasterFgInstances.reserve(totalInstances);
+            
+            rtBuilder.destroy();
 
             unsigned int currId = 0;
             for (Instance *instance : scene->getInstances()) {

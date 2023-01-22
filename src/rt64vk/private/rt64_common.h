@@ -14,7 +14,7 @@
 #include <nvmath/nvmath.h>
 #include <glm/glm.hpp>
 #include <bits/stl_algo.h>		// Idk why I know have to throw in this include in other than it makes it compile
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan.hpp>
 #define RT64_VULKAN_VERSION VK_API_VERSION_1_2
 
 // Oh hey, that dxc rly do be outputing spir-v code

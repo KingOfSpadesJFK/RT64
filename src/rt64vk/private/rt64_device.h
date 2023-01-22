@@ -54,19 +54,21 @@ namespace RT64
     class Device
     {
         private:
-            VkPhysicalDevice physicalDevice = VK_NULL_HANDLE;
-            VkInstance vkInstance;
-            VkDevice vkDevice;
+            nvvk::Context vkctx {};
+            VkPhysicalDevice& physicalDevice = vkctx.m_physicalDevice;
+            VkInstance& vkInstance = vkctx.m_instance;
+            VkDevice& vkDevice = vkctx.m_device;
+            VkQueue& graphicsQueue = vkctx.m_queueGCT.queue;
+            VkQueue& presentQueue = vkctx.m_queueGCT.queue;
             VkDebugUtilsMessengerEXT debugMessenger;
             VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
-            VkQueue graphicsQueue;
-            VkQueue presentQueue;
             VkSwapchainKHR swapChain;
             std::vector<VkImage> swapChainImages;
             VkFormat swapChainImageFormat;
             VkExtent2D swapChainExtent;
             std::vector<VkImageView> swapChainImageViews;
 
+            inline void createVkInstanceNV();
             void createVKInstance();
             void setupDebugMessenger();
             void pickPhysicalDevice();
@@ -125,7 +127,7 @@ namespace RT64
             std::vector<VkSemaphore> renderFinishedSemaphores;
             std::vector<VkFence> inFlightFences;
             std::vector<VkImageView*> depthViews;
-            nvvk::ResourceAllocator rtAllocator;
+            nvvk::ResourceAllocatorDma rtAllocator;
             uint32_t currentFrame = 0;
             uint32_t framebufferIndex = 0;
 

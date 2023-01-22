@@ -41,14 +41,15 @@ namespace RT64
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 #endif
 
-        createVKInstance();
-        setupDebugMessenger();
+        createVkInstanceNV();
+        // createVKInstance();
+        // setupDebugMessenger();
 #ifndef RT64_MINIMAL
         createSurface();
 #endif
-        pickPhysicalDevice();
-        createLogicalDevice();
-        // memAlloc.init(vkInstance, vkDevice, physicalDevice);
+        // pickPhysicalDevice();
+        // createLogicalDevice();
+
 #ifndef RT64_MINIMAL
         createMemoryAllocator();
         createSwapChain();
@@ -64,6 +65,37 @@ namespace RT64
         
         initRayTracing();
 #endif
+    }
+
+    void Device::createVkInstanceNV() {
+        // Vulkan required extensions
+        assert(glfwVulkanSupported() == 1);
+        uint32_t count{0};
+        auto     reqExtensions = glfwGetRequiredInstanceExtensions(&count);
+
+        // Requesting Vulkan extensions and layers
+        nvvk::ContextCreateInfo contextInfo;
+        contextInfo.setVersion(1, 2);                       // Using Vulkan 1.2
+        for(uint32_t ext_id = 0; ext_id < count; ext_id++)  // Adding required extensions (surface, win32, linux, ..)
+            contextInfo.addInstanceExtension(reqExtensions[ext_id]);
+        contextInfo.addInstanceLayer("VK_LAYER_LUNARG_monitor", true);              // FPS in titlebar
+        contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true);  // Allow debug names
+        contextInfo.addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);            // Enabling ability to present rendering
+
+        // #VKRay: Activate the ray tracing extension
+        VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+        contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false, &accelFeature);  // To build acceleration structures
+        VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
+        contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false, &rtPipelineFeature);  // To use vkCmdTraceRaysKHR
+        contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);  // Required by ray tracing pipeline
+
+        // Creating Vulkan base application
+        vkctx.initInstance(contextInfo);
+        // Find all compatible devices
+        auto compatibleDevices = vkctx.getCompatibleDevices(contextInfo);
+        assert(!compatibleDevices.empty());
+        // Use a compatible device
+        vkctx.initDevice(compatibleDevices[0], contextInfo);
     }
 
     /*
@@ -443,6 +475,8 @@ namespace RT64
         allocatorCreateInfo.pVulkanFunctions = &vulkanFunctions;
         allocatorCreateInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
         VK_CHECK(vmaCreateAllocator(&allocatorCreateInfo, &allocator));
+
+        rtAllocator.init(vkInstance, vkDevice, physicalDevice);
     }
 
 	void Device::createVKInstance() 
@@ -827,6 +861,7 @@ namespace RT64
             delete scene;
         }
         
+        rtAllocator.deinit();
 		vmaDestroyAllocator(allocator);
         // TODO: Actually delete stuff instead of just leaking everything.
 #endif
