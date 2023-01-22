@@ -18,6 +18,8 @@ namespace RT64
         vertexCount = 0;
         indexCount = 0;
         vertexStride = 0;
+        blasAddress = (VkDeviceAddress)nullptr;
+        blasID = -1L;
     }
 
     Mesh::~Mesh() {
@@ -25,7 +27,7 @@ namespace RT64
         stagingVertexBuffer.destroyResource();
         indexBuffer.destroyResource();
         stagingIndexBuffer.destroyResource();
-        blasBuffers.destroyResource();
+        allBlas.clear();
     }
 
     // This function copies the passed in vertex array into the buffer
@@ -47,7 +49,7 @@ namespace RT64
                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
                 &stagingVertexBuffer);
             device->allocateBuffer(vertexBufferSize, 
-                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, 
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
                 VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
                 VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
                 &vertexBuffer);
@@ -83,7 +85,7 @@ namespace RT64
                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT, 
                 &stagingIndexBuffer);
             device->allocateBuffer(indexBufferSize, 
-                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT, 
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT, 
                 VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
                 VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT, 
                 &indexBuffer);
@@ -98,35 +100,35 @@ namespace RT64
         this->indexCount = indexCount;
     }
 
-    // vVertexBuffers is a tuple vector, with the 1st thing being a vertex 
+    // vVertexBuffers is a tuple, with the 1st thing being a vertex 
     //  buffer and the second thing being the number of verticies
-    // vIndexBuffers is another tuple vector, a pairing of an index buffer
+    // vIndexBuffers is another tuple, a pairing of an index buffer
     //  (a buffer of pointers into the vertex buffer) and the number of
     //  indicies.
-    void Mesh::createBottomLevelAS(std::vector<std::pair<VkBuffer*, uint32_t>> vVertexBuffers, std::vector<std::pair<VkBuffer*, uint32_t>> vIndexBuffers) {
+    void Mesh::createBottomLevelAS(nvvk::RaytracingBuilderKHR& rtBuilder, const unsigned int id, std::pair<VkBuffer*, uint32_t> vVertexBuffers, std::pair<VkBuffer*, uint32_t> vIndexBuffers) {
         bool updatable = flags & RT64_MESH_RAYTRACE_UPDATABLE;
         bool fastTrace = flags & RT64_MESH_RAYTRACE_FAST_TRACE;
         bool compact = flags & RT64_MESH_RAYTRACE_COMPACT;
-        if (!updatable) {
+
+        // BLAS - Storing each primitive in a geometry
+        nvvk::RaytracingBuilderKHR::BlasInput blas = modelIntoVkGeo(vVertexBuffers.first, vVertexBuffers.second, vIndexBuffers.first, vIndexBuffers.second);
+        if (updatable) {
             // Release the previously stored AS buffers if there's any.
-            blasBuffers.destroyResource();
-        }
-
-        std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
-        allBlas.reserve(vVertexBuffers.size());
-        for (size_t i = 0; i < vVertexBuffers.size(); i++) {
-            nvvk::RaytracingBuilderKHR::BlasInput blas = modelIntoVkGeo(vVertexBuffers[i].first, vVertexBuffers[i].second, vIndexBuffers[i].first, vIndexBuffers[i].second);
+            rtBuilder.updateBlas(id, blas, (flags & !RT64_MESH_RAYTRACE_UPDATABLE) << 1);
+        } else {
+            std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
+            allBlas.reserve(1);
             allBlas.emplace_back(blas);
+            rtBuilder.buildBlas(allBlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+            blasAddress = rtBuilder.getBlasDeviceAddress(id);
         }
-
-        rtBuilder.buildBlas(allBlas, flags >> 1);
     }
 
     //--------------------------------------------------------------------------------------------------
     // Convert the mesh into the ray tracing geometry used to build the BLAS
     //  From nvpro-samples/vk_raytracing_tutorial_KHR
     //
-    auto Mesh::modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount)
+    nvvk::RaytracingBuilderKHR::BlasInput Mesh::modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount)
     {
         // BLAS builder requires raw device addresses.
         VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(device->getVkDevice(), *vertexBuffer);
@@ -167,11 +169,13 @@ namespace RT64
         return input;
     }
 
-    void Mesh::updateBottomLevelAS() {
+    void Mesh::updateBottomLevelAS(nvvk::RaytracingBuilderKHR& rtBuilder, const unsigned int id) {
         if (flags & RT64_MESH_RAYTRACE_ENABLED) {
             // Create and store the bottom level AS buffers.
-            device->createRtBuilder(rtBuilder);
-            createBottomLevelAS({ { getVertexBuffer(), getVertexCount() } }, { { getIndexBuffer(), getIndexCount() } });
+            if (blasAddress != (VkDeviceAddress)nullptr) {
+            }
+            createBottomLevelAS(rtBuilder, id, { getVertexBuffer(), getVertexCount() }, { getIndexBuffer(), getIndexCount() });
+            blasID = static_cast<long>(id);
         }
     }
 
@@ -181,9 +185,8 @@ namespace RT64
     VkBuffer* Mesh::getIndexBuffer() const { return indexBuffer.getBuffer(); }
     int Mesh::getIndexCount() const { return indexCount; }
     int Mesh::getVertexCount() const { return vertexCount; }
-    VkBuffer* Mesh::getBottomLevelASResult() const {
-        
-    }
+    long Mesh::getBlasId() const { return blasID; }
+
 };
 
 // Library Exports
@@ -202,7 +205,7 @@ DLEXPORT void RT64_SetMesh(RT64_MESH* meshPtr, void* vertexArray, int vertexCoun
 	RT64::Mesh* mesh = (RT64::Mesh*)(meshPtr);
 	mesh->updateVertexBuffer(vertexArray, vertexCount, vertexStride);
 	mesh->updateIndexBuffer(indexArray, indexCount);
-	mesh->updateBottomLevelAS();
+	// mesh->updateBottomLevelAS();
 }
 
 DLEXPORT void RT64_DestroyMesh(RT64_MESH * meshPtr) {

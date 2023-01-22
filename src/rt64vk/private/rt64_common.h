@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 #include <stdio.h>
+#include <nvmath/nvmath.h>
 #include <glm/glm.hpp>
 #include <bits/stl_algo.h>		// Idk why I know have to throw in this include in other than it makes it compile
 #include <vulkan/vulkan.h>
@@ -376,6 +377,54 @@ namespace RT64 {
 				return info;
 			}
 	};
+
+	inline glm::mat4 convertNVMATHtoGLMMatrix(const nvmath::mat4f& b) {
+		glm::mat4 a;
+		a[0][0] = b.a00;
+		a[0][1] = b.a01;
+		a[0][2] = b.a02;
+		a[0][3] = b.a03;
+
+		a[1][0] = b.a10;
+		a[1][1] = b.a11;
+		a[1][2] = b.a12;
+		a[1][3] = b.a13;
+		
+		a[2][0] = b.a20;
+		a[2][1] = b.a21;
+		a[2][2] = b.a22;
+		a[2][3] = b.a23;
+		
+		a[3][0] = b.a30;
+		a[3][1] = b.a31;
+		a[3][2] = b.a32;
+		a[3][3] = b.a33;
+		return a;
+	}
+
+	inline nvmath::mat4f convertGLMtoNVMATHMatrix(const glm::mat4& b) {
+		nvmath::mat4f a;
+		a.a00 = b[0][0];
+		a.a01 = b[0][1];
+		a.a02 = b[0][2];
+		a.a03 = b[0][3];
+
+		a.a10 = b[1][0];
+		a.a11 = b[1][1];
+		a.a12 = b[1][2];
+		a.a13 = b[1][3];
+
+		a.a20 = b[2][0];
+		a.a21 = b[2][1];
+		a.a22 = b[2][2];
+		a.a23 = b[2][3];
+
+		a.a30 = b[3][0];
+		a.a31 = b[3][1];
+		a.a32 = b[3][2];
+		a.a33 = b[3][3];
+		return a;
+	}
 
 	inline void operator+=(RT64_VECTOR3 &a, const RT64_VECTOR3& b) {
 		a.x += b.x;

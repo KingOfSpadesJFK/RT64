@@ -441,6 +441,7 @@ namespace RT64
         allocatorCreateInfo.device = vkDevice;
         allocatorCreateInfo.instance = vkInstance;
         allocatorCreateInfo.pVulkanFunctions = &vulkanFunctions;
+        allocatorCreateInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
         VK_CHECK(vmaCreateAllocator(&allocatorCreateInfo, &allocator));
     }
 
@@ -852,6 +853,7 @@ namespace RT64
     VkPhysicalDevice& Device::getPhysicalDevice() { return physicalDevice; }
     // Returns VMA allocator
     VmaAllocator& Device::getMemAllocator() { return allocator; }
+
     VkRenderPass& Device::getRenderPass() { return renderPass; };
     VkExtent2D& Device::getSwapchainExtent() { return swapChainExtent; }
 	VkViewport& Device::getViewport() { return vkViewport; }
@@ -865,6 +867,11 @@ namespace RT64
     VkFramebuffer& Device::getCurrentSwapchainFramebuffer() { return swapChainFramebuffers[framebufferIndex]; };
     IDxcCompiler* Device::getDxcCompiler() { return d3dDxcCompiler; }
     IDxcLibrary* Device::getDxcLibrary() { return d3dDxcLibrary; }
+
+    void Device::initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder) {
+        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
+        rtBuilder.setup(vkDevice, &rtAllocator, indices.graphicsFamily.value());
+    }
 
     // Adds a scene to the device
     void Device::addScene(Scene* scene) {
@@ -1167,13 +1174,7 @@ namespace RT64
 
         vkFreeCommandBuffers(vkDevice, commandPool, 1, commandBuffer);
     }
-
-    void Device::createRtBuilder(nvvk::RaytracingBuilderKHR& rtBuilder) {
-        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
-        rtBuilder.setup(vkDevice, &rtAllocator, indices.graphicsFamily.value());
-    }
-
-#endif
+    #endif
 
 }
 

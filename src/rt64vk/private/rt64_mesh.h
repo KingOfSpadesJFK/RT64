@@ -8,6 +8,7 @@
 #include "rt64_device.h"
 #include <vulkan/vulkan.h>
 #include <nvpro_core/nvvk/buffers_vk.hpp>
+#include <nvvk/raytraceKHR_vk.hpp>
 
 namespace RT64 
 {
@@ -24,12 +25,14 @@ namespace RT64
             int vertexCount;
             int vertexStride;
             int indexCount;
-            AccelerationStructureBuffers blasBuffers;
-            nvvk::RaytracingBuilderKHR rtBuilder;
+            std::vector<nvvk::RaytracingBuilderKHR::BlasInput> allBlas;
+            nvvk::RaytracingBuilderKHR::BlasInput blas;
+            long blasID;
+            VkDeviceAddress blasAddress;
             int flags;
 
-            void createBottomLevelAS(std::vector<std::pair<VkBuffer*, uint32_t>> vVertexBuffers, std::vector<std::pair<VkBuffer *, uint32_t>> vIndexBuffers);
-            auto modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount);
+            void createBottomLevelAS(nvvk::RaytracingBuilderKHR& rtBuilder, const unsigned int id, std::pair<VkBuffer*, uint32_t> vVertexBuffers, std::pair<VkBuffer*, uint32_t> vIndexBuffers);
+            nvvk::RaytracingBuilderKHR::BlasInput modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount);
         public:
             Mesh(Device* device, int flags);
             virtual ~Mesh();
@@ -39,7 +42,7 @@ namespace RT64
             void updateIndexBuffer(unsigned int* indexArray, int indexCount);
             VkBuffer* getIndexBuffer() const;
             int getIndexCount() const;
-            void updateBottomLevelAS();
-            VkBuffer* getBottomLevelASResult() const;
+            void updateBottomLevelAS(nvvk::RaytracingBuilderKHR& rtBuilder, const unsigned int id);
+            long getBlasId() const;
 	};
 };

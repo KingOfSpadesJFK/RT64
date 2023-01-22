@@ -26,6 +26,7 @@ namespace RT64
     View::View(Scene* scene) {
         this->scene = scene;
         this->device = scene->getDevice();
+        device->initRTBuilder(rtBuilder);
 
         createOutputBuffers();
 
@@ -94,6 +95,8 @@ namespace RT64
         globalParamsBuffer.destroyResource();
         activeInstancesBufferMaterials.destroyResource();
         activeInstancesBufferTransforms.destroyResource();
+
+        rtBuilder.destroy();
     }
 
     void View::createGlobalParamsBuffer() {
@@ -144,8 +147,8 @@ namespace RT64
 
         for (const RenderInstance &inst : rtInstances) {
             // Store world transform.
-            current->objectToWorld = inst.transform;
-            current->objectToWorldPrevious = inst.transformPrevious;
+            current->objectToWorld = convertNVMATHtoGLMMatrix(inst.transform);
+            current->objectToWorldPrevious = convertNVMATHtoGLMMatrix(inst.transformPrevious);
 
             // Store matrix to transform normal.
             glm::mat4 upper3x3 = current->objectToWorld;
@@ -157,7 +160,6 @@ namespace RT64
             upper3x3[3][2] = 0.f;
             upper3x3[3][3] = 1.f;
 
-            // current->objectToWorldNormal = XMMatrixTranspose(XMMatrixInverse(&det, upper3x3));
             current->objectToWorldNormal = glm::transpose(glm::inverse(upper3x3));
 
             current++;
@@ -325,14 +327,16 @@ namespace RT64
             rasterBgInstances.reserve(totalInstances);
             rasterFgInstances.reserve(totalInstances);
 
+            unsigned int currId = 0;
             for (Instance *instance : scene->getInstances()) {
                 instFlags = instance->getFlags();
                 usedMesh = instance->getMesh();
+                usedMesh->updateBottomLevelAS(rtBuilder, currId);
                 renderInstance.instance = instance;
-                renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
-                renderInstance.bottomLevelAS = nullptr;
-                renderInstance.transform = instance->getTransform();
-                renderInstance.transformPrevious = instance->getPreviousTransform();
+                renderInstance.id = -1;
+                // renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
+                renderInstance.transform = convertGLMtoNVMATHMatrix(instance->getTransform());
+                renderInstance.transformPrevious = convertGLMtoNVMATHMatrix(instance->getPreviousTransform());
                 renderInstance.material = instance->getMaterial();
                 renderInstance.shader = instance->getShader();
                 renderInstance.indexCount = usedMesh->getIndexCount();
@@ -365,21 +369,23 @@ namespace RT64
                     renderInstance.viewport = {0.0f, 0.0f, 0.0f, 0.0f};
                 }
 
-                if (renderInstance.bottomLevelAS != nullptr) {
+                if (usedMesh->getBlasId() != -1L) {
+                    renderInstance.id = currId;
                     rtInstances.push_back(renderInstance);
+                    currId++;
                 }
                 else if (instFlags & RT64_INSTANCE_RASTER_BACKGROUND) {
                     rasterBgInstances.push_back(renderInstance);
                 }
                 else {
-                    rtInstances.push_back(renderInstance);
-                    // rasterFgInstances.push_back(renderInstance);
+                    // rtInstances.push_back(renderInstance);
+                    rasterFgInstances.push_back(renderInstance);
                 }
             }
 
             // Create the acceleration structures used by the raytracer.
             if (!rtInstances.empty()) {
-                // createTopLevelAS(rtInstances);
+                createTopLevelAS(rtInstances);
             }
 
             // Create the instance buffers for the active instances (if necessary).
@@ -405,6 +411,23 @@ namespace RT64
         }
 
         RT64_LOG_PRINTF("Finished view update");
+    }
+
+    void View::createTopLevelAS(const std::vector<RenderInstance>& renderInstances) {
+        std::vector<VkAccelerationStructureInstanceKHR> tlas;
+        tlas.reserve(renderInstances.size());
+
+        for (RenderInstance r : renderInstances) {
+            // Build the blas of each of the render instances
+            VkAccelerationStructureInstanceKHR rayInst{};
+            rayInst.transform = nvvk::toTransformMatrixKHR(r.transform);
+            rayInst.instanceCustomIndex = r.id;
+            rayInst.accelerationStructureReference = rtBuilder.getBlasDeviceAddress(r.id);
+            rayInst.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+            rayInst.mask = 0xFF;
+            tlas.emplace_back(rayInst);
+        }
+        rtBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
     }
 
     void View::render(float deltaTimeMs) { 

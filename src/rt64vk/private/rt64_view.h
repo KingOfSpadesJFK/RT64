@@ -9,6 +9,7 @@
 // Very much incomplete. Might as well just do
 #include "rt64_upscaler.h"
 #include "rt64_device.h"
+#include <nvvk/raytraceKHR_vk.hpp>
 // #include "rt64_dlss.h"
 // #include "rt64_fsr.h"
 // #include "rt64_xess.h"
@@ -31,14 +32,15 @@ namespace RT64
                 // const VkBufferView* vertexBufferView;
                 // const VkBufferView* indexBufferView;
                 int indexCount;
-                VkBuffer* bottomLevelAS;
-                glm::mat4 transform;
-                glm::mat4 transformPrevious;
+                std::vector<nvvk::RaytracingBuilderKHR::BlasInput>* blases;
+                nvmath::mat4f transform;
+                nvmath::mat4f transformPrevious;
                 RT64_MATERIAL material;
                 Shader* shader;
                 VkRect2D scissorRect;
                 VkViewport viewport;
-                uint32_t flags;
+                unsigned int flags;
+                unsigned int id;
             };
 
             struct GlobalParams {                
@@ -119,6 +121,7 @@ namespace RT64
             AllocatedImage depthImage;
             VkImageView depthImageView;
             VkSampler texSampler;
+            nvvk::RaytracingBuilderKHR rtBuilder;
             std::vector<RenderInstance> rasterBgInstances;
             std::vector<RenderInstance> rasterFgInstances;
             std::vector<RenderInstance> rtInstances;
@@ -130,6 +133,7 @@ namespace RT64
             void destroyOutputBuffers();
 
             void createShaderDescriptorSets(bool updateDescriptors);
+		    void createTopLevelAS(const std::vector<RenderInstance>& rtInstances);
 
             void createGlobalParamsBuffer();
             void updateGlobalParamsBuffer();

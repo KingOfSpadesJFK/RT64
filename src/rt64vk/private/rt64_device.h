@@ -16,6 +16,7 @@
 #include <optional>
 #include <vulkan/vulkan.h>
 #include <array>
+#include <nvvk/context_vk.hpp>
 #include <nvvk/raytraceKHR_vk.hpp>
 #include <nvvk/resourceallocator_vk.hpp>
 
@@ -197,7 +198,7 @@ namespace RT64
             void addDepthImageView(VkImageView* depthImageView);
             void removeDepthImageView(VkImageView* depthImageView);
             void createShaderModule(const void* code, size_t size, const char* entryName, VkShaderStageFlagBits stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, VkShaderModule& shader, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
-            void createRtBuilder(nvvk::RaytracingBuilderKHR& rtBuilder);
+            void initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder);
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }
