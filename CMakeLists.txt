@@ -42,8 +42,6 @@ foreach(shader ${vertexShaders})
         COMMAND echo Building vertex shader ${shaderName}...
         COMMAND ${DXC_DIR}/bin/dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T vs_6_3 -E VSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV
     )
-    # execute_process(COMMAND echo Building vertex shader ${shaderName}...)
-    # execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T vs_6_3 -E VSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
 endforeach()
 
 # Build pixel shaders
@@ -54,8 +52,6 @@ foreach(shader ${pixelShaders})
         COMMAND echo Building pixel shader ${shaderName}...
         COMMAND ${DXC_DIR}/bin/dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T ps_6_3 -E PSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV
     )
-    # execute_process(COMMAND echo Building pixel shader ${shaderName}...)
-    # execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T ps_6_3 -E PSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
 endforeach()
 
 # Build compute shaders
@@ -76,8 +72,6 @@ foreach(shader ${rayShaders})
         COMMAND echo Building raygen shader ${shaderName}...
         COMMAND ${DXC_DIR}/bin/dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T lib_6_3 -Fh ${shader}.h -Vn ${shaderName}_SPIRV
     )
-    # execute_process(COMMAND echo Building raygen shader ${shaderName}...)
-    # execute_process(COMMAND dxc ${shader} -spirv -fspv-target-env=vulkan1.2 -T lib_6_3 -Fh ${shader}.h -Vn ${shaderName}_SPIRV)
 endforeach()
 
 # Build geometry shaders
