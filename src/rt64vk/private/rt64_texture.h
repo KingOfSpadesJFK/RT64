@@ -14,7 +14,6 @@ namespace RT64 {
             Device* device;
             AllocatedImage texture;
             VkImageView textureImageView;
-            VkSampler textureSampler;
             VkFormat format;
 		    int currentIndex;
             int width, height;
@@ -27,7 +26,6 @@ namespace RT64 {
             // void setDDS(const void* bytes, int byteCount);
             AllocatedImage* getTexture();
             VkImageView* getTextureImageView();
-            VkSampler* getTextureSampler();
             VkFormat getFormat() const;
             void setCurrentIndex(int v);
             int getCurrentIndex() const;

@@ -357,10 +357,8 @@ namespace RT64
 		SS(INCLUDE_HLSLI(MaterialsHLSLI));
 		SS(INCLUDE_HLSLI(InstancesHLSLI));
 		SS(INCLUDE_HLSLI(GlobalParamsHLSLI));
-		// SS("struct PushConstant { int instanceId; };");
-		// SS("[[vk::push_constant]] PushConstant pc;");
-
-		SS("int instanceId : register(b1);");
+		SS("struct PushConstant { int instanceId; };");
+		SS("[[vk::push_constant]] PushConstant pc;");
 
 		unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 		if (cc.useTextures[0]) {
@@ -388,8 +386,8 @@ namespace RT64
 			SS("    out float4 oInput" + std::to_string(i + 1) + " : COLOR" + std::to_string(i) + std::string(((i + 1) < cc.inputCount) ? "," : ""));
 		}
 		SS(") {");
-		// SS("    oPosition = mul(projection, mul(view, mul(instanceTransforms[instanceId].objectToWorld, float4(iPosition.xyz, 1.0))));");
-		SS("    oPosition = mul(projection, mul(view, mul(instanceTransforms[0].objectToWorld, float4(iPosition.xyz, 1.0))));");
+		SS("    oPosition = mul(projection, mul(view, mul(instanceTransforms[pc.instanceId].objectToWorld, float4(iPosition.xyz, 1.0))));");
+		// SS("    oPosition = mul(projection, mul(view, mul(instanceTransforms[0].objectToWorld, float4(iPosition.xyz, 1.0))));");
 		// SS("    oPosition = iPosition;");
 		
 		SS("    oNormal = iNormal;");
@@ -415,9 +413,8 @@ namespace RT64
 		SS(") {");
 
 		if (cc.useTextures[0]) {
-			SS("    int diffuseTexIndex = instanceMaterials[0].diffuseTexIndex;");
-			// SS("    float4 texVal0 = gTextures[NonUniformResourceIndex(diffuseTexIndex)].Sample(gTextureSampler, vertexUV);");
-			SS("    float4 texVal0 = gTextures[0].Sample(gTextureSampler, vertexUV);");
+			SS("    int diffuseTexIndex = instanceMaterials[pc.instanceId].diffuseTexIndex;");
+			SS("    float4 texVal0 = gTextures[NonUniformResourceIndex(diffuseTexIndex)].Sample(gTextureSampler, vertexUV);");
 		}
 
 		if (cc.useTextures[1]) {
@@ -490,13 +487,14 @@ namespace RT64
         // Rasterizer
         VkPipelineRasterizationStateCreateInfo rasterizer{};
         rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        rasterizer.depthClampEnable = VK_FALSE;
+        rasterizer.depthClampEnable = VK_TRUE;
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
         rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
         rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
+		rasterizer.depthBiasClamp = 100.0f;
 
         // Color blending
         VkPipelineColorBlendAttachmentState colorBlendAttachment{};
@@ -521,8 +519,6 @@ namespace RT64
         depthStencil.depthWriteEnable = VK_TRUE;
         depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
         depthStencil.stencilTestEnable = VK_FALSE;
-        depthStencil.front = {}; // Optional
-        depthStencil.back = {}; // Optional
 
 		// Define the vertex layout.
         VkVertexInputBindingDescription vertexBind{};
@@ -872,8 +868,8 @@ namespace RT64
         std::vector<VkDescriptorPoolSize> poolSizes{};
 		bindings.push_back({CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
 		poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
-		bindings.push_back({1 + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-		poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
+		// bindings.push_back({1 + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+		// poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
         bindings.push_back({SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
 		poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
         bindings.push_back({SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
@@ -1009,9 +1005,9 @@ namespace RT64
 
 // Library exports
 
-DLEXPORT RT64_SHADER *RT64_CreateShader(RT64_DEVICE *devicePtr, unsigned int shaderId, unsigned int filter, unsigned int hAddr, unsigned int vAddr, int flags) {
+DLEXPORT RT64_SHADER* RT64_CreateShader(RT64_DEVICE* devicePtr, unsigned int shaderId, unsigned int filter, unsigned int hAddr, unsigned int vAddr, int flags) {
     try {
-        RT64::Device *device = (RT64::Device *)(devicePtr);
+        RT64::Device* device = (RT64::Device*)(devicePtr);
 		RT64::Shader::Filter sFilter = convertFilter(filter);
 		RT64::Shader::AddressingMode sHAddr = convertAddressingMode(hAddr);
 		RT64::Shader::AddressingMode sVAddr = convertAddressingMode(vAddr);

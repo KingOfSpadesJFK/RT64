@@ -8,6 +8,8 @@
 
 #include "rt64_view.h"
 #include "rt64_scene.h"
+#include "rt64_mesh.h"
+#include "rt64_texture.h"
 #include "rt64_shader.h"
 
 #include <glm/gtc/matrix_transform.hpp>
@@ -32,8 +34,9 @@ namespace RT64
 {
 	class Scene;
 	class Shader;
-	class Inspector;
+	class Mesh;
 	class Texture;
+	class Inspector;
 	class Mipmaps;
 
     struct QueueFamilyIndices {
@@ -115,8 +118,11 @@ namespace RT64
             float aspectRatio;
             bool framebufferCreated = false;
             bool framebufferResized = false;
+
             std::vector<Scene*> scenes;
             std::vector<Shader*> shaders;
+            std::vector<Mesh*> meshes;
+            std::vector<Texture*> textures;
             std::vector<Inspector*> inspectors;
             
 		    Mipmaps *mipmaps;
@@ -212,6 +218,10 @@ namespace RT64
             void draw(int vsyncInterval, double delta);
 		    void addScene(Scene* scene);
 		    void removeScene(Scene* scene);
+		    void addMesh(Mesh* mesh);
+		    void removeMesh(Mesh* mesh);
+		    void addTexture(Texture* texture);
+		    void removeTexture(Texture* texture);
             void addShader(Shader* shader);
             void removeShader(Shader* shader);
             void addDepthImageView(VkImageView* depthImageView);

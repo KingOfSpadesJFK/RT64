@@ -20,6 +20,8 @@ namespace RT64
         vertexStride = 0;
         blasAddress = (VkDeviceAddress)nullptr;
         this->device->initRTBuilder(builder);
+
+		device->addMesh(this);
     }
 
     Mesh::~Mesh() {
@@ -28,6 +30,8 @@ namespace RT64
         indexBuffer.destroyResource();
         stagingIndexBuffer.destroyResource();
         builder.destroy();
+
+		device->removeMesh(this);
     }
 
     // This function copies the passed in vertex array into the buffer

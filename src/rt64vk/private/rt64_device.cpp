@@ -900,8 +900,23 @@ namespace RT64
 
         // Destroy the scenes
         auto scenesCopy = scenes;
-        for (Scene* scene : scenesCopy) {
-            delete scene;
+        for (Scene* s : scenesCopy) {
+            delete s;
+        }
+        // Destroy the meshes
+        auto meshesCopy = meshes;
+        for (Mesh* m : meshesCopy) {
+            delete m;
+        }
+        // Destroy the textures
+        auto texturesCopy = textures;
+        for (Texture* t : texturesCopy) {
+            delete t;
+        }
+        // Destroy the shaders
+        auto shadersCopy = shaders;
+        for (Shader* sh : shadersCopy) {
+            delete sh;
         }
         
         rtAllocator.deinit();
@@ -964,8 +979,31 @@ namespace RT64
         scenes.erase(std::remove(scenes.begin(), scenes.end(), scene), scenes.end());
     }
 
-    // Adds a scene to the device
+    // Adds a mesh to the device
+    void Device::addMesh(Mesh* mesh) {
+        assert(mesh != nullptr);
+        meshes.push_back(mesh);
+    }
+    
+    // Removes a mesh from the device
+    void Device::removeMesh(Mesh* mesh) {
+        assert(mesh != nullptr);
+        meshes.erase(std::remove(meshes.begin(), meshes.end(), mesh), meshes.end());
+    }
 
+    // Adds a mesh to the device
+    void Device::addTexture(Texture* texture) {
+        assert(texture != nullptr);
+        textures.push_back(texture);
+    }
+    
+    // Removes a mesh from the device
+    void Device::removeTexture(Texture* texture) {
+        assert(texture != nullptr);
+        textures.erase(std::remove(textures.begin(), textures.end(), texture), textures.end());
+    }
+
+    // Adds a scene to the device
     void Device::addShader(Shader *shader) {
         assert(shader != nullptr);
         if (shader->hasHitGroups()) {

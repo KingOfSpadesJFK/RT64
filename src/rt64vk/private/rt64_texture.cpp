@@ -12,12 +12,15 @@ namespace RT64 {
         this->device = device;
         format = VK_FORMAT_UNDEFINED;
         currentIndex = -1;
+
+		device->addTexture(this);
     }
 
     Texture::~Texture() {
         texture.destroyResource();
         vkDestroyImageView(device->getVkDevice(), textureImageView, nullptr);
-        vkDestroySampler(device->getVkDevice(), textureSampler, nullptr);
+
+		device->removeTexture(this);
     }
 
     void Texture::setRawWithFormat(
@@ -80,25 +83,6 @@ namespace RT64 {
 
         VkPhysicalDeviceProperties properties{};
         vkGetPhysicalDeviceProperties(device->getPhysicalDevice(), &properties);
-
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.anisotropyEnable = VK_FALSE;
-        samplerInfo.maxAnisotropy = 1.0f;
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.unnormalizedCoordinates = VK_FALSE;
-        samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerInfo.mipLodBias = 0.0f;
-        samplerInfo.minLod = 0.0f;
-        samplerInfo.maxLod = 0.0f;
-        vkCreateSampler(device->getVkDevice(), &samplerInfo, nullptr, &textureSampler);
     }
 
     void Texture::setRGBA8(void* bytes, int byteCount, int width, int height, int rowPitch, bool generateMipmaps) {
@@ -109,7 +93,6 @@ namespace RT64 {
 
     AllocatedImage* Texture::getTexture() { return &texture; };
     VkImageView* Texture::getTextureImageView() { return &textureImageView; };
-    VkSampler* Texture::getTextureSampler() { return &textureSampler; };
     void Texture::setCurrentIndex(int v) { currentIndex = v; }
     int Texture::getCurrentIndex() const { return currentIndex; }
     int Texture::getWidth() { return width; }

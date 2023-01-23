@@ -97,6 +97,7 @@ namespace RT64
             AllocatedImage depthImage;
             VkImageView depthImageView;
             VkSampler texSampler;
+            Texture* skyPlaneTexture;
             nvvk::RaytracingBuilderKHR rtBuilder;
             std::vector<RenderInstance> rasterBgInstances;
             std::vector<RenderInstance> rasterFgInstances;
@@ -128,6 +129,7 @@ namespace RT64
 
             VkImageView& getDepthImageView();
             AllocatedBuffer& getGlobalParamsBuffer();
+            void setSkyPlaneTexture(Texture *texture);
             int getWidth() const;
             int getHeight() const;
 	};

@@ -252,11 +252,12 @@ void setupRT64Scene() {
 	RT64.view = RT64.lib.CreateView(RT64.scene);
 
 	// Load textures.
-	RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
+	// RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
+	RT64.textureDif = loadTexturePNG("res/nice_cock.png");
 	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
 	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
 	RT64_TEXTURE *textureSky = loadTexturePNG("res/clouds.png");
-	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
+	// RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
 	// Make initial transform with a 0.1f scale.
 	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
@@ -426,6 +427,11 @@ void setupRT64Scene() {
 	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
 	RT64.lib.SetInstanceDescription(floorInstance, instDesc);
+
+	// Setup view after all of that
+	// THIS IS ONLY TEMPORARY
+	// TODO: Make it so create view isn't the last thing called
+	// RT64.view = RT64.lib.CreateView(RT64.scene);
 }
 
 void destroyRT64() {
@@ -456,169 +462,6 @@ void destroyRT64() {
 						- Textures
 						- Materials
 */
-void setupTestScene() {
-	RT64.scene = RT64.lib.CreateScene(RT64.device);
-	RT64.sceneDesc.ambientBaseColor = { 0.1f, 0.1f, 0.1f };
-	RT64.sceneDesc.ambientNoGIColor = { 0.2f, 0.2f, 0.2f };
-	RT64.sceneDesc.eyeLightDiffuseColor = { 0.08f, 0.08f, 0.08f };
-	RT64.sceneDesc.eyeLightSpecularColor = { 0.04f, 0.04f, 0.04f };
-	RT64.sceneDesc.skyDiffuseMultiplier = { 1.0f, 1.0f, 1.0f };
-	RT64.sceneDesc.skyHSLModifier = { 0.0f, 0.0f, 0.0f };
-	RT64.sceneDesc.skyYawOffset = 0.0f;
-	RT64.sceneDesc.giDiffuseStrength = 0.7f;
-	RT64.sceneDesc.giSkyStrength = 0.35f;
-	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
-
-	// Setup shader.
-	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
-	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
-
-	// Load textures.
-	RT64.textureDif = loadTexturePNG("res/nice_cock.png");
-
-	// Setup view.
-	// RT64.view = RT64.lib.CreateView(RT64.scene);
-
-	// Make initial transform with a 0.1f scale.
-	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
-	RT64.transform.m[0][0] = 1.0f;
-	RT64.transform.m[1][1] = 1.0f;
-	RT64.transform.m[2][2] = 1.0f;
-	RT64.transform.m[3][3] = 1.0f;
-
-	// Make initial view.
-	memset(RT64.viewMatrix.m, 0, sizeof(RT64_MATRIX4));
-	RT64.viewMatrix.m[0][0] = 1.0f;
-	RT64.viewMatrix.m[1][1] = 1.0f;
-	RT64.viewMatrix.m[2][2] = 1.0f;
-	RT64.viewMatrix.m[3][0] = 0.0f;
-	RT64.viewMatrix.m[3][1] = -2.0f;
-	RT64.viewMatrix.m[3][2] = -10.0f;
-	RT64.viewMatrix.m[3][3] = 1.0f;
-
-	// Create mesh from obj file.
-	std::vector<VERTEX> objVertices;
-	std::vector<unsigned int> objIndices;
-	tinyobj::attrib_t attrib;
-	std::vector<tinyobj::shape_t> shapes;
-	std::vector<tinyobj::material_t> materials;
-	std::string warn;
-	std::string err;
-	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/teapot.obj", NULL, true);
-	assert(loaded);
-	double maxDistance = __DBL_MIN__;	// Just to scale the object to be bellow 1.0
-	
-	for (size_t i = 0; i < shapes.size(); i++) {
-		size_t index_offset = 0;
-		for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
-			size_t fnum = shapes[i].mesh.num_face_vertices[f];
-			for (size_t v = 0; v < fnum; v++) {
-				tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
-				VERTEX vertex;
-				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2], 1.0f };
-				vertex.normal = { attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2] };
-				vertex.uv = { acosf(vertex.normal.x), acosf(vertex.normal.y) };
-				vertex.input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
-
-				// Just for testing
-				double distance = (double)(vertex.position.x * vertex.position.x);
-				distance += (double)(vertex.position.y * vertex.position.y);
-				distance += (double)(vertex.position.z * vertex.position.z);
-				distance = std::sqrt(distance);
-				if (distance > maxDistance) {
-					maxDistance = distance;
-				}
-
-				objIndices.push_back((unsigned int)(objVertices.size()));
-				objVertices.push_back(vertex);
-			}
-
-			index_offset += fnum;
-		}
-	}
-
-	for (int i = 0; i < objVertices.size(); i++) {
-		objVertices[i].position.x /= (float)maxDistance;
-		objVertices[i].position.y /= (float)maxDistance;
-		objVertices[i].position.z /= (float)maxDistance;
-	}
-	
-	RT64_MESH* objMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT);
-	RT64.lib.SetMesh(objMesh, objVertices.data(), (int)(objVertices.size()), sizeof(VERTEX), objIndices.data(), (int)(objIndices.size()));
-
-	// Configure material.
-	RT64.baseMaterial.ignoreNormalFactor = 0.0f;
-	RT64.baseMaterial.uvDetailScale = 1.0f;
-	RT64.baseMaterial.reflectionFactor = 0.0f;
-	RT64.baseMaterial.reflectionFresnelFactor = 1.0f;
-	RT64.baseMaterial.reflectionShineFactor = 0.0f;
-	RT64.baseMaterial.refractionFactor = 0.0f;
-	RT64.baseMaterial.specularColor = { 1.0f, 1.0f, 1.0f };
-	RT64.baseMaterial.specularExponent = 1.0f;
-	RT64.baseMaterial.solidAlphaMultiplier = 1.0f;
-	RT64.baseMaterial.shadowAlphaMultiplier = 1.0f;
-	RT64.baseMaterial.diffuseColorMix = { 0.0f, 0.0f, 0.0f, 0.0f };
-	RT64.baseMaterial.selfLight = { 0.0f , 0.0f, 0.0f };
-	RT64.baseMaterial.lightGroupMaskBits = 0xFFFFFFFF;
-	RT64.baseMaterial.fogColor = { 0.3f, 0.5f, 0.7f };
-	RT64.baseMaterial.fogMul = 1.0f;
-	RT64.baseMaterial.fogOffset = 0.0f;
-	RT64.baseMaterial.fogEnabled = 0;
-
-	RT64_INSTANCE_DESC instDesc;
-	instDesc.scissorRect = { 0, 0, 0, 0 };
-	instDesc.viewportRect = { 0, 0, 0, 0 };
-	
-	// Create floor.
-	TEST_VERTEX floorVertices[4];
-	RT64_MATRIX4 floorTransform;
-	unsigned int floorIndices[] = { 0, 1, 2, 2, 3, 0 };
-	floorVertices[0].position = { -0.5f, -0.5f, 0.0f, 1.0f };
-	floorVertices[0].normal = { 1.0f, 0.0f, 0.0f };
-	floorVertices[0].uv = { 0.0f, 0.0f };
-	floorVertices[1].position = { 0.5f, -0.5f, 0.0f, 1.0f };
-	floorVertices[1].normal = { 0.0f, 1.0f, 0.0f };
-	floorVertices[1].uv = { 1.0f, 0.0f };
-	floorVertices[2].position = { 0.5f, 0.5f, 0.0f, 1.0f };
-	floorVertices[2].normal = { 0.0f, 0.0f, 1.0f };
-	floorVertices[2].uv = { 0.0f, 1.0f };
-	floorVertices[3].position = { -0.5f, 0.5f, 0.0f, 1.0f };
-	floorVertices[3].normal = { 1.0f, 1.0f, 1.0f };
-	floorVertices[3].uv = { 1.0f, 1.0f };
-
-	// for (int i = 0; i < _countof(floorVertices); i++) {
-	// 	floorVertices[i].normal = { 0.0f, 1.0f, 0.0f };
-	// 	floorVertices[i].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
-	// }
-
-	memset(&floorTransform, 0, sizeof(RT64_MATRIX4));
-	floorTransform.m[0][0] = 1.0f;
-	floorTransform.m[1][1] = 1.0f;
-	floorTransform.m[2][2] = 1.0f;
-	floorTransform.m[3][3] = 1.0f;
-
-	RT64_INSTANCE* objInstance = RT64.lib.CreateInstance(RT64.scene);
-	instDesc.mesh = objMesh;
-	instDesc.transform = floorTransform;
-	instDesc.previousTransform = floorTransform;
-	instDesc.diffuseTexture = RT64.textureDif;
-	instDesc.normalTexture = nullptr;
-	instDesc.specularTexture = nullptr;
-	instDesc.shader = RT64.shader;
-	instDesc.flags = 0;
-	RT64.lib.SetInstanceDescription(objInstance, instDesc);
-
-	// RT64_MESH* floorMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED);
-	// RT64.lib.SetMesh(floorMesh, floorVertices, _countof(floorVertices), sizeof(TEST_VERTEX), floorIndices, _countof(floorIndices));
-	// RT64_INSTANCE *floorInstance = RT64.lib.CreateInstance(RT64.scene);
-	// instDesc.mesh = floorMesh;
-	// RT64.lib.SetInstanceDescription(floorInstance, instDesc);
-
-	// Setup view after all of that
-	// THIS IS ONLY TEMPORARY
-	// TODO: Make it so create view isn't the last thing called
-	RT64.view = RT64.lib.CreateView(RT64.scene);
-}
 
 int main(int argc, char *argv[]) {
 	// Show a basic message to the user so they know what the sample is meant to do.
@@ -651,10 +494,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Setup scene in RT64.
-	// setupRT64Scene();
-
-	// For now, just do the scene set up here
-	setupTestScene();
+	setupRT64Scene();
 
 	// GLFW Window loop.
 	while (!glfwWindowShouldClose(window)) {

@@ -117,7 +117,8 @@ namespace RT64
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-        glm::vec3 currentPoint = glm::vec3(sinf32(time) * glm::radians(90.0f), cosf32(time) * glm::radians(90.0f), 0.f);
+        #define RADIUS 4.0f
+        glm::vec3 currentPoint = glm::vec3(sinf32(time) * glm::radians(90.0f) * RADIUS, cosf32(time) * glm::radians(90.0f) * RADIUS, 0.f);
         globalParamsData.view = glm::lookAt(currentPoint, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
         globalParamsData.projection = glm::perspective(glm::radians(45.0f), (float)this->scene->getDevice()->getAspectRatio(), 0.1f, 10.0f);
         globalParamsData.projection[1][1] *= -1;
@@ -220,9 +221,9 @@ namespace RT64
             gParams_Info.buffer = *globalParamsBuffer.getBuffer();
             gParams_Info.range = globalParamsSize;
 
-            VkDescriptorBufferInfo instId {};
-            instId.buffer = *globalParamsBuffer.getBuffer();
-            instId.range = sizeof(uint32_t);
+            // VkDescriptorBufferInfo instId {};
+            // instId.buffer = *globalParamsBuffer.getBuffer();
+            // instId.range = sizeof(uint32_t);
 
             VkDescriptorBufferInfo transform_Info {};
             transform_Info.buffer = *activeInstancesBufferTransforms.getBuffer();
@@ -253,10 +254,10 @@ namespace RT64
             write.pBufferInfo = &gParams_Info;
             descriptorWrites.push_back(write);
             
-            write.dstBinding = 1 + CBV_SHIFT;
-            write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            write.pBufferInfo = &instId;
-            descriptorWrites.push_back(write);
+            // write.dstBinding = 1 + CBV_SHIFT;
+            // write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+            // write.pBufferInfo = &instId;
+            // descriptorWrites.push_back(write);
             
             write.dstBinding = SRV_INDEX(instanceTransforms) + SRV_SHIFT;
             write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
@@ -285,7 +286,7 @@ namespace RT64
                 for (VkWriteDescriptorSet& w : descriptorWrites) {
                     w.dstSet = r.shader->getRasterGroup().descriptorSet;
                 }
-                descriptorWrites[5].dstBinding = r.shader->getSamplerRegisterIndex() + SAMPLER_SHIFT;
+                descriptorWrites[4].dstBinding = r.shader->getSamplerRegisterIndex() + SAMPLER_SHIFT;
                 vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
             }
         }
@@ -495,6 +496,8 @@ namespace RT64
                 }
 
                 VkDeviceSize offsets[] = {0};
+                int instanceId = j;
+                vkCmdPushConstants(commandBuffer, renderInstance.shader->getRasterGroup().pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &instanceId);
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, renderInstance.instance->getMesh()->getVertexBuffer(), offsets);
                 vkCmdBindIndexBuffer(commandBuffer, *renderInstance.instance->getMesh()->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
                 vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(renderInstance.instance->getMesh()->getIndexCount()), 1, 0, 0, 0);
@@ -539,6 +542,10 @@ namespace RT64
 
     VkImageView& View::getDepthImageView() { return depthImageView; }
 
+    void View::setSkyPlaneTexture(Texture *texture) {
+        skyPlaneTexture = texture;
+    }
+
     void View::resize() {
         createOutputBuffers();
     }
@@ -553,6 +560,13 @@ namespace RT64
 };
 
 // Library exports
+
+DLEXPORT void RT64_SetViewSkyPlane(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr) {
+	assert(viewPtr != nullptr);
+	RT64::View *view = (RT64::View *)(viewPtr);
+	RT64::Texture *texture = (RT64::Texture *)(texturePtr);
+	view->setSkyPlaneTexture(texture);
+}
 
 DLEXPORT RT64_VIEW* RT64_CreateView(RT64_SCENE* scenePtr) {
 	assert(scenePtr != nullptr);
