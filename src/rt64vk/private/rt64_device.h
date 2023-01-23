@@ -39,6 +39,10 @@ namespace RT64
 	class Inspector;
 	class Mipmaps;
 
+    struct DescriptorInfo {
+
+    };
+
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
         std::optional<uint32_t> presentFamily;
@@ -102,6 +106,7 @@ namespace RT64
             void createCommandBuffers();
             void createSyncObjects();
             void createRayTracingPipeline();
+            void generateRayTracingDescriptorSetLayout();
 
             void initRayTracing();
             void recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
@@ -140,11 +145,15 @@ namespace RT64
             std::vector<VkImageView*> depthViews;
 
             bool rtStateDirty = false;
+            bool mainRtShadersCreated = false;
             nvvk::RaytracingBuilderKHR rtBlasBuilder;
             nvvk::ResourceAllocatorDma rtAllocator;
             std::vector<VkRayTracingShaderGroupCreateInfoKHR> rtShaderGroups;
             VkPipelineLayout rtPipelineLayout;
             VkPipeline rtPipeline;
+            VkDescriptorSetLayout rtDescriptorSetLayout;
+            VkDescriptorPool rtDescriptorPool;
+            VkDescriptorSet rtDescriptorSet;
 
             uint32_t currentFrame = 0;
             uint32_t framebufferIndex = 0;
@@ -228,6 +237,7 @@ namespace RT64
             void removeDepthImageView(VkImageView* depthImageView);
             void createShaderModule(const void* code, size_t size, const char* entryName, VkShaderStageFlagBits stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, VkShaderModule& shader, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
             void initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder);
+            void generateDescriptorPool(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorPool& descriptorPool);
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }

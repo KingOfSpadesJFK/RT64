@@ -19,11 +19,6 @@
 // ##############################################
 // SPIR-V blobs
 
-// Test shaders
-//static unsigned int helloTriangleVS[] = 
-#include "shaders/HelloTriangleVS.hlsl.h"
-#include "shaders/HelloTrianglePS.hlsl.h"
-
 // Raygen shaders
 #include "shaders/PrimaryRayGen.hlsl.h"
 
@@ -92,6 +87,7 @@ namespace RT64
         VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
         contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false, &rtPipelineFeature);  // To use vkCmdTraceRaysKHR
         contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);  // Required by ray tracing pipeline
+        contextInfo.addDeviceExtension(VK_KHR_RAY_QUERY_EXTENSION_NAME);  // Required by ray tracing pipeline
 
         // Creating Vulkan base application
         vkctx.initInstance(contextInfo);
@@ -109,26 +105,120 @@ namespace RT64
         enum StageIndices
         {
             primaryRayGen,
+            directRayGen,
+            indirectRayGen,
+            reflectionRayGen,
+            refractionRayGen,
             ENUM_MAX
         };
 
         // An array for the shader stages
-        std::array<VkPipelineShaderStageCreateInfo, ENUM_MAX> shaderStages{};
+        std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
         // Shader groups
-        VkRayTracingShaderGroupCreateInfoKHR group{VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR};
+        VkRayTracingShaderGroupCreateInfoKHR group
+            {VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR};
         group.anyHitShader = VK_SHADER_UNUSED_KHR;
         group.closestHitShader = VK_SHADER_UNUSED_KHR;
         group.generalShader = VK_SHADER_UNUSED_KHR;
         group.intersectionShader = VK_SHADER_UNUSED_KHR;
 
-        // Create the primary ray gen shader
-        VkPipelineShaderStageCreateInfo primaryStage{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-        createShaderModule(PrimaryRayGen_SPIRV, sizeof(PrimaryRayGen_SPIRV), "main", VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryStage, primaryRayGenModule, nullptr);
+	    RT64_LOG_PRINTF("Loading shader modules");
+
+        // Create the primary raygen shader
+        VkPipelineShaderStageCreateInfo primaryStage
+            {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+        if (!mainRtShadersCreated) {
+            createShaderModule(PrimaryRayGen_SPIRV, sizeof(PrimaryRayGen_SPIRV), "PrimaryRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryStage, primaryRayGenModule, &shaderStages);
+            mainRtShadersCreated = true;
+        }
         shaderStages[primaryRayGen] = primaryStage;
         group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
         group.generalShader = primaryRayGen;
         rtShaderGroups.push_back(group);
+
+	    RT64_LOG_PRINTF("Creating the descriptor set layouts and pools");
+        generateRayTracingDescriptorSetLayout();
+
+        // Create the pipeline layout create info
+        VkPipelineLayoutCreateInfo layoutInfo {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
+        layoutInfo.setLayoutCount = 1;
+        layoutInfo.pSetLayouts = &rtDescriptorSetLayout;
+        vkCreatePipelineLayout(vkDevice, &layoutInfo, nullptr, &rtPipelineLayout);
+
+        // Assemble the shader stages and recursion depth info into the ray tracing pipeline
+        VkRayTracingPipelineCreateInfoKHR rayPipelineInfo{VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR};
+        rayPipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());  // Stages are shaders
+        rayPipelineInfo.pStages = shaderStages.data();
+        rayPipelineInfo.groupCount = static_cast<uint32_t>(rtShaderGroups.size());
+        rayPipelineInfo.pGroups = rtShaderGroups.data();
+        rayPipelineInfo.maxPipelineRayRecursionDepth = 1;       // Ray depth
+        rayPipelineInfo.layout = rtPipelineLayout;
+        vkCreateRayTracingPipelinesKHR(vkDevice, {}, {}, 1, &rayPipelineInfo, nullptr, &rtPipeline);
+    }
+
+    void Device::generateRayTracingDescriptorSetLayout() {
+		VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+        std::vector<VkDescriptorSetLayoutBinding> bindings = {
+            {UAV_INDEX(gViewDirection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gShadingPosition) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gShadingNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gShadingSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gDiffuse) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gReflection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gRefraction) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gTransparent) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gReactiveMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gLockMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gPrevNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gPrevDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gPrevDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gPrevIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gFilteredDirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gFilteredIndirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gHitSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {SRV_INDEX(gBackground) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {SRV_INDEX(SceneBVH) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {SRV_INDEX(SceneLights) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {SRV_INDEX(gBlueNoise) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {SRV_INDEX(gTextures) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr},
+            {SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}
+        };
+
+        std::vector<VkDescriptorBindingFlags> vectorOfFlags(bindings.size(), flags);
+		VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo {};
+		flagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+		flagsInfo.bindingCount = vectorOfFlags.size();
+		flagsInfo.pBindingFlags = vectorOfFlags.data();
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = bindings.size();
+        layoutInfo.pBindings = bindings.data();
+		layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+		layoutInfo.pNext = &flagsInfo;
+        VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &rtDescriptorSetLayout));
+
+		generateDescriptorPool(bindings, rtDescriptorPool);
+
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = rtDescriptorPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &rtDescriptorSetLayout;
+        VkResult res = vkAllocateDescriptorSets(vkDevice, &allocInfo, &rtDescriptorSet);
     }
 
     /*
@@ -1291,6 +1381,23 @@ namespace RT64
 
         vkFreeCommandBuffers(vkDevice, commandPool, 1, commandBuffer);
     }
+
+	void Device::generateDescriptorPool(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorPool& descriptorPool) {
+		std::vector<VkDescriptorPoolSize> poolSizes{};
+		poolSizes.resize(bindings.size());
+		for (int i = 0; i < bindings.size(); i++) {
+			poolSizes[i].type = bindings[i].descriptorType;
+			poolSizes[i].descriptorCount = bindings[i].descriptorCount;
+		}
+
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = poolSizes.size();
+        poolInfo.pPoolSizes = poolSizes.data();
+		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+        poolInfo.maxSets = 1;
+		VK_CHECK(vkCreateDescriptorPool(vkDevice, &poolInfo, nullptr, &descriptorPool));
+	}
     #endif
 
 }

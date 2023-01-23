@@ -802,34 +802,21 @@ namespace RT64
 		VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
 
         std::vector<VkDescriptorSetLayoutBinding> bindings;
-        std::vector<VkDescriptorPoolSize> poolSizes{};
 		bindings.push_back({SRV_INDEX(vertexBuffer) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-		poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
 		bindings.push_back({SRV_INDEX(indexBuffer) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-		poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
 		if (hitBuffers) {
 			bindings.push_back({UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-			poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
 			bindings.push_back({UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-			poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
 			bindings.push_back({UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-			poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
 			bindings.push_back({UAV_INDEX(gHitSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-			poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
 			bindings.push_back({UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-			poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
 		}
         bindings.push_back({SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-		poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
-        bindings.push_back({SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-		poolSizes.push_back({VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1});
-        bindings.push_back({SRV_INDEX(gTextures) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-		poolSizes.push_back({VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX});
+		bindings.push_back({SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+		bindings.push_back({SRV_INDEX(gTextures) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
 		bindings.push_back({CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr});
-		poolSizes.push_back({VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1});
-        bindings.push_back({samplerRegisterIndex + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-		poolSizes.push_back({VK_DESCRIPTOR_TYPE_SAMPLER, 1});
-
+		bindings.push_back({samplerRegisterIndex + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+		
         std::vector<VkDescriptorBindingFlags> vectorOfFlags(bindings.size(), flags);
 		VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo {};
 		flagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
@@ -843,13 +830,7 @@ namespace RT64
 		layoutInfo.pNext = &flagsInfo;
         VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &descriptorSetLayout));
 
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = poolSizes.size();
-        poolInfo.pPoolSizes = poolSizes.data();
-		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
-        poolInfo.maxSets = 1;
-		VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &descriptorPool));
+		this->device->generateDescriptorPool(bindings, descriptorPool);
 
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
