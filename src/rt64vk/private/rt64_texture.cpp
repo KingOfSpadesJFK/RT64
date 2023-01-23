@@ -81,8 +81,8 @@ namespace RT64 {
         // Create an image view and sampler
         textureImageView = device->createImageView(*texture.getImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
-        VkPhysicalDeviceProperties properties{};
-        vkGetPhysicalDeviceProperties(device->getPhysicalDevice(), &properties);
+        // VkPhysicalDeviceProperties properties{};
+        // vkGetPhysicalDeviceProperties(device->getPhysicalDevice(), &properties);
     }
 
     void Texture::setRGBA8(void* bytes, int byteCount, int width, int height, int rowPitch, bool generateMipmaps) {

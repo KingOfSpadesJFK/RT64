@@ -222,10 +222,6 @@ namespace RT64
             gParams_Info.buffer = *globalParamsBuffer.getBuffer();
             gParams_Info.range = globalParamsSize;
 
-            // VkDescriptorBufferInfo instId {};
-            // instId.buffer = *globalParamsBuffer.getBuffer();
-            // instId.range = sizeof(uint32_t);
-
             VkDescriptorBufferInfo transform_Info {};
             transform_Info.buffer = *activeInstancesBufferTransforms.getBuffer();
             transform_Info.range = activeInstancesBufferTransformsSize;
@@ -254,11 +250,6 @@ namespace RT64
             write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
             write.pBufferInfo = &gParams_Info;
             descriptorWrites.push_back(write);
-            
-            // write.dstBinding = 1 + CBV_SHIFT;
-            // write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            // write.pBufferInfo = &instId;
-            // descriptorWrites.push_back(write);
             
             write.dstBinding = SRV_INDEX(instanceTransforms) + SRV_SHIFT;
             write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
