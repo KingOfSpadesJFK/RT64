@@ -117,10 +117,11 @@ namespace RT64
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
-        #define RADIUS 4.0f
-        glm::vec3 currentPoint = glm::vec3(sinf32(time) * glm::radians(90.0f) * RADIUS, cosf32(time) * glm::radians(90.0f) * RADIUS, 0.f);
-        globalParamsData.view = glm::lookAt(currentPoint, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-        globalParamsData.projection = glm::perspective(glm::radians(45.0f), (float)this->scene->getDevice()->getAspectRatio(), 0.1f, 10.0f);
+        #define RADIUS 10.0f
+        #define YOFF 2.0f
+        glm::vec3 eye = glm::vec3(sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS);
+        globalParamsData.view = glm::lookAt(eye, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        globalParamsData.projection = glm::perspective(glm::radians(45.0f), (float)this->scene->getDevice()->getAspectRatio(), 0.1f, 1000.0f);
         globalParamsData.projection[1][1] *= -1;
         globalParamsBuffer.setData(&globalParamsData, sizeof(globalParamsData));
     }

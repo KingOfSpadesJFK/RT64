@@ -253,7 +253,7 @@ void setupRT64Scene() {
 
 	// Load textures.
 	// RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
-	RT64.textureDif = loadTexturePNG("res/nice_cock.png");
+	RT64.textureDif = loadTexturePNG("res/grass_dif.png");
 	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
 	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
 	RT64_TEXTURE *textureSky = loadTexturePNG("res/clouds.png");
