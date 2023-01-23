@@ -98,6 +98,7 @@ namespace RT64
             void createCommandPool();
             void createCommandBuffers();
             void createSyncObjects();
+            void createRayTracingPipeline();
 
             void initRayTracing();
             void recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
@@ -117,18 +118,28 @@ namespace RT64
             std::vector<Scene*> scenes;
             std::vector<Shader*> shaders;
             std::vector<Inspector*> inspectors;
+            
 		    Mipmaps *mipmaps;
             VmaAllocator allocator;
+
             VkRenderPass renderPass;
             std::vector<VkFramebuffer> swapChainFramebuffers;
+
             VkCommandPool commandPool;
             std::vector<VkCommandBuffer> commandBuffers;
+
             std::vector<VkSemaphore> imageAvailableSemaphores;
             std::vector<VkSemaphore> renderFinishedSemaphores;
             std::vector<VkFence> inFlightFences;
             std::vector<VkImageView*> depthViews;
+
+            bool rtStateDirty = false;
             nvvk::RaytracingBuilderKHR rtBlasBuilder;
             nvvk::ResourceAllocatorDma rtAllocator;
+            std::vector<VkRayTracingShaderGroupCreateInfoKHR> rtShaderGroups;
+            VkPipelineLayout rtPipelineLayout;
+            VkPipeline rtPipeline;
+
             uint32_t currentFrame = 0;
             uint32_t framebufferIndex = 0;
 
@@ -137,6 +148,10 @@ namespace RT64
 
             IDxcCompiler* d3dDxcCompiler;   // Who invited my man blud XDXDXD
             IDxcLibrary* d3dDxcLibrary;     // Bro thinks he's on the team  XDXDXDXDXDXD
+
+            //***********************************************************
+            // The Ray Tracing Shader Modules
+            VkShaderModule primaryRayGenModule;
 #endif
 
             const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};

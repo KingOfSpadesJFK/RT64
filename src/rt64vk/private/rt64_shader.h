@@ -37,8 +37,6 @@ namespace RT64 {
             struct HitGroup {
                 void* id = nullptr;
                 VkShaderModule shaderModule;
-                // VkPipelineLayout pipelineLayout;
-                // VkPipeline pipeline;
                 VkDescriptorSetLayout descriptorSetLayout;
                 VkDescriptorPool descriptorPool;
                 VkDescriptorSet descriptorSet;

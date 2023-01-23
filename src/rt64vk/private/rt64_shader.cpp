@@ -357,6 +357,9 @@ namespace RT64
 		SS(INCLUDE_HLSLI(MaterialsHLSLI));
 		SS(INCLUDE_HLSLI(InstancesHLSLI));
 		SS(INCLUDE_HLSLI(GlobalParamsHLSLI));
+		// SS("struct PushConstant { int instanceId; };");
+		// SS("[[vk::push_constant]] PushConstant pc;");
+
 		SS("int instanceId : register(b1);");
 
 		unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
@@ -440,11 +443,20 @@ namespace RT64
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_FRAGMENT_BIT, pixelShaderName, L"ps_6_3", fragmentStage, rasterGroup.fragmentModule);
 		generateRasterDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, rasterGroup.descriptorSetLayout, rasterGroup.descriptorPool, rasterGroup.descriptorSet);
 
+		// Set up the push constnants
+		VkPushConstantRange pushConstant;
+		pushConstant.offset = 0;
+		pushConstant.size = sizeof(uint32_t);
+		pushConstant.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
 		// Create the pipeline layout
         VkPipelineLayoutCreateInfo pipelineLayoutInfo{};
         pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipelineLayoutInfo.setLayoutCount = 1;
         pipelineLayoutInfo.pSetLayouts = &rasterGroup.descriptorSetLayout; 
+		// Get the push constant into the pipeline layout
+		pipelineLayoutInfo.pPushConstantRanges = &pushConstant;
+		pipelineLayoutInfo.pushConstantRangeCount = 1;
 
         VK_CHECK(vkCreatePipelineLayout(device->getVkDevice(), &pipelineLayoutInfo, nullptr, &rasterGroup.pipelineLayout));
 		
@@ -964,14 +976,14 @@ namespace RT64
 		// Get the dxcBlob into a void*
 		uint8_t* bobBlobLaw = static_cast<uint8_t*>(dxcBlob->GetBufferPointer());
 		VkDeviceSize gobBluth = dxcBlob->GetBufferSize();
-		for (int i = 0; i < gobBluth; i++) {
-			printf("Ox%02x", bobBlobLaw[i]);
-			if (i % 16 == 15) {
-				std::cout << "\n";
-			} else {
-				std::cout << " ";
-			}
-		}
+		// for (int i = 0; i < gobBluth; i++) {
+		// 	printf("Ox%02x", bobBlobLaw[i]);
+		// 	if (i % 16 == 15) {
+		// 		std::cout << "\n";
+		// 	} else {
+		// 		std::cout << " ";
+		// 	}
+		// }
 		device->createShaderModule(bobBlobLaw, gobBluth, entryName.c_str(), stage, shaderStage, shaderModule, nullptr);
 	}
 

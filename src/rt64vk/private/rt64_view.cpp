@@ -214,21 +214,24 @@ namespace RT64
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 
         // Create descriptor sets for the instances
-        if (updateDescriptors)
         {
             // First step is create the infos
             VkDescriptorBufferInfo gParams_Info {};
             gParams_Info.buffer = *globalParamsBuffer.getBuffer();
             gParams_Info.range = globalParamsSize;
+
             VkDescriptorBufferInfo instId {};
             instId.buffer = *globalParamsBuffer.getBuffer();
             instId.range = sizeof(uint32_t);
+
             VkDescriptorBufferInfo transform_Info {};
             transform_Info.buffer = *activeInstancesBufferTransforms.getBuffer();
             transform_Info.range = activeInstancesBufferTransformsSize;
+
             VkDescriptorBufferInfo materials_Info {};
             materials_Info.buffer = *activeInstancesBufferMaterials.getBuffer();
             materials_Info.range = activeInstancesBufferMaterialsSize;
+
             std::vector<VkDescriptorImageInfo> texture_infos;
             texture_infos.resize(usedTextures.size());
             for (int i = 0; i < usedTextures.size(); i++) {
@@ -237,6 +240,7 @@ namespace RT64
                 currTexInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
                 texture_infos[i] = currTexInfo;
             }
+
             VkDescriptorImageInfo sampler_Info {};
             sampler_Info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
             sampler_Info.sampler = texSampler;
@@ -395,7 +399,7 @@ namespace RT64
             
             // Create the shader binding table and indicating which shaders
             // are invoked for each instance in the AS.
-            // createShaderBindingTable();
+            createShaderBindingTable();
 
             // Update the instance buffers for the active instances.
             updateInstanceTransformsBuffer();
@@ -428,6 +432,10 @@ namespace RT64
             id++;
         }
         rtBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
+    }
+
+    void View::createShaderBindingTable() {
+
     }
 
     void View::render(float deltaTimeMs) { 

@@ -24,6 +24,9 @@
 #include "shaders/HelloTriangleVS.hlsl.h"
 #include "shaders/HelloTrianglePS.hlsl.h"
 
+// Raygen shaders
+#include "shaders/PrimaryRayGen.hlsl.h"
+
 // Pixel shaders
 #include "shaders/ComposePS.hlsl.h"
 // Vertex shaders
@@ -62,8 +65,9 @@ namespace RT64
         createSyncObjects();
 
         createDxcCompiler();
-        
+
         initRayTracing();
+        createRayTracingPipeline();
 #endif
     }
 
@@ -98,6 +102,35 @@ namespace RT64
         vkctx.initDevice(compatibleDevices[0], contextInfo);
     }
 
+    // Creates the ray tracing pipeline
+    void Device::createRayTracingPipeline() {
+	    RT64_LOG_PRINTF("Raytracing pipeline creation started");
+
+        enum StageIndices
+        {
+            primaryRayGen,
+            ENUM_MAX
+        };
+
+        // An array for the shader stages
+        std::array<VkPipelineShaderStageCreateInfo, ENUM_MAX> shaderStages{};
+
+        // Shader groups
+        VkRayTracingShaderGroupCreateInfoKHR group{VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR};
+        group.anyHitShader = VK_SHADER_UNUSED_KHR;
+        group.closestHitShader = VK_SHADER_UNUSED_KHR;
+        group.generalShader = VK_SHADER_UNUSED_KHR;
+        group.intersectionShader = VK_SHADER_UNUSED_KHR;
+
+        // Create the primary ray gen shader
+        VkPipelineShaderStageCreateInfo primaryStage{VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+        createShaderModule(PrimaryRayGen_SPIRV, sizeof(PrimaryRayGen_SPIRV), "main", VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryStage, primaryRayGenModule, nullptr);
+        shaderStages[primaryRayGen] = primaryStage;
+        group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+        group.generalShader = primaryRayGen;
+        rtShaderGroups.push_back(group);
+    }
+
     /*
         More notes about how vulkan works just for me...
             Semaphores act like signals. They signal commands to execute
@@ -122,11 +155,21 @@ namespace RT64
             - Wait for the previous frame to finish
             - Acquire an image from the swap chain
             - Record a command buffer which draws the scene onto that image
+                - The command to draw basically just puts the pipeline in action
+                - And the pipeline has the shaders
             - Submit the recorded command buffer
             - Present the swap chain image
     */
 #ifndef RT64_MINIMAL
     void Device::draw(int vsyncInterval, double delta) {
+        RT64_LOG_PRINTF("Device drawing started");
+
+        if (rtStateDirty) {
+            // Actually just make it run once.... for now
+            // createRayTracingPipeline();
+            rtStateDirty = false;
+        }
+
         if (!framebufferCreated) {
             createFramebuffers();
             framebufferCreated = true;
@@ -927,7 +970,7 @@ namespace RT64
         assert(shader != nullptr);
         if (shader->hasHitGroups()) {
             shaders.push_back(shader);
-            // d3dRtStateObjectDirty = true;
+            rtStateDirty = true;
         }
     }
 
@@ -936,7 +979,7 @@ namespace RT64
         assert(shader != nullptr);
         if (shader->hasHitGroups()) {
             shaders.erase(std::remove(shaders.begin(), shaders.end(), shader), shaders.end());
-            // d3dRtStateObjectDirty = true;
+            rtStateDirty = true;
         }
     }
 
