@@ -21,6 +21,10 @@
 
 // Raygen shaders
 #include "shaders/PrimaryRayGen.hlsl.h"
+#include "shaders/DirectRayGen.hlsl.h"
+#include "shaders/IndirectRayGen.hlsl.h"
+#include "shaders/ReflectionRayGen.hlsl.h"
+#include "shaders/RefractionRayGen.hlsl.h"
 
 // Pixel shaders
 #include "shaders/ComposePS.hlsl.h"
@@ -101,18 +105,9 @@ namespace RT64
     // Creates the ray tracing pipeline
     void Device::createRayTracingPipeline() {
 	    RT64_LOG_PRINTF("Raytracing pipeline creation started");
+        rtShaderGroups.clear();             // Clear the raytracing shader groups
 
-        enum StageIndices
-        {
-            primaryRayGen,
-            directRayGen,
-            indirectRayGen,
-            reflectionRayGen,
-            refractionRayGen,
-            ENUM_MAX
-        };
-
-        // An array for the shader stages
+        // A vector for the shader stages
         std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
         // Shader groups
@@ -125,25 +120,77 @@ namespace RT64
 
 	    RT64_LOG_PRINTF("Loading shader modules");
 
-        // Create the primary raygen shader
-        VkPipelineShaderStageCreateInfo primaryStage
-            {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+        // Create the main shaders
         if (!mainRtShadersCreated) {
-            createShaderModule(PrimaryRayGen_SPIRV, sizeof(PrimaryRayGen_SPIRV), "PrimaryRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryStage, primaryRayGenModule, &shaderStages);
-            mainRtShadersCreated = true;
+            createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "PrimaryRayGen",    VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryStage,       primaryRayGenModule, nullptr);
+            createShaderModule(DirectRayGen_SPIRV,      sizeof(DirectRayGen_SPIRV),     "DirectRayGen",     VK_SHADER_STAGE_RAYGEN_BIT_KHR, directStage,        directRayGenModule, nullptr);
+            createShaderModule(IndirectRayGen_SPIRV,    sizeof(IndirectRayGen_SPIRV),   "IndirectRayGen",   VK_SHADER_STAGE_RAYGEN_BIT_KHR, indirectStage,      indirectRayGenModule, nullptr);
+            createShaderModule(ReflectionRayGen_SPIRV,  sizeof(ReflectionRayGen_SPIRV), "ReflectionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, reflectionStage,    reflectionRayGenModule, nullptr);
+            createShaderModule(RefractionRayGen_SPIRV,  sizeof(RefractionRayGen_SPIRV), "RefractionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, refractionStage,    refractionRayGenModule, nullptr);
         }
-        shaderStages[primaryRayGen] = primaryStage;
+        
+        // Push the main shaders into the shader stages
+        {
+            shaderStages.push_back(primaryStage);
+            shaderStages.push_back(directStage);
+            shaderStages.push_back(indirectStage);
+            shaderStages.push_back(reflectionStage);
+            shaderStages.push_back(refractionStage);
+        }
+
+        // Add the generated shaders to the shaderStages vector
+        for (Shader* s : shaders) {
+            const Shader::HitGroup &surfaceHitGroup = s->getSurfaceHitGroup();
+            const Shader::HitGroup &shadowHitGroup = s->getShadowHitGroup();
+            shaderStages.push_back(surfaceHitGroup.shaderInfo);
+            shaderStages.push_back(shadowHitGroup.shaderInfo);
+        }
+
+        // Group the shaders
         group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-        group.generalShader = primaryRayGen;
+        group.generalShader = SHADER_INDEX(primaryRayGen);
+        rtShaderGroups.push_back(group);
+        group.generalShader = SHADER_INDEX(directRayGen);
+        rtShaderGroups.push_back(group);
+        group.generalShader = SHADER_INDEX(indirectRayGen);
+        rtShaderGroups.push_back(group);
+        group.generalShader = SHADER_INDEX(reflectionRayGen);
+        rtShaderGroups.push_back(group);
+        group.generalShader = SHADER_INDEX(refractionRayGen);
         rtShaderGroups.push_back(group);
 
-	    RT64_LOG_PRINTF("Creating the descriptor set layouts and pools");
-        generateRayTracingDescriptorSetLayout();
+        group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
+        group.generalShader = VK_SHADER_UNUSED_KHR;
+        for (int i = 0; i < shaders.size(); i++) {
+            group.anyHitShader = SHADER_INDEX(MAX) + i * 2;
+            rtShaderGroups.push_back(group);
+            group.anyHitShader = SHADER_INDEX(MAX) + i * 2 + 1;
+            rtShaderGroups.push_back(group);
+        }
 
+	    RT64_LOG_PRINTF("Creating the RT descriptor set layouts and pools");
+        // A vector for the descriptor set layouts
+        std::vector<VkDescriptorSetLayout> layouts;
+        if (!mainRtShadersCreated) {
+            // Don't create the descriptor layout and pool if this already happend
+            generateRayTracingDescriptorSetLayout();
+            mainRtShadersCreated = true;
+        }
+        
+        // Push the main RT descriptor set layout into the layouts vector
+        layouts.push_back(rtDescriptorSetLayout);
+
+        // Push the hit descriptor set layouts
+        for (Shader* s : shaders) {
+            layouts.push_back(s->getSurfaceHitGroup().descriptorSetLayout);
+            layouts.push_back(s->getShadowHitGroup().descriptorSetLayout);
+        }
+
+	    RT64_LOG_PRINTF("Creating the RT pipeline");
         // Create the pipeline layout create info
         VkPipelineLayoutCreateInfo layoutInfo {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-        layoutInfo.setLayoutCount = 1;
-        layoutInfo.pSetLayouts = &rtDescriptorSetLayout;
+        layoutInfo.setLayoutCount = layouts.size();
+        layoutInfo.pSetLayouts = layouts.data();
         vkCreatePipelineLayout(vkDevice, &layoutInfo, nullptr, &rtPipelineLayout);
 
         // Assemble the shader stages and recursion depth info into the ray tracing pipeline
@@ -155,6 +202,8 @@ namespace RT64
         rayPipelineInfo.maxPipelineRayRecursionDepth = 1;       // Ray depth
         rayPipelineInfo.layout = rtPipelineLayout;
         vkCreateRayTracingPipelinesKHR(vkDevice, {}, {}, 1, &rayPipelineInfo, nullptr, &rtPipeline);
+
+	    RT64_LOG_PRINTF("RT pipeline complete!");
     }
 
     void Device::generateRayTracingDescriptorSetLayout() {
@@ -198,27 +247,7 @@ namespace RT64
             {SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_RAYGEN_BIT_KHR, nullptr}
         };
 
-        std::vector<VkDescriptorBindingFlags> vectorOfFlags(bindings.size(), flags);
-		VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo {};
-		flagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
-		flagsInfo.bindingCount = vectorOfFlags.size();
-		flagsInfo.pBindingFlags = vectorOfFlags.data();
-        VkDescriptorSetLayoutCreateInfo layoutInfo{};
-        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-        layoutInfo.bindingCount = bindings.size();
-        layoutInfo.pBindings = bindings.data();
-		layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
-		layoutInfo.pNext = &flagsInfo;
-        VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &rtDescriptorSetLayout));
-
-		generateDescriptorPool(bindings, rtDescriptorPool);
-
-        VkDescriptorSetAllocateInfo allocInfo{};
-        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = rtDescriptorPool;
-        allocInfo.descriptorSetCount = 1;
-        allocInfo.pSetLayouts = &rtDescriptorSetLayout;
-        VkResult res = vkAllocateDescriptorSets(vkDevice, &allocInfo, &rtDescriptorSet);
+		allocateDescriptorSet(bindings, flags, rtDescriptorSetLayout, rtDescriptorPool, rtDescriptorSet);
     }
 
     /*
@@ -256,7 +285,9 @@ namespace RT64
 
         if (rtStateDirty) {
             // Actually just make it run once.... for now
-            // createRayTracingPipeline();
+            vkDestroyPipeline(vkDevice, rtPipeline, nullptr);
+            vkDestroyPipelineLayout(vkDevice, rtPipelineLayout, nullptr);
+            createRayTracingPipeline();
             rtStateDirty = false;
         }
 
@@ -1052,6 +1083,16 @@ namespace RT64
     VkFramebuffer& Device::getCurrentSwapchainFramebuffer() { return swapChainFramebuffers[framebufferIndex]; };
     IDxcCompiler* Device::getDxcCompiler() { return d3dDxcCompiler; }
     IDxcLibrary* Device::getDxcLibrary() { return d3dDxcLibrary; }
+    VkPipeline& Device::getRTPipeline() { return rtPipeline; }
+    VkDescriptorSet& Device::getRTDescriptorSet() { return rtDescriptorSet; }
+    VkPhysicalDeviceRayTracingPipelinePropertiesKHR Device::getRTProperties() const { return rtProperties; }
+
+    // Shader getters
+    VkPipelineShaderStageCreateInfo Device::getPrimaryShaderStage() const { return primaryStage; }
+    VkPipelineShaderStageCreateInfo Device::getDirectShaderStage() const { return directStage; }
+    VkPipelineShaderStageCreateInfo Device::getIndirectShaderStage() const { return indirectStage; }
+    VkPipelineShaderStageCreateInfo Device::getReflectionShaderStage() const { return reflectionStage; }
+    VkPipelineShaderStageCreateInfo Device::getRefractionShaderStage() const { return refractionStage; }
 
     void Device::initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder) {
         rtBuilder.setup(vkDevice, &rtAllocator, vkctx.m_queueGCT.queueIndex);
@@ -1382,13 +1423,26 @@ namespace RT64
         vkFreeCommandBuffers(vkDevice, commandPool, 1, commandBuffer);
     }
 
-	void Device::generateDescriptorPool(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorPool& descriptorPool) {
+	void Device::allocateDescriptorSet(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout,  VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet) {
 		std::vector<VkDescriptorPoolSize> poolSizes{};
 		poolSizes.resize(bindings.size());
 		for (int i = 0; i < bindings.size(); i++) {
 			poolSizes[i].type = bindings[i].descriptorType;
 			poolSizes[i].descriptorCount = bindings[i].descriptorCount;
 		}
+
+        std::vector<VkDescriptorBindingFlags> vectorOfFlags(bindings.size(), flags);
+		VkDescriptorSetLayoutBindingFlagsCreateInfo flagsInfo {};
+		flagsInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO;
+		flagsInfo.bindingCount = vectorOfFlags.size();
+		flagsInfo.pBindingFlags = vectorOfFlags.data();
+        VkDescriptorSetLayoutCreateInfo layoutInfo{};
+        layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        layoutInfo.bindingCount = bindings.size();
+        layoutInfo.pBindings = bindings.data();
+		layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
+		layoutInfo.pNext = &flagsInfo;
+        VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &descriptorSetLayout));
 
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
@@ -1397,6 +1451,13 @@ namespace RT64
 		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
         poolInfo.maxSets = 1;
 		VK_CHECK(vkCreateDescriptorPool(vkDevice, &poolInfo, nullptr, &descriptorPool));
+
+        VkDescriptorSetAllocateInfo allocInfo{};
+        allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        allocInfo.descriptorPool = descriptorPool;
+        allocInfo.descriptorSetCount = 1;
+        allocInfo.pSetLayouts = &descriptorSetLayout;
+        VK_CHECK(vkAllocateDescriptorSets(vkDevice, &allocInfo, &descriptorSet));
 	}
     #endif
 

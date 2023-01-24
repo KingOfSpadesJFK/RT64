@@ -95,6 +95,7 @@ namespace RT64
         globalParamsBuffer.destroyResource();
         activeInstancesBufferMaterials.destroyResource();
         activeInstancesBufferTransforms.destroyResource();
+        shaderBindingTable.destroyResource();
 
         rtBuilder.destroyTlas();
     }
@@ -216,6 +217,7 @@ namespace RT64
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 
         // Create descriptor sets for the instances
+        if (updateDescriptors)
         {
             // First step is create the infos
             VkDescriptorBufferInfo gParams_Info {};
@@ -427,8 +429,86 @@ namespace RT64
         rtBuilder.buildTlas(tlas, VK_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR);
     }
 
+    // Get all the RT shader handles and write them into an SBT buffer
+    //  From nvpro-samples
     void View::createShaderBindingTable() {
+        VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties = device->getRTProperties();
+        unsigned int missCount = 0;                                                 // How many miss shaders we have
+        unsigned int hitCount = rtInstances.size();                                 // How many hit shaders we have
+        unsigned int handleCount = SHADER_INDEX(MAX) + missCount + hitCount;        // How many rt shaders in total we have
+        unsigned int handleSize = rtProperties.shaderGroupHandleSize;
+        // The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
+        unsigned int handleSizeAligned = nvh::align_up(handleSize, rtProperties.shaderGroupHandleAlignment);
 
+        raygenRegion.stride = nvh::align_up(handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
+        raygenRegion.size = raygenRegion.stride;    // The size member of pRayGenShaderBindingTable must be equal to its stride member
+        missRegion.stride = handleSizeAligned;
+        missRegion.size = nvh::align_up(missCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
+        hitRegion.stride = handleSizeAligned;
+        hitRegion.size = nvh::align_up(hitCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
+
+        // Get the shader group handles
+        unsigned int dataSize = handleCount * handleSize;
+        std::vector<uint8_t> handles(dataSize);
+        VkResult res = vkGetRayTracingShaderGroupHandlesKHR(device->getVkDevice(), device->getRTPipeline(), 0, handleCount, dataSize, handles.data());
+
+        // Get the new size of the sbt
+        VkDeviceSize newSbtSize = raygenRegion.size + missRegion.size + hitRegion.size + callRegion.size;
+        // If it's the same size, then just return since there's no need to do this whole thing again
+        if (newSbtSize == sbtSize) {
+            return;
+        }
+
+        // If the SBT has a size (implying there's already an SBT), then destroy the SBT
+        if (sbtSize > 0) {
+            shaderBindingTable.destroyResource();
+        }
+
+        // Allocate a buffer for storing the SBT.
+        device->allocateBuffer(
+            newSbtSize, 
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR,
+            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT,
+            &shaderBindingTable
+        );
+        shaderBindingTable.setAllocationName("ShaderBindingTable");
+        sbtSize = newSbtSize;
+
+        // Find the SBT addresses of each group
+        VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, *shaderBindingTable.getBuffer()};
+        VkDeviceAddress sbtAddress = vkGetBufferDeviceAddress(device->getVkDevice(), &info);
+        raygenRegion.deviceAddress = sbtAddress;
+        missRegion.deviceAddress = sbtAddress + raygenRegion.size;
+        hitRegion.deviceAddress = sbtAddress + raygenRegion.size + missRegion.size;
+
+        // Helper to retrieve the handle data
+        auto getHandle = [&](int i) { return handles.data() + i * handleSize; };
+
+        // Map the SBT buffer and write in the handles
+        uint8_t* pSBTBuffer;
+        uint8_t* pData = reinterpret_cast<uint8_t*>(shaderBindingTable.mapMemory((void**)&pSBTBuffer));
+        uint32_t handleIdx = 0;
+
+        // Raygen
+        memcpy(pData, getHandle(handleIdx++), handleSize);
+
+        // Miss
+        pData = pSBTBuffer + raygenRegion.size;
+        for(uint32_t c = 0; c < missCount; c++)
+        {
+            memcpy(pData, getHandle(handleIdx++), handleSize);
+            pData += missRegion.stride;
+        }
+
+        // Hit
+        pData = pSBTBuffer + raygenRegion.size + missRegion.size;
+        for(uint32_t c = 0; c < hitCount; c++)
+        {
+            memcpy(pData, getHandle(handleIdx++), handleSize);
+            pData += hitRegion.stride;
+        }
+        shaderBindingTable.unmapMemory();
     }
 
     void View::render(float deltaTimeMs) { 
@@ -488,8 +568,8 @@ namespace RT64
                 }
 
                 VkDeviceSize offsets[] = {0};
-                int instanceId = j;
-                vkCmdPushConstants(commandBuffer, renderInstance.shader->getRasterGroup().pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &instanceId);
+                int pushConst = baseInstanceIndex + j;
+                vkCmdPushConstants(commandBuffer, renderInstance.shader->getRasterGroup().pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &pushConst);
                 vkCmdBindVertexBuffers(commandBuffer, 0, 1, renderInstance.instance->getMesh()->getVertexBuffer(), offsets);
                 vkCmdBindIndexBuffer(commandBuffer, *renderInstance.instance->getMesh()->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
                 vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(renderInstance.instance->getMesh()->getIndexCount()), 1, 0, 0, 0);
@@ -519,12 +599,16 @@ namespace RT64
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
         vkCmdSetScissor(commandBuffer, 0, 1, &scissors);
 
+        // vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterGroup.pipeline);
+        // vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterGroup.pipelineLayout, 0, 1, &renderInstance.shader->getRasterGroup().descriptorSet, 0, nullptr);
+
         // Draw the raster images
         // Draw the background instances to the screen.
         RT64_LOG_PRINTF("Drawing background instances");
         resetScissor();
         resetViewport();
-	    drawInstances(rtInstances, (uint32_t)(rasterBgInstances.size() + rtInstances.size()), true);
+	    drawInstances(rtInstances, 0, true);
+	    // drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
 
         vkCmdEndRenderPass(commandBuffer);
         VK_CHECK(vkEndCommandBuffer(commandBuffer));

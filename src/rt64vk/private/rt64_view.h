@@ -9,6 +9,7 @@
 // Very much incomplete. Might as well just do
 #include "rt64_upscaler.h"
 #include "rt64_device.h"
+#include <nvh/alignment.hpp>
 #include <nvvk/raytraceKHR_vk.hpp>
 // #include "rt64_dlss.h"
 // #include "rt64_fsr.h"
@@ -98,13 +99,21 @@ namespace RT64
             VkImageView depthImageView;
             VkSampler texSampler;
             Texture* skyPlaneTexture;
-            nvvk::RaytracingBuilderKHR rtBuilder;
             std::vector<RenderInstance> rasterBgInstances;
             std::vector<RenderInstance> rasterFgInstances;
             std::vector<RenderInstance> rtInstances;
 		    std::vector<Texture*> usedTextures;
             bool scissorApplied;
             bool viewportApplied;
+
+            nvvk::RaytracingBuilderKHR rtBuilder;
+            AllocatedBuffer shaderBindingTable;
+            VkStridedDeviceAddressRegionKHR raygenRegion{};
+            VkStridedDeviceAddressRegionKHR missRegion{};
+            VkStridedDeviceAddressRegionKHR hitRegion{};
+            VkStridedDeviceAddressRegionKHR callRegion{};
+            VkDeviceSize sbtSize = 0;
+
 
             void createOutputBuffers();
             void destroyOutputBuffers();

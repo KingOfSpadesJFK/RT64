@@ -68,7 +68,6 @@ namespace RT64
             VkQueue& graphicsQueue = vkctx.m_queueGCT.queue;
             VkQueue& presentQueue = vkctx.m_queueGCT.queue;
             VkDebugUtilsMessengerEXT debugMessenger;
-            VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
             VkSwapchainKHR swapChain;
             std::vector<VkImage> swapChainImages;
             VkFormat swapChainImageFormat;
@@ -146,6 +145,7 @@ namespace RT64
 
             bool rtStateDirty = false;
             bool mainRtShadersCreated = false;
+            VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
             nvvk::RaytracingBuilderKHR rtBlasBuilder;
             nvvk::ResourceAllocatorDma rtAllocator;
             std::vector<VkRayTracingShaderGroupCreateInfoKHR> rtShaderGroups;
@@ -167,6 +167,16 @@ namespace RT64
             //***********************************************************
             // The Ray Tracing Shader Modules
             VkShaderModule primaryRayGenModule;
+            VkShaderModule directRayGenModule;
+            VkShaderModule indirectRayGenModule;
+            VkShaderModule reflectionRayGenModule;
+            VkShaderModule refractionRayGenModule;
+            // And their shader stage infos
+            VkPipelineShaderStageCreateInfo primaryStage    {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo directStage     {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo indirectStage   {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo reflectionStage {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo refractionStage {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
 #endif
 
             const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
@@ -210,6 +220,16 @@ namespace RT64
 		    VkFramebuffer& getCurrentSwapchainFramebuffer();
             IDxcCompiler* getDxcCompiler();
             IDxcLibrary* getDxcLibrary();
+            VkPhysicalDeviceRayTracingPipelinePropertiesKHR getRTProperties() const;
+            VkPipeline& getRTPipeline();
+            VkDescriptorSet& getRTDescriptorSet();
+            // Shader getters
+            VkPipelineShaderStageCreateInfo getPrimaryShaderStage() const;
+            VkPipelineShaderStageCreateInfo getDirectShaderStage() const;
+            VkPipelineShaderStageCreateInfo getIndirectShaderStage() const;
+            VkPipelineShaderStageCreateInfo getReflectionShaderStage() const;
+            VkPipelineShaderStageCreateInfo getRefractionShaderStage() const;
+
 
             VkCommandBuffer* beginSingleTimeCommands();
             VkCommandBuffer* beginSingleTimeCommands(VkCommandBuffer* commandBuffer);
@@ -237,7 +257,7 @@ namespace RT64
             void removeDepthImageView(VkImageView* depthImageView);
             void createShaderModule(const void* code, size_t size, const char* entryName, VkShaderStageFlagBits stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, VkShaderModule& shader, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
             void initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder);
-            void generateDescriptorPool(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorPool& descriptorPool);
+            void allocateDescriptorSet(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet);
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }

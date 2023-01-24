@@ -41,6 +41,7 @@
 #define UAV_INDEX(x) (int)(RT64::UAVIndices::x)
 #define SRV_INDEX(x) (int)(RT64::SRVIndices::x)
 #define CBV_INDEX(x) (int)(RT64::CBVIndices::x)
+#define SHADER_INDEX(x) (int)(RT64::ShaderIndices::x)
 #define SRV_TEXTURES_MAX 512
 
 namespace RT64 {
@@ -83,6 +84,16 @@ namespace RT64 {
 		gTextures,
 		MAX
 	};
+
+    enum ShaderIndices
+    {
+        primaryRayGen,
+        directRayGen,
+        indirectRayGen,
+        reflectionRayGen,
+        refractionRayGen,
+        MAX
+    };
 
 	enum class UAVIndices : int {
 		gViewDirection,

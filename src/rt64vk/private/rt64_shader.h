@@ -23,6 +23,8 @@ namespace RT64 {
             };
 
             struct RasterGroup {
+                VkPipelineShaderStageCreateInfo vertexInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+                VkPipelineShaderStageCreateInfo fragmentInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
                 VkShaderModule vertexModule;
                 VkShaderModule fragmentModule;
                 VkPipeline pipeline;
@@ -36,6 +38,7 @@ namespace RT64 {
 
             struct HitGroup {
                 void* id = nullptr;
+                VkPipelineShaderStageCreateInfo shaderInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
                 VkShaderModule shaderModule;
                 VkDescriptorSetLayout descriptorSetLayout;
                 VkDescriptorPool descriptorPool;

@@ -344,11 +344,11 @@ void setupRT64Scene() {
 	vertices[2].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 	
 	unsigned int indices[] = { 0, 1, 2 };
-	RT64_TEXTURE *altTexture = loadTexturePNG("res/tiles_dif.png");
+	RT64_TEXTURE* altTexture = loadTexturePNG("res/tiles_dif.png");
 	RT64_TEXTURE* normalTexture = loadTexturePNG("res/tiles_nrm.png");
 	RT64_TEXTURE* specularTexture = loadTexturePNG("res/tiles_spc.png");
 
-	RT64_MESH *mesh = RT64.lib.CreateMesh(RT64.device, 0);
+	RT64_MESH* mesh = RT64.lib.CreateMesh(RT64.device, 0);
 	RT64.lib.SetMesh(mesh, vertices, _countof(vertices), sizeof(VERTEX), indices, _countof(indices));
 
 	vertices[0].position.y += 0.15f;
@@ -365,8 +365,8 @@ void setupRT64Scene() {
 	instDesc.transform = RT64.transform;
 	instDesc.previousTransform = RT64.transform;
 	instDesc.diffuseTexture = altTexture;
-	instDesc.normalTexture = nullptr;
-	instDesc.specularTexture = nullptr;
+	instDesc.normalTexture = normalTexture;
+	instDesc.specularTexture = specularTexture;
 	instDesc.material = RT64.baseMaterial;
 	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
