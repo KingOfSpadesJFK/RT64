@@ -173,9 +173,10 @@ namespace RT64 {
 
 	class AllocatedResource {
 		protected:
-			VmaAllocation* allocation = nullptr;
+			VmaAllocation allocation;
 			VmaAllocator* allocator = nullptr;
 			bool mapped = false;
+			bool resourceInit = false;
 		public:
 			AllocatedResource() {}
 
@@ -184,58 +185,55 @@ namespace RT64 {
 			// Maps a portion of memory to the allocation
 			// Returns the pointer to the first byte in memory
 			virtual void* mapMemory(void** ppData) {
-				assert(!isNull() && !mapped);
-				vmaMapMemory(*allocator, *allocation, ppData);
+				assert(resourceInit && !mapped);
+				vmaMapMemory(*allocator, allocation, ppData);
 				mapped = true;
 				return *ppData;
 			}
 
 			// Unmaps that portion of memory
 			virtual void unmapMemory() {
-				assert(!isNull() && mapped);
-				vmaUnmapMemory(*allocator, *allocation);
+				assert(resourceInit && mapped);
+				vmaUnmapMemory(*allocator, allocation);
 				mapped = false;
 			}
 
 			// Copies a portion of memory into the mapped memory
 			// Returns the pointer to the first byte in memory
 			virtual void* setData(void* pData, uint64_t size) {
-				assert(!isNull() && !mapped);
+				assert(resourceInit && !mapped);
 				void* ppData = pData;		// Make a new reference that's just a pointer to a pointer to the data
-				vmaMapMemory(*allocator, *allocation, &ppData);
+				vmaMapMemory(*allocator, allocation, &ppData);
 				memcpy(ppData, pData, size);
-				vmaUnmapMemory(*allocator, *allocation);
+				vmaUnmapMemory(*allocator, allocation);
 				return ppData;
 			}
 
-			virtual void setAllocationName(const char* name) {
-				if (!isNull()) {
-					vmaSetAllocationName(*allocator, *allocation, name);
-				}
+			void setAllocationName(const char* name) {
+				assert(resourceInit);
+				vmaSetAllocationName(*allocator, allocation, name);
 			}
 
-			virtual void* getResource() const { return nullptr; }
+			VmaAllocation* getAllocation() { return &allocation; }
 
 			virtual bool isNull() const {
-				return (allocation == nullptr);
+				return !resourceInit;
 			}
 
 			virtual void destroyResource() {
-				if (!isNull()) {
-					if (mapped) {
-						vmaUnmapMemory(*allocator, *allocation);
-					}
-					allocation = nullptr;
-					allocator = nullptr;
-					mapped = false;
+				if (mapped) {
+					vmaUnmapMemory(*allocator, allocation);
 				}
+				allocator = nullptr;
+				mapped = false;
+				resourceInit = false;
 			}
 	};
 
 	class AllocatedBuffer : public AllocatedResource {
 		private:
-			VkBuffer* buffer = nullptr;
-			VkDescriptorBufferInfo info;
+			VkBuffer buffer;
+			VkDeviceSize size;
 			
 		public:
 			AllocatedBuffer() { }
@@ -248,66 +246,56 @@ namespace RT64 {
 			void copy(AllocatedBuffer& albo) {
 				allocation = albo.allocation;
 				allocator = albo.allocator;
-				buffer = albo.buffer;
 				mapped = albo.mapped;
 			}
 
-			void init(VmaAllocator* allocator, VmaAllocation* allocation, VkBuffer* buffer) {
-				assert(isNull());
-				this->allocation = allocation;
+			VkResult init(VmaAllocator* allocator, VkBufferCreateInfo& bufferInfo, VmaAllocationCreateInfo& allocCreateInfo, VmaAllocationInfo& allocInfo) {
+				assert(!resourceInit);
+        		VkResult res = vmaCreateBuffer(*allocator, &bufferInfo, &allocCreateInfo, &buffer, &allocation, &allocInfo);
+				if (res != VK_SUCCESS) {
+					return res;
+				}
+				this->resourceInit = true;
 				this->allocator = allocator;
-				this->buffer = buffer;
+				size = bufferInfo.size;
+				return res;
 			}
 			
-			AllocatedBuffer(VmaAllocator* allocator, VmaAllocation* allocation, VkBuffer* buffer) {
-				init(allocator, allocation, buffer);
+			AllocatedBuffer(VmaAllocator* allocator, VkBufferCreateInfo& bufferInfo, VmaAllocationCreateInfo& allocCreateInfo, VmaAllocationInfo& allocInfo) {
+				init(allocator, bufferInfo, allocCreateInfo, allocInfo);
 			}
 
 			~AllocatedBuffer() { 
 				allocator = nullptr;
-				allocation = nullptr;
-				buffer = nullptr;
-			}
-
-			inline void* getResource() const { return getBuffer(); }
-
-			inline VkBuffer* getBuffer() const {
-				assert(!isNull());
-				return buffer;
+				destroyResource();
 			}
 
 			void destroyResource() {
-				if (!isNull()) {
-					if (mapped) {
-						vmaUnmapMemory(*allocator, *allocation);
-					}
-					vmaDestroyBuffer(*allocator, *buffer, *allocation);
-					// vmaFreeMemory(*allocator, *allocation);
-					allocation = nullptr;
-					allocator = nullptr;
-					buffer = nullptr;
-					mapped = false;
-					info.buffer = nullptr;
-					info.offset = 0;
-					info.range = 0;
+				if (!resourceInit) {return;}
+				if (mapped) {
+					vmaUnmapMemory(*allocator, allocation);
 				}
+				vmaDestroyBuffer(*allocator, buffer, allocation);
+				allocator = nullptr;
+				mapped = false;
+				resourceInit = false;
 			}
 
-			void setDescriptorInfo(VkDeviceSize size, uint64_t offset) {
-				info.buffer = *buffer;
-				info.offset = offset;
-				info.range = size;
+			inline VkBuffer& getBuffer() {
+				return buffer;
 			}
 
-			VkDescriptorBufferInfo& getDescriptorInfo() {
-				return info;
+			VkDescriptorBufferInfo getDescriptorInfo() {
+				return { buffer, 0, size };
 			}
 		};
 
 	class AllocatedImage :  public AllocatedResource {
 		private:
-			VkImage* image = nullptr;
-			VkDescriptorImageInfo info;
+			VkImage image;
+			VkExtent3D dimensions;
+			VkFormat format;
+			VkImageType type;
 			
 		public:
 			AllocatedImage() { }
@@ -324,51 +312,41 @@ namespace RT64 {
 				mapped = alime.mapped;
 			}
 
-			void init(VmaAllocator* allocator, VmaAllocation* allocation, VkImage* image) {
-				assert(isNull());
-				this->allocation = allocation;
+			VkResult init(VmaAllocator* allocator, VkImageCreateInfo& createInfo, VmaAllocationCreateInfo& allocCreateInfo, VmaAllocationInfo& allocInfo) {
+				assert(!resourceInit);
+				VkResult res = vmaCreateImage(*allocator, &createInfo, &allocCreateInfo, &image, &allocation, &allocInfo);
+				if (res != VK_SUCCESS) {
+					return res;
+				}
 				this->allocator = allocator;
-				this->image = image;
+				this->resourceInit = true;
+				this->dimensions = createInfo.extent;
+				this->format = createInfo.format;
+				this->type = createInfo.imageType;
+				
+				return res;
 			}
 			
-			AllocatedImage(VmaAllocator* allocator, VmaAllocation* allocation, VkImage* image) {
-				init(allocator, allocation, image);
+			AllocatedImage(VmaAllocator* allocator, VkImageCreateInfo& createInfo, VmaAllocationCreateInfo& allocCreateInfo, VmaAllocationInfo& allocInfo) {
+				init(allocator, createInfo, allocCreateInfo, allocInfo);
 			}
 
 			~AllocatedImage() { 
 				allocator = nullptr;
-				allocation = nullptr;
-				image = nullptr;
+				destroyResource();
 			}
 
-			inline void* getResource() const { return getImage(); }
-
-			inline VkImage* getImage() const {
-				assert(!isNull());
+			inline VkImage& getImage() {
 				return image;
 			}
 
 			void destroyResource() {
-				if (!isNull()) {
-					if (mapped) {
-						vmaUnmapMemory(*allocator, *allocation);
-					}
-					vmaDestroyImage(*allocator, *image, *allocation);
-					// vmaFreeMemory(*allocator, *allocation);
-					allocation = nullptr;
-					allocator = nullptr;
-					image = nullptr;
-					mapped = false;
+				if (!resourceInit) {return;}
+				if (mapped) {
+					vmaUnmapMemory(*allocator, allocation);
 				}
-			}
-
-			void setDescriptorInfo(VkImageView* imageView, VkSampler* sampler) {
-				info.imageView = *imageView;
-				info.sampler = *sampler;
-			}
-
-			VkDescriptorImageInfo& getDescriptorInfo() {
-				return info;
+				vmaDestroyImage(*allocator, image, allocation);
+				this->resourceInit = false;
 			}
 	};
 

@@ -62,6 +62,147 @@ namespace RT64
             destroyOutputBuffers();
         }
 
+        int screenWidth = scene->getDevice()->getWidth();
+        int screenHeight = scene->getDevice()->getHeight();
+        
+		rtWidth = lround(screenWidth * resolutionScale);
+		rtHeight = lround(screenHeight * resolutionScale);
+
+        globalParamsData.resolution.x = (float)(rtWidth);
+        globalParamsData.resolution.y = (float)(rtHeight);
+        globalParamsData.resolution.z = (float)(screenWidth);
+        globalParamsData.resolution.w = (float)(screenHeight);
+        
+        VkImageCreateInfo imageInfo{VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO};
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.extent.width = screenWidth;
+        imageInfo.extent.height = screenHeight;
+        imageInfo.extent.depth = 1;
+        imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        imageInfo.arrayLayers = 1;
+        imageInfo.mipLevels = 1;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        VmaAllocationCreateFlags allocFlags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT;
+
+        // Create image for raster output
+        device->allocateImage(&rasterBg, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+
+        // Create buffers for raytracing output.
+        imageInfo.extent.width = rtWidth;
+        imageInfo.extent.height = rtHeight;
+	    imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        device->allocateImage(&rtOutput[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtOutput[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+
+        // Shading position
+        device->allocateImage(&rtShadingPosition, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+
+        // Diffuse
+        imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        device->allocateImage(&rtDiffuse, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+
+        // Normal
+        imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        device->allocateImage(&rtNormal[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtNormal[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtShadingNormal, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+
+        // Flow
+        imageInfo.format = VK_FORMAT_R16G16_SFLOAT;
+        device->allocateImage(&rtFlow, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+
+        // Lock mask
+        imageInfo.format = VK_FORMAT_R8_UNORM;
+        device->allocateImage(&rtReactiveMask, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtLockMask, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+
+        // RT Depth buffer
+        imageInfo.format = VK_FORMAT_D32_SFLOAT;
+        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        device->allocateImage(&rtDepth[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtDepth[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+
+        // And everything else
+	    imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        imageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        device->allocateImage(&rtViewDirection, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtShadingSpecular, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtDirectLightAccum[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtDirectLightAccum[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtIndirectLightAccum[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtIndirectLightAccum[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtFilteredDirectLight[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtFilteredDirectLight[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtFilteredIndirectLight[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtFilteredIndirectLight[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtReflection, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtRefraction, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtTransparent, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+
+        imageInfo.format = VK_FORMAT_R32_SINT;
+        device->allocateImage(&rtInstanceId, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtFirstInstanceId, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        
+        // Create a buffer big enough to read the resource back.
+        uint32_t rowPadding;
+        CalculateTextureRowWidthPadding((uint32_t)(imageInfo.extent.width * 4), rtFirstInstanceIdRowWidth, rowPadding);
+        device->allocateBuffer( rtFirstInstanceIdRowWidth * imageInfo.extent.height, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags, 
+            &rtFirstInstanceIdReadback );
+
+        // Create the hit buffers
+        uint64_t hitCountBufferSizeOne = rtWidth * rtHeight;
+        uint64_t hitCountBufferSizeAll = hitCountBufferSizeOne * MAX_QUERIES;
+        device->allocateBuffer( hitCountBufferSizeAll * 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+            &rtHitDistAndFlow );
+        device->allocateBuffer( hitCountBufferSizeAll * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+            &rtHitColor );
+        device->allocateBuffer( hitCountBufferSizeAll * 8, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+            &rtHitNormal );
+        device->allocateBuffer( hitCountBufferSizeAll * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+            &rtHitSpecular );
+        device->allocateBuffer( hitCountBufferSizeAll * 2, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+            &rtHitInstanceId );
+
+#ifndef NDEBUG
+        rasterBg.setAllocationName("rasterBg");
+        rtOutput[0].setAllocationName("rtOutput[0]");
+        rtOutput[1].setAllocationName("rtOutput[1]");
+        rtViewDirection.setAllocationName("rtViewDirection");
+        rtShadingPosition.setAllocationName("rtShadingPosition");
+        rtShadingNormal.setAllocationName("rtShadingNormal");
+        rtShadingSpecular.setAllocationName("rtShadingSpecular");
+        rtDiffuse.setAllocationName("rtDiffuse");
+        rtNormal[0].setAllocationName("rtNormal[0]");
+        rtNormal[1].setAllocationName("rtNormal[1]");
+        rtInstanceId.setAllocationName("rtInstanceId");
+        rtFirstInstanceId.setAllocationName("rtFirstInstanceId");
+        rtFirstInstanceIdReadback.setAllocationName("rtFirstInstanceIdReadback");
+        rtDirectLightAccum[0].setAllocationName("rtDirectLightAccum[0]");
+        rtDirectLightAccum[1].setAllocationName("rtDirectLightAccum[1]");
+        rtIndirectLightAccum[0].setAllocationName("rtIndirectLightAccum[0]");
+        rtIndirectLightAccum[1].setAllocationName("rtIndirectLightAccum[1]");
+        rtFilteredDirectLight[0].setAllocationName("rtFilteredDirectLight[0]");
+        rtFilteredDirectLight[1].setAllocationName("rtFilteredDirectLight[1]");
+        rtFilteredIndirectLight[0].setAllocationName("rtFilteredIndirectLight[0]");
+        rtFilteredIndirectLight[1].setAllocationName("rtFilteredIndirectLight[1]");
+        rtReflection.setAllocationName("rtReflection");
+        rtRefraction.setAllocationName("rtRefraction");
+        rtTransparent.setAllocationName("rtTransparent");
+        rtFlow.setAllocationName("rtFlow");
+        rtReactiveMask.setAllocationName("rtReactiveMask");
+        rtLockMask.setAllocationName("rtLockMask");
+        rtDepth[0].setAllocationName("rtDepth[0]");
+        rtDepth[1].setAllocationName("rtDepth[1]");
+        rtHitDistAndFlow.setAllocationName("rtHitDistAndFlow");
+        rtHitColor.setAllocationName("rtHitColor");
+        rtHitNormal.setAllocationName("rtHitNormal");
+        rtHitSpecular.setAllocationName("rtHitSpecular");
+        rtHitInstanceId.setAllocationName("rtHitInstanceId");
+        // rtOutputUpscaled.setAllocationName("rtOutputUpscaled");
+#endif
+
         // Create the depth buffer
         VK_CHECK(device->allocateImage(
             device->getSwapchainExtent().width, 
@@ -74,13 +215,49 @@ namespace RT64
             VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, 
             VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT, 
             &depthImage));
-        depthImageView = device->createImageView(*depthImage.getImage(), VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
+        depthImageView = device->createImageView(depthImage.getImage(), VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
         this->device->addDepthImageView(&depthImageView);
 
         imageBuffersInit = true;
     }
 
     void View::destroyOutputBuffers() {
+        rasterBg.destroyResource();
+        rtOutput[0].destroyResource();
+        rtOutput[1].destroyResource();
+        rtViewDirection.destroyResource();
+        rtShadingPosition.destroyResource();
+        rtShadingNormal.destroyResource();
+        rtShadingSpecular.destroyResource();
+        rtDiffuse.destroyResource();
+        rtNormal[0].destroyResource();
+        rtNormal[1].destroyResource();
+        rtInstanceId.destroyResource();
+        rtFirstInstanceId.destroyResource();
+        rtFirstInstanceIdReadback.destroyResource();
+        rtDirectLightAccum[0].destroyResource();
+        rtDirectLightAccum[1].destroyResource();
+        rtIndirectLightAccum[0].destroyResource();
+        rtIndirectLightAccum[1].destroyResource();
+        rtFilteredDirectLight[0].destroyResource();
+        rtFilteredDirectLight[1].destroyResource();
+        rtFilteredIndirectLight[0].destroyResource();
+        rtFilteredIndirectLight[1].destroyResource();
+        rtReflection.destroyResource();
+        rtRefraction.destroyResource();
+        rtTransparent.destroyResource();
+        rtFlow.destroyResource();
+        rtReactiveMask.destroyResource();
+        rtLockMask.destroyResource();
+        rtDepth[0].destroyResource();
+        rtDepth[1].destroyResource();
+        rtHitDistAndFlow.destroyResource();
+        rtHitColor.destroyResource();
+        rtHitNormal.destroyResource();
+        rtHitSpecular.destroyResource();
+        rtHitInstanceId.destroyResource();
+        rtOutputUpscaled.destroyResource();
+
         // Destroy the depth buffer
         depthImage.destroyResource();   
         device->removeDepthImageView(&depthImageView);
@@ -109,7 +286,6 @@ namespace RT64
             VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
             &globalParamsBuffer
         );
-        globalParamsBuffer.setDescriptorInfo(globalParamsSize, 0);
     }
 
     void View::updateGlobalParamsBuffer() {
@@ -138,7 +314,6 @@ namespace RT64
                 VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
                 &activeInstancesBufferTransforms
             );
-            activeInstancesBufferTransforms.setDescriptorInfo(newBufferSize, 0);
             activeInstancesBufferTransformsSize = newBufferSize;
         }
     }
@@ -182,8 +357,6 @@ namespace RT64
                 VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
                 &activeInstancesBufferMaterials
             );
-
-            activeInstancesBufferMaterials.setDescriptorInfo(newBufferSize, 0);
             activeInstancesBufferMaterialsSize = newBufferSize;
         }
     }
@@ -219,31 +392,25 @@ namespace RT64
         // Create descriptor sets for the instances
         if (updateDescriptors)
         {
-            // First step is create the infos
-            VkDescriptorBufferInfo gParams_Info {};
-            gParams_Info.buffer = *globalParamsBuffer.getBuffer();
-            gParams_Info.range = globalParamsSize;
-
-            VkDescriptorBufferInfo transform_Info {};
-            transform_Info.buffer = *activeInstancesBufferTransforms.getBuffer();
-            transform_Info.range = activeInstancesBufferTransformsSize;
-
-            VkDescriptorBufferInfo materials_Info {};
-            materials_Info.buffer = *activeInstancesBufferMaterials.getBuffer();
-            materials_Info.range = activeInstancesBufferMaterialsSize;
+            // First step is create the descriptor infos
+            VkDescriptorBufferInfo gParams_Info = globalParamsBuffer.getDescriptorInfo();
+            VkDescriptorBufferInfo transform_Info = activeInstancesBufferTransforms.getDescriptorInfo();
+            VkDescriptorBufferInfo materials_Info = activeInstancesBufferMaterials.getDescriptorInfo();
 
             std::vector<VkDescriptorImageInfo> texture_infos;
             texture_infos.resize(usedTextures.size());
             for (int i = 0; i < usedTextures.size(); i++) {
-                VkDescriptorImageInfo currTexInfo {};
-                currTexInfo.imageView = *usedTextures[i]->getTextureImageView();
-                currTexInfo.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+                VkDescriptorImageInfo currTexInfo {
+                    nullptr, 
+                    usedTextures[i]->getTextureImageView(),
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                };
                 texture_infos[i] = currTexInfo;
             }
 
-            VkDescriptorImageInfo sampler_Info {};
-            sampler_Info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-            sampler_Info.sampler = texSampler;
+            VkDescriptorImageInfo sampler_Info { 
+                texSampler, nullptr, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+            };
 
             // Then create the descriptor writes
             std::vector<VkWriteDescriptorSet> descriptorWrites{};
@@ -476,7 +643,7 @@ namespace RT64
         sbtSize = newSbtSize;
 
         // Find the SBT addresses of each group
-        VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, *shaderBindingTable.getBuffer()};
+        VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, shaderBindingTable.getBuffer()};
         VkDeviceAddress sbtAddress = vkGetBufferDeviceAddress(device->getVkDevice(), &info);
         raygenRegion.deviceAddress = sbtAddress;
         missRegion.deviceAddress = sbtAddress + raygenRegion.size;
@@ -570,8 +737,8 @@ namespace RT64
                 VkDeviceSize offsets[] = {0};
                 int pushConst = baseInstanceIndex + j;
                 vkCmdPushConstants(commandBuffer, renderInstance.shader->getRasterGroup().pipelineLayout, VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT, 0, sizeof(uint32_t), &pushConst);
-                vkCmdBindVertexBuffers(commandBuffer, 0, 1, renderInstance.instance->getMesh()->getVertexBuffer(), offsets);
-                vkCmdBindIndexBuffer(commandBuffer, *renderInstance.instance->getMesh()->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, &renderInstance.instance->getMesh()->getVertexBuffer(), offsets);
+                vkCmdBindIndexBuffer(commandBuffer, renderInstance.instance->getMesh()->getIndexBuffer(), 0, VK_INDEX_TYPE_UINT32);
                 vkCmdDrawIndexed(commandBuffer, static_cast<uint32_t>(renderInstance.instance->getMesh()->getIndexCount()), 1, 0, 0, 0);
             }
         };

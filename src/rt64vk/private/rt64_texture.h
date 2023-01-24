@@ -24,8 +24,8 @@ namespace RT64 {
             virtual ~Texture();
             void setRGBA8(void* bytes, int byteCount, int width, int height, int rowPitch, bool generateMipmaps);
             // void setDDS(const void* bytes, int byteCount);
-            AllocatedImage* getTexture();
-            VkImageView* getTextureImageView();
+            AllocatedImage& getTexture();
+            VkImageView& getTextureImageView();
             VkFormat getFormat() const;
             void setCurrentIndex(int v);
             int getCurrentIndex() const;

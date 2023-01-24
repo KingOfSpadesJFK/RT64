@@ -18,7 +18,7 @@
 
 namespace RT64
 {
-    RT64::Scene::Scene(Device* device) {
+    Scene::Scene(Device* device) {
         assert(device != nullptr);
         this->device = device;
 
@@ -35,7 +35,7 @@ namespace RT64
         device->addScene(this);
     }
 
-    RT64::Scene::~Scene() {
+    Scene::~Scene() {
         device->removeScene(this);
 
         lightsBuffer.destroyResource();
@@ -71,26 +71,26 @@ namespace RT64
         RT64_LOG_PRINTF("Finished scene render");
     }
 
-    void RT64::Scene::resize() {
+    void Scene::resize() {
         for (View *view : views) {
             view->resize();
         }
     }
 
-    void RT64::Scene::setDescription(RT64_SCENE_DESC v) {
+    void Scene::setDescription(RT64_SCENE_DESC v) {
         description = v;
     }
 
-    RT64_SCENE_DESC RT64::Scene::getDescription() const {
+    RT64_SCENE_DESC Scene::getDescription() const {
         return description;
     }
 
-    void RT64::Scene::addInstance(Instance* instance) {
+    void Scene::addInstance(Instance* instance) {
         assert(instance != nullptr);
         instances.push_back(instance);
     }
 
-    void RT64::Scene::removeInstance(Instance* instance) {
+    void Scene::removeInstance(Instance* instance) {
         assert(instance != nullptr);
 
         auto it = std::find(instances.begin(), instances.end(), instance);
@@ -99,11 +99,11 @@ namespace RT64
         }
     }
 
-    void RT64::Scene::addView(View* view) {
+    void Scene::addView(View* view) {
         views.push_back(view);
     }
 
-    void RT64::Scene::removeView(View* view) {
+    void Scene::removeView(View* view) {
         // TODO
     }
 
@@ -111,7 +111,7 @@ namespace RT64
         return views;
     }
 
-    void RT64::Scene::setLights(RT64_LIGHT* lightArray, int lightCount) {
+    void Scene::setLights(RT64_LIGHT* lightArray, int lightCount) {
         static std::default_random_engine randomEngine;
         static std::uniform_real_distribution<float> randomDistribution(0.0f, 1.0f);
 
@@ -158,24 +158,24 @@ namespace RT64
         lightsCount = lightCount;
     }
 
-    VkBuffer *RT64::Scene::getLightsBuffer() const {
+    VkBuffer& Scene::getLightsBuffer() {
         return lightsBuffer.getBuffer();
     }
 
-    int RT64::Scene::getLightsCount() const {
+    int Scene::getLightsCount() const {
         return lightsCount;
     }
 
-    const std::vector<RT64::Instance *> &RT64::Scene::getInstances() const {
+    const std::vector<Instance*>& Scene::getInstances() const {
         return instances;
     }
 
-    RT64::Device *RT64::Scene::getDevice() const {
+    Device* Scene::getDevice() const {
         return device;
     }
 };
 
-// Public
+// Library exports
 
 DLEXPORT RT64_SCENE* RT64_CreateScene(RT64_DEVICE*devicePtr) {
     RT64::Device* device = (RT64::Device*)(devicePtr);

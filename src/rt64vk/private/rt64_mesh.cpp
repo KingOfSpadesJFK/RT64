@@ -64,7 +64,7 @@ namespace RT64
         stagingVertexBuffer.setData(vertices, vertexBufferSize);
         
         // Copy staging buffer to main buffer
-        device->copyBuffer(*stagingVertexBuffer.getBuffer(), *vertexBuffer.getBuffer(), vertexBufferSize, nullptr);
+        device->copyBuffer(stagingVertexBuffer.getBuffer(), vertexBuffer.getBuffer(), vertexBufferSize, nullptr);
 
         this->vertexCount = vertexCount;
         this->vertexStride = vertexStride;
@@ -102,7 +102,7 @@ namespace RT64
         stagingIndexBuffer.setData(indices, indexBufferSize);
         
         // Copy staging buffer to main buffer
-        device->copyBuffer(*stagingIndexBuffer.getBuffer(), *indexBuffer.getBuffer(), indexBufferSize, nullptr);
+        device->copyBuffer(stagingIndexBuffer.getBuffer(), indexBuffer.getBuffer(), indexBufferSize, nullptr);
         
         this->indexCount = indexCount;
     }
@@ -112,7 +112,7 @@ namespace RT64
     // vIndexBuffers is another tuple, a pairing of an index buffer
     //  (a buffer of pointers into the vertex buffer) and the number of
     //  indicies.
-    void Mesh::createBottomLevelAS(std::pair<VkBuffer*, uint32_t> vVertexBuffers, std::pair<VkBuffer*, uint32_t> vIndexBuffers) {
+    void Mesh::createBottomLevelAS(std::pair<VkBuffer&, uint32_t> vVertexBuffers, std::pair<VkBuffer&, uint32_t> vIndexBuffers) {
         bool updatable = flags & RT64_MESH_RAYTRACE_UPDATABLE;
         bool fastTrace = flags & RT64_MESH_RAYTRACE_FAST_TRACE;
         bool compact = flags & RT64_MESH_RAYTRACE_COMPACT;
@@ -140,11 +140,11 @@ namespace RT64
     // Convert the mesh into the ray tracing geometry used to build the BLAS
     //  From nvpro-samples/vk_raytracing_tutorial_KHR
     //
-    void Mesh::modelIntoVkGeo(VkBuffer* vertexBuffer, uint32_t vertexCount, VkBuffer* indexBuffer, uint32_t indexCount, nvvk::RaytracingBuilderKHR::BlasInput& input)
+    void Mesh::modelIntoVkGeo(VkBuffer& vertexBuffer, uint32_t vertexCount, VkBuffer& indexBuffer, uint32_t indexCount, nvvk::RaytracingBuilderKHR::BlasInput& input)
     {
         // BLAS builder requires raw device addresses.
-        VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(device->getVkDevice(), *vertexBuffer);
-        VkDeviceAddress indexAddress  = nvvk::getBufferDeviceAddress(device->getVkDevice(), *indexBuffer);
+        VkDeviceAddress vertexAddress = nvvk::getBufferDeviceAddress(device->getVkDevice(), vertexBuffer);
+        VkDeviceAddress indexAddress  = nvvk::getBufferDeviceAddress(device->getVkDevice(), indexBuffer);
 
         uint32_t maxPrimitiveCount = indexCount / 3;
 
@@ -180,8 +180,8 @@ namespace RT64
 
     // Public 
 
-    VkBuffer* Mesh::getVertexBuffer() const { return vertexBuffer.getBuffer(); }
-    VkBuffer* Mesh::getIndexBuffer() const { return indexBuffer.getBuffer(); }
+    VkBuffer& Mesh::getVertexBuffer() { return vertexBuffer.getBuffer(); }
+    VkBuffer& Mesh::getIndexBuffer() { return indexBuffer.getBuffer(); }
     int Mesh::getIndexCount() const { return indexCount; }
     int Mesh::getVertexCount() const { return vertexCount; }
     nvvk::AccelKHR& Mesh::getBlas() { return builder.getFirstBlas(); }

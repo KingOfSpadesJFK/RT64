@@ -15,6 +15,7 @@
 // #include "rt64_fsr.h"
 // #include "rt64_xess.h"
 
+#define MAX_QUERIES (16 + 1)
 namespace RT64 
 {
 	class Scene;
@@ -105,6 +106,11 @@ namespace RT64
 		    std::vector<Texture*> usedTextures;
             bool scissorApplied;
             bool viewportApplied;
+            int rtWidth;
+            int rtHeight;
+            float resolutionScale = 1.0f;
+            unsigned int rtFirstInstanceIdRowWidth;
+            bool rtFirstInstanceIdReadbackUpdated;
 
             nvvk::RaytracingBuilderKHR rtBuilder;
             AllocatedBuffer shaderBindingTable;
@@ -113,6 +119,36 @@ namespace RT64
             VkStridedDeviceAddressRegionKHR hitRegion{};
             VkStridedDeviceAddressRegionKHR callRegion{};
             VkDeviceSize sbtSize = 0;
+
+            // The buffers
+            AllocatedImage rasterBg;
+            AllocatedImage rtOutput[2];
+            AllocatedImage rtViewDirection;
+            AllocatedImage rtShadingPosition;
+            AllocatedImage rtShadingNormal;
+            AllocatedImage rtShadingSpecular;
+            AllocatedImage rtDiffuse;
+            AllocatedImage rtInstanceId;
+            AllocatedImage rtFirstInstanceId;
+            AllocatedBuffer rtFirstInstanceIdReadback;
+            AllocatedImage rtDirectLightAccum[2];
+            AllocatedImage rtFilteredDirectLight[2];
+            AllocatedImage rtIndirectLightAccum[2];
+            AllocatedImage rtFilteredIndirectLight[2];
+            AllocatedImage rtReflection;
+            AllocatedImage rtRefraction;
+            AllocatedImage rtTransparent;
+            AllocatedImage rtFlow;
+            AllocatedImage rtReactiveMask;
+            AllocatedImage rtLockMask;
+            AllocatedImage rtNormal[2];
+            AllocatedImage rtDepth[2];
+            AllocatedBuffer rtHitDistAndFlow;
+            AllocatedBuffer rtHitColor;
+            AllocatedBuffer rtHitNormal;
+            AllocatedBuffer rtHitSpecular;
+            AllocatedBuffer rtHitInstanceId;
+            AllocatedImage rtOutputUpscaled;
 
 
             void createOutputBuffers();

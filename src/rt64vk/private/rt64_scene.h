@@ -31,7 +31,7 @@ namespace RT64 {
 		RT64_SCENE_DESC getDescription() const;
 		void setLights(RT64_LIGHT* lightArray, int lightCount);
 		int getLightsCount() const;
-		VkBuffer* getLightsBuffer() const;
+		VkBuffer& getLightsBuffer();
 		void addInstance(Instance* instance);
 		void removeInstance(Instance* instance);
 		void addView(View* view);

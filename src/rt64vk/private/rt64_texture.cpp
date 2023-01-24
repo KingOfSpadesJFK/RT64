@@ -68,9 +68,9 @@ namespace RT64 {
         // Copy the command the buffer into the image
         VkCommandBuffer* commandBuffer = nullptr;
         commandBuffer = device->beginSingleTimeCommands(commandBuffer);
-        device->transitionImageLayout(*texture.getImage(), format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, nullptr);
-        device->copyBufferToImage(*stagingTexture.getBuffer(), *texture.getImage(), static_cast<uint32_t>(width), static_cast<uint32_t>(height), nullptr);
-        device->transitionImageLayout(*texture.getImage(), format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, nullptr);
+        device->transitionImageLayout(texture.getImage(), format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, nullptr);
+        device->copyBufferToImage(stagingTexture.getBuffer(), texture.getImage(), static_cast<uint32_t>(width), static_cast<uint32_t>(height), nullptr);
+        device->transitionImageLayout(texture.getImage(), format, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, nullptr);
         device->endSingleTimeCommands(commandBuffer);
         
         // Destroy the staged resource
@@ -79,7 +79,7 @@ namespace RT64 {
         this->height = height;
 
         // Create an image view and sampler
-        textureImageView = device->createImageView(*texture.getImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
+        textureImageView = device->createImageView(texture.getImage(), VK_FORMAT_R8G8B8A8_SRGB, VK_IMAGE_ASPECT_COLOR_BIT);
 
         // VkPhysicalDeviceProperties properties{};
         // vkGetPhysicalDeviceProperties(device->getPhysicalDevice(), &properties);
@@ -91,8 +91,8 @@ namespace RT64 {
 
     // Public
 
-    AllocatedImage* Texture::getTexture() { return &texture; };
-    VkImageView* Texture::getTextureImageView() { return &textureImageView; };
+    AllocatedImage& Texture::getTexture() { return texture; };
+    VkImageView& Texture::getTextureImageView() { return textureImageView; };
     void Texture::setCurrentIndex(int v) { currentIndex = v; }
     int Texture::getCurrentIndex() const { return currentIndex; }
     int Texture::getWidth() { return width; }

@@ -1171,7 +1171,6 @@ namespace RT64
             AllocatedBuffer* alre
         ) 
     {
-        VkResult res;
         VkBufferCreateInfo bufferInfo = {};
         bufferInfo.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         bufferInfo.size = bufferSize;
@@ -1183,27 +1182,22 @@ namespace RT64
         allocCreateInfo.flags = allocProperties;
         VmaAllocationInfo allocInfo = {};
 
-        VmaAllocation* allocation = new VmaAllocation;
-        VkBuffer* buffer = new VkBuffer;
-        res = vmaCreateBuffer(allocator, &bufferInfo, &allocCreateInfo, buffer, allocation, &allocInfo);
-        alre->init(&allocator, allocation, buffer);
-        return res;
+        VK_CHECK(alre->init(&allocator, bufferInfo, allocCreateInfo, allocInfo));
+        return VK_SUCCESS;
     }
 
     // Creates an allocated image. You must pass in a pointer to an AllocatedResource. Once the function does its thing, the pointer will point to the newly created AllocatedImage with the image
     VkResult Device::allocateImage(
-            uint32_t width, uint32_t height, 
-            VkImageType imageType, 
-            VkFormat imageFormat, 
-            VkImageTiling imageTiling, 
-            VkImageLayout initLayout, 
-            VkImageUsageFlags imageUsage, 
-            VmaMemoryUsage memUsage, 
-            VmaAllocationCreateFlags allocProperties, 
-            AllocatedImage* alre
-        ) 
-    {
-        VkResult res;
+        uint32_t width, uint32_t height, 
+        VkImageType imageType, 
+        VkFormat imageFormat, 
+        VkImageTiling imageTiling, 
+        VkImageLayout initLayout, 
+        VkImageUsageFlags imageUsage, 
+        VmaMemoryUsage memUsage, 
+        VmaAllocationCreateFlags allocProperties, 
+        AllocatedImage* alre
+    ) {
         VkImageCreateInfo imageInfo{};
         imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
         imageInfo.imageType = imageType;
@@ -1214,22 +1208,29 @@ namespace RT64
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         imageInfo.extent.width = width;
         imageInfo.extent.height = height;
-            imageInfo.extent.depth = 1;             // Maybe if I were to like
-            imageInfo.mipLevels = 1;
-            imageInfo.arrayLayers = 1;
-            imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.extent.depth = 1;             // Maybe if I were to like
+        imageInfo.mipLevels = 1;
+        imageInfo.arrayLayers = 1;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
         imageInfo.flags = 0; // Optional
+        return allocateImage(alre, imageInfo, memUsage, allocProperties);
+    }
 
+    
+    VkResult Device::allocateImage(
+        AllocatedImage* alre,
+        VkImageCreateInfo createInfo, 
+        VmaMemoryUsage memUsage, 
+        VmaAllocationCreateFlags allocProperties
+    ) {
+        VkResult res = VK_SUCCESS;
         VmaAllocationCreateInfo allocCreateInfo = {};
         allocCreateInfo.usage = memUsage;
         allocCreateInfo.flags = allocProperties;
         VmaAllocationInfo allocInfo = {};
 
-        VmaAllocation* allocation = new VmaAllocation;
-        VkImage* image = new VkImage;
-        res = vmaCreateImage(allocator, &imageInfo, &allocCreateInfo, image, allocation, &allocInfo);
-        alre->init(&allocator, allocation, image);
-        return res;
+        VK_CHECK(alre->init(&allocator, createInfo, allocCreateInfo, allocInfo));
+        return VK_SUCCESS;;
     }
 
     // Copies a buffer into another
