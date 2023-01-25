@@ -1256,7 +1256,7 @@ namespace RT64
     // Turns the layout of one image into another
     //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
     //  Otherwise, it would create a new command buffer just for this
-    void Device::transitionImageLayout(VkImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer* commandBuffer) {
+    void Device::transitionImageLayout(AllocatedImage image, VkFormat format, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer* commandBuffer) {
         bool oneTime = !commandBuffer;
         if (!commandBuffer) {
             commandBuffer = beginSingleTimeCommands();
@@ -1268,7 +1268,7 @@ namespace RT64
         barrier.newLayout = newLayout;
         barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
         barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = image;
+        barrier.image = image.getImage();
         barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
         barrier.subresourceRange.baseMipLevel = 0;
         barrier.subresourceRange.levelCount = 1;
@@ -1302,14 +1302,7 @@ namespace RT64
             throw std::invalid_argument("unsupported layout transition!");
         }
 
-        vkCmdPipelineBarrier(
-            *commandBuffer,
-            sourceStage, destinationStage,
-            0,
-            0, nullptr,
-            0, nullptr,
-            1, &barrier
-        );
+        image.transitionLayout(commandBuffer, sourceStage, destinationStage, barrier, newLayout);
 
         if (oneTime) {
             // The fact that you passed on passing in a pointer to a

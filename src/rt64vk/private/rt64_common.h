@@ -293,9 +293,12 @@ namespace RT64 {
 	class AllocatedImage :  public AllocatedResource {
 		private:
 			VkImage image;
+			VkImageView imageView;
+			VkImageLayout layout;
 			VkExtent3D dimensions;
 			VkFormat format;
 			VkImageType type;
+			bool imageViewCreated = false;
 			
 		public:
 			AllocatedImage() { }
@@ -322,9 +325,53 @@ namespace RT64 {
 				this->resourceInit = true;
 				this->dimensions = createInfo.extent;
 				this->format = createInfo.format;
+				this->layout = createInfo.initialLayout;
 				this->type = createInfo.imageType;
 				
 				return res;
+			}
+
+			VkImageView& createImageView(VkImageViewType viewType, VkImageAspectFlags aspectFlags) {
+				VmaAllocatorInfo allocatorInfo;
+				vmaGetAllocatorInfo(*allocator, &allocatorInfo);
+				if (imageViewCreated) {
+					vkDestroyImageView(allocatorInfo.device, imageView, nullptr);
+				}
+				imageViewCreated = true;
+				VkImageViewCreateInfo viewInfo{};
+				viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+				viewInfo.image = image;
+				viewInfo.viewType = viewType;
+				viewInfo.format = format;
+				viewInfo.subresourceRange.aspectMask = aspectFlags;
+				viewInfo.subresourceRange.baseMipLevel = 0;
+				viewInfo.subresourceRange.levelCount = 1;
+				viewInfo.subresourceRange.baseArrayLayer = 0;
+				viewInfo.subresourceRange.layerCount = 1;
+				vkCreateImageView(allocatorInfo.device, &viewInfo, nullptr, &imageView);
+				return imageView;
+			}
+
+			VkImageView& getImageView() {
+				assert(imageViewCreated);
+				return imageView;
+			}
+
+			VkDescriptorImageInfo getDescriptorInfo() {
+				assert(imageViewCreated);
+				return { nullptr, imageView, layout };
+			}
+
+			void transitionLayout(VkCommandBuffer* commandBuffer, VkPipelineStageFlags sourceStage, VkPipelineStageFlags destStage, VkImageMemoryBarrier barrier, VkImageLayout newLayout) {
+				vkCmdPipelineBarrier(
+					*commandBuffer,
+					sourceStage, destStage,
+					0,
+					0, nullptr,
+					0, nullptr,
+					1, &barrier
+				);
+				layout = newLayout;
 			}
 			
 			AllocatedImage(VmaAllocator* allocator, VkImageCreateInfo& createInfo, VmaAllocationCreateInfo& allocCreateInfo, VmaAllocationInfo& allocInfo) {
@@ -341,7 +388,13 @@ namespace RT64 {
 			}
 
 			void destroyResource() {
-				if (!resourceInit) {return;}
+				if (!resourceInit) { return; }
+				VmaAllocatorInfo allocatorInfo;
+				vmaGetAllocatorInfo(*allocator, &allocatorInfo);
+				if (imageViewCreated) {
+					imageViewCreated = false;
+					vkDestroyImageView(allocatorInfo.device, imageView, nullptr);
+				}
 				if (mapped) {
 					vmaUnmapMemory(*allocator, allocation);
 				}

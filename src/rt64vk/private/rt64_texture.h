@@ -13,7 +13,6 @@ namespace RT64 {
         private:
             Device* device;
             AllocatedImage texture;
-            VkImageView textureImageView;
             VkFormat format;
 		    int currentIndex;
             int width, height;

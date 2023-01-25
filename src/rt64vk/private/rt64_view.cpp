@@ -389,8 +389,7 @@ namespace RT64
         VkWriteDescriptorSet write {};
         write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 
-        // Create descriptor sets for the instances
-        if (updateDescriptors)
+        // Create descriptor sets for the raster instances
         {
             // First step is create the descriptor infos
             VkDescriptorBufferInfo gParams_Info = globalParamsBuffer.getDescriptorInfo();
@@ -400,12 +399,7 @@ namespace RT64
             std::vector<VkDescriptorImageInfo> texture_infos;
             texture_infos.resize(usedTextures.size());
             for (int i = 0; i < usedTextures.size(); i++) {
-                VkDescriptorImageInfo currTexInfo {
-                    nullptr, 
-                    usedTextures[i]->getTextureImageView(),
-                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                };
-                texture_infos[i] = currTexInfo;
+                texture_infos[i] = usedTextures[i]->getTexture().getDescriptorInfo();
             }
 
             VkDescriptorImageInfo sampler_Info { 
