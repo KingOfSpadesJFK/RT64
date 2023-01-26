@@ -37,6 +37,7 @@ void PrimaryRayGen() {
 	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
 	float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
 	float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
+	printf("We gon be alright %f", rayOrigin.x);
 
 	// Initialize the buffers.
 	gViewDirection[launchIndex] = float4(rayDirection, 0.0f);

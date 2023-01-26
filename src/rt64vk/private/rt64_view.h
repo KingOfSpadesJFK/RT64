@@ -98,10 +98,10 @@ namespace RT64
             VkDeviceSize activeInstancesBufferMaterialsSize;
             AllocatedImage depthImage;
             VkImageView depthImageView;
-            VkSampler texSampler;
             Texture* skyPlaneTexture;
             std::vector<RenderInstance> rasterBgInstances;
             std::vector<RenderInstance> rasterFgInstances;
+            std::vector<RenderInstance> rasterUiInstances;
             std::vector<RenderInstance> rtInstances;
 		    std::vector<Texture*> usedTextures;
             bool scissorApplied;
@@ -111,6 +111,9 @@ namespace RT64
             float resolutionScale = 1.0f;
             unsigned int rtFirstInstanceIdRowWidth;
             bool rtFirstInstanceIdReadbackUpdated;
+            bool rtEnabled = true;
+            bool rtSwap = false;
+            bool rtSkipReprojection = false;
 
             nvvk::RaytracingBuilderKHR rtBuilder;
             AllocatedBuffer shaderBindingTable;
@@ -120,7 +123,7 @@ namespace RT64
             VkStridedDeviceAddressRegionKHR callRegion{};
             VkDeviceSize sbtSize = 0;
 
-            // The buffers
+            // The images
             AllocatedImage rasterBg;
             AllocatedImage rtOutput[2];
             AllocatedImage rtViewDirection;
@@ -154,7 +157,7 @@ namespace RT64
             void createOutputBuffers();
             void destroyOutputBuffers();
 
-            void createShaderDescriptorSets(bool updateDescriptors);
+            void updateShaderDescriptorSets(bool updateDescriptors);
             void createShaderBindingTable();
 		    void createTopLevelAS(const std::vector<RenderInstance>& rtInstances);
 

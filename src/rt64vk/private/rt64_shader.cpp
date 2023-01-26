@@ -360,7 +360,7 @@ namespace RT64
 		SS("struct PushConstant { int instanceId; };");
 		SS("[[vk::push_constant]] PushConstant pc;");
 
-		unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
+		unsigned int samplerRegisterIndex = 0; //uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 		if (cc.useTextures[0]) {
 			SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
 			SS(INCLUDE_HLSLI(TexturesHLSLI));
@@ -574,7 +574,7 @@ namespace RT64
 		SS(INCLUDE_HLSLI(RandomHLSLI));
 		SS(INCLUDE_HLSLI(GlobalParamsHLSLI));
 
-		unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
+		unsigned int samplerRegisterIndex = 0; //uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 		if (cc.useTextures[0]) {
 			SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
 			SS(INCLUDE_HLSLI(TexturesHLSLI));
@@ -705,7 +705,7 @@ namespace RT64
 		// Compile shader.
 		std::string shaderCode = ss.str();
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", surfaceHitGroup.shaderInfo, surfaceHitGroup.shaderModule);
-		generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, true, surfaceHitGroup.descriptorSetLayout, surfaceHitGroup.descriptorPool, surfaceHitGroup.descriptorSet);
+		// generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, true, surfaceHitGroup.descriptorSetLayout, surfaceHitGroup.descriptorPool, surfaceHitGroup.descriptorSet);
 		surfaceHitGroup.hitGroupName = hitGroupName;
 		surfaceHitGroup.closestHitName = closestHitName;
 		surfaceHitGroup.anyHitName = anyHitName;
@@ -723,7 +723,7 @@ namespace RT64
 		SS(INCLUDE_HLSLI(RandomHLSLI));
 		SS(INCLUDE_HLSLI(GlobalParamsHLSLI));
 
-		unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
+		unsigned int samplerRegisterIndex = 0; //uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 		if (cc.useTextures[0]) {
 			SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
 			SS(INCLUDE_HLSLI(TexturesHLSLI));
@@ -788,7 +788,7 @@ namespace RT64
 		// Compile shader.
 		std::string shaderCode = ss.str();
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", shadowHitGroup.shaderInfo, shadowHitGroup.shaderModule);
-		generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, false, shadowHitGroup.descriptorSetLayout, shadowHitGroup.descriptorPool, shadowHitGroup.descriptorSet);
+		// generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, false, shadowHitGroup.descriptorSetLayout, shadowHitGroup.descriptorPool, shadowHitGroup.descriptorSet);
 		shadowHitGroup.hitGroupName = hitGroupName;
 		shadowHitGroup.closestHitName = closestHitName;
 		shadowHitGroup.anyHitName = anyHitName;

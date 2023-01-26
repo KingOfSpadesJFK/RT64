@@ -32,26 +32,6 @@ namespace RT64
 
         createGlobalParamsBuffer();
 
-        // Create a generic texture sampler
-        VkSamplerCreateInfo samplerInfo{};
-        samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        samplerInfo.magFilter = VK_FILTER_LINEAR;
-        samplerInfo.minFilter = VK_FILTER_LINEAR;
-        samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-        samplerInfo.anisotropyEnable = VK_FALSE;
-        samplerInfo.maxAnisotropy = 1.0f;
-        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.unnormalizedCoordinates = VK_FALSE;
-        samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-        samplerInfo.mipLodBias = 0.0f;
-        samplerInfo.minLod = 0.0f;
-        samplerInfo.maxLod = 0.0f;
-        vkCreateSampler(device->getVkDevice(), &samplerInfo, nullptr, &texSampler);
-
 	    scene->addView(this);
     }
 
@@ -61,6 +41,8 @@ namespace RT64
         if (imageBuffersInit) {
             destroyOutputBuffers();
         }
+
+        rtSkipReprojection = false;
 
         int screenWidth = scene->getDevice()->getWidth();
         int screenHeight = scene->getDevice()->getHeight();
@@ -83,7 +65,7 @@ namespace RT64
         imageInfo.arrayLayers = 1;
         imageInfo.mipLevels = 1;
         imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         VmaAllocationCreateFlags allocFlags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT;
 
         // Create image for raster output
@@ -92,6 +74,7 @@ namespace RT64
         // Create buffers for raytracing output.
         imageInfo.extent.width = rtWidth;
         imageInfo.extent.height = rtHeight;
+        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	    imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         device->allocateImage(&rtOutput[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtOutput[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
@@ -119,14 +102,12 @@ namespace RT64
         device->allocateImage(&rtLockMask, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         // RT Depth buffer
-        imageInfo.format = VK_FORMAT_D32_SFLOAT;
-        imageInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+        imageInfo.format = VK_FORMAT_R32_SFLOAT;
         device->allocateImage(&rtDepth[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtDepth[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         // And everything else
 	    imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
-        imageInfo.usage = VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         device->allocateImage(&rtViewDirection, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtShadingSpecular, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtDirectLightAccum[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
@@ -154,16 +135,49 @@ namespace RT64
         // Create the hit buffers
         uint64_t hitCountBufferSizeOne = rtWidth * rtHeight;
         uint64_t hitCountBufferSizeAll = hitCountBufferSizeOne * MAX_QUERIES;
-        device->allocateBuffer( hitCountBufferSizeAll * 16, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+        device->allocateBuffer( hitCountBufferSizeAll * 16, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
             &rtHitDistAndFlow );
-        device->allocateBuffer( hitCountBufferSizeAll * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+        device->allocateBuffer( hitCountBufferSizeAll * 4, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
             &rtHitColor );
-        device->allocateBuffer( hitCountBufferSizeAll * 8, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+        device->allocateBuffer( hitCountBufferSizeAll * 8, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
             &rtHitNormal );
-        device->allocateBuffer( hitCountBufferSizeAll * 4, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+        device->allocateBuffer( hitCountBufferSizeAll * 4, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
             &rtHitSpecular );
-        device->allocateBuffer( hitCountBufferSizeAll * 2, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+        device->allocateBuffer( hitCountBufferSizeAll * 2, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
             &rtHitInstanceId );
+        
+        // Now transition every image into a new layout
+        AllocatedImage* transRightsBitch[] = {
+            &rasterBg,
+            &rtOutput[0], &rtOutput[1],
+            &rtViewDirection,
+            &rtShadingPosition,
+            &rtShadingNormal,
+            &rtShadingSpecular,
+            &rtDiffuse,
+            &rtInstanceId,
+            &rtFirstInstanceId,
+            // AllocatedBuffer &rtFirstInstanceIdReadback,
+            &rtDirectLightAccum[0], &rtDirectLightAccum[1],
+            &rtFilteredDirectLight[0], &rtFilteredDirectLight[1],
+            &rtIndirectLightAccum[0], &rtIndirectLightAccum[1],
+            &rtFilteredIndirectLight[0], &rtFilteredIndirectLight[1],
+            &rtReflection,
+            &rtRefraction,
+            &rtTransparent,
+            &rtFlow,
+            &rtReactiveMask,
+            &rtLockMask,
+            &rtNormal[0], &rtNormal[1],
+            &rtDepth[0], &rtDepth[1],
+            // AllocatedBuffer &rtHitDistAndFlow,
+            // AllocatedBuffer &rtHitColor,
+            // AllocatedBuffer &rtHitNormal,
+            // AllocatedBuffer &rtHitSpecular,
+            // AllocatedBuffer &rtHitInstanceId,
+            // &rtOutputUpscaled,
+        };
+        device->transitionImageLayout(transRightsBitch, sizeof(transRightsBitch) / sizeof(AllocatedImage*), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, nullptr);
 
 #ifndef NDEBUG
         rasterBg.setAllocationName("rasterBg");
@@ -202,6 +216,41 @@ namespace RT64
         rtHitInstanceId.setAllocationName("rtHitInstanceId");
         // rtOutputUpscaled.setAllocationName("rtOutputUpscaled");
 #endif
+        // Create the image views
+        rasterBg.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtOutput[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtOutput[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtViewDirection.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtShadingPosition.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtShadingNormal.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtShadingSpecular.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtDiffuse.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtNormal[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtNormal[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtInstanceId.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtFirstInstanceId.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtDirectLightAccum[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtDirectLightAccum[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtIndirectLightAccum[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtIndirectLightAccum[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtFilteredDirectLight[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtFilteredDirectLight[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtFilteredIndirectLight[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtFilteredIndirectLight[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtReflection.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtRefraction.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtTransparent.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtFlow.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtReactiveMask.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtLockMask.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtDepth[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtDepth[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtHitDistAndFlow.createBufferView(VK_FORMAT_R32G32B32A32_SFLOAT);
+        rtHitColor.createBufferView(VK_FORMAT_R8G8B8A8_UNORM);
+        rtHitNormal.createBufferView(VK_FORMAT_R16G16B16A16_SNORM);
+        rtHitSpecular.createBufferView(VK_FORMAT_R8G8B8A8_UNORM);
+        rtHitInstanceId.createBufferView(VK_FORMAT_R16_UINT);
+        // rtOutputUpscaled.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
 
         // Create the depth buffer
         VK_CHECK(device->allocateImage(
@@ -267,7 +316,6 @@ namespace RT64
     View::~View() {
         scene->removeView(this);
 
-        vkDestroySampler(device->getVkDevice(), texSampler, nullptr);
         destroyOutputBuffers();
         globalParamsBuffer.destroyResource();
         activeInstancesBufferMaterials.destroyResource();
@@ -300,6 +348,11 @@ namespace RT64
         globalParamsData.view = glm::lookAt(eye, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         globalParamsData.projection = glm::perspective(glm::radians(45.0f), (float)this->scene->getDevice()->getAspectRatio(), 0.1f, 1000.0f);
         globalParamsData.projection[1][1] *= -1;
+
+        globalParamsData.viewI = glm::inverse(globalParamsData.view);
+        globalParamsData.projectionI = glm::inverse(globalParamsData.projection);
+        globalParamsData.viewProj = glm::inverse(globalParamsData.projection);
+
         globalParamsBuffer.setData(&globalParamsData, sizeof(globalParamsData));
     }
 
@@ -383,67 +436,122 @@ namespace RT64
         activeInstancesBufferMaterials.unmapMemory();
     }
 
-    void View::createShaderDescriptorSets(bool updateDescriptors) { 
+    void View::updateShaderDescriptorSets(bool updateDescriptors) { 
 	    assert(usedTextures.size() <= SRV_TEXTURES_MAX);
+        std::vector<VkWriteDescriptorSet> descriptorWrites;
 
-        VkWriteDescriptorSet write {};
-        write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-
-        // Create descriptor sets for the raster instances
+        // Update the descriptor sets for the raytracing pipeline
         {
-            // First step is create the descriptor infos
-            VkDescriptorBufferInfo gParams_Info = globalParamsBuffer.getDescriptorInfo();
-            VkDescriptorBufferInfo transform_Info = activeInstancesBufferTransforms.getDescriptorInfo();
-            VkDescriptorBufferInfo materials_Info = activeInstancesBufferMaterials.getDescriptorInfo();
+            VkDescriptorSet descriptorSet = device->getRTDescriptorSet();
+            // The "UAVs"
+            VkWriteDescriptorSet write {};
+            descriptorWrites.push_back(rtViewDirection.generateDescriptorWrite(1, UAV_INDEX(gViewDirection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtShadingPosition.generateDescriptorWrite(1, UAV_INDEX(gShadingPosition) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtShadingNormal.generateDescriptorWrite(1, UAV_INDEX(gShadingNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtShadingSpecular.generateDescriptorWrite(1, UAV_INDEX(gShadingSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDiffuse.generateDescriptorWrite(1, UAV_INDEX(gDiffuse) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtInstanceId.generateDescriptorWrite(1, UAV_INDEX(gInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtReflection.generateDescriptorWrite(1, UAV_INDEX(gReflection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtRefraction.generateDescriptorWrite(1, UAV_INDEX(gRefraction) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtTransparent.generateDescriptorWrite(1, UAV_INDEX(gTransparent) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFlow.generateDescriptorWrite(1, UAV_INDEX(gFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtReactiveMask.generateDescriptorWrite(1, UAV_INDEX(gReactiveMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtLockMask.generateDescriptorWrite(1, UAV_INDEX(gLockMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtNormal[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDepth[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtNormal[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDepth[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDirectLightAccum[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, UAV_INDEX(gFilteredDirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, UAV_INDEX(gFilteredIndirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtHitDistAndFlow.generateDescriptorWrite(1, UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtHitColor.generateDescriptorWrite(1, UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtHitNormal.generateDescriptorWrite(1, UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtHitSpecular.generateDescriptorWrite(1, UAV_INDEX(gHitSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtHitInstanceId.generateDescriptorWrite(1, UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            
+            // The "SRVs"
+            descriptorWrites.push_back(rasterBg.generateDescriptorWrite(1, SRV_INDEX(gBackground) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
 
+            // The top level AS
+            VkWriteDescriptorSet tlasWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            VkAccelerationStructureKHR tlas = rtBuilder.getAccelerationStructure();
+            VkWriteDescriptorSetAccelerationStructureKHR tlas_INFO {
+                VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
+                nullptr, 1, &tlas
+            };
+            tlasWrite.descriptorCount = 1;
+            tlasWrite.dstBinding = SRV_INDEX(SceneBVH) + SRV_SHIFT;
+            tlasWrite.descriptorType = VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR;
+            tlasWrite.pNext = &tlas_INFO;
+            tlasWrite.dstSet = descriptorSet;
+            descriptorWrites.push_back(tlasWrite);
+
+            if (scene->getLightsCount() > 0) {
+                descriptorWrites.push_back(scene->getLightsBuffer().generateDescriptorWrite(1, SRV_INDEX(SceneLights) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
+            }
+            descriptorWrites.push_back(activeInstancesBufferTransforms.generateDescriptorWrite(1, SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
+            descriptorWrites.push_back(activeInstancesBufferMaterials.generateDescriptorWrite(1, SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
+            descriptorWrites.push_back(device->getBlueNoise()->getTexture().generateDescriptorWrite(1, SRV_INDEX(gBlueNoise) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            
+            // Add the textures
+            VkWriteDescriptorSet textureWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
             std::vector<VkDescriptorImageInfo> texture_infos;
             texture_infos.resize(usedTextures.size());
             for (int i = 0; i < usedTextures.size(); i++) {
                 texture_infos[i] = usedTextures[i]->getTexture().getDescriptorInfo();
             }
+            textureWrite.descriptorCount = texture_infos.size();
+            textureWrite.dstBinding = SRV_INDEX(gTextures) + SRV_SHIFT;
+            textureWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            textureWrite.pImageInfo = texture_infos.data();
+            textureWrite.dstSet = descriptorSet;
+            descriptorWrites.push_back(textureWrite);
 
-            VkDescriptorImageInfo sampler_Info { 
-                texSampler, nullptr, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-            };
-
-            // Then create the descriptor writes
-            std::vector<VkWriteDescriptorSet> descriptorWrites{};
-            write.descriptorCount = 1;
-            write.dstBinding = CBV_INDEX(gParams) + CBV_SHIFT;
-            write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-            write.pBufferInfo = &gParams_Info;
-            descriptorWrites.push_back(write);
-            
-            write.dstBinding = SRV_INDEX(instanceTransforms) + SRV_SHIFT;
-            write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            write.pBufferInfo = &transform_Info;
-            descriptorWrites.push_back(write);
-            
-            write.dstBinding = SRV_INDEX(instanceMaterials) + SRV_SHIFT;
-            write.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            write.pBufferInfo = &materials_Info;
-            descriptorWrites.push_back(write);
-            
-            write.dstBinding = SRV_INDEX(gTextures) + SRV_SHIFT;
-            write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-            write.descriptorCount = texture_infos.size();
-            write.pBufferInfo = nullptr;
-            write.pImageInfo = texture_infos.data();
-            descriptorWrites.push_back(write);
-            
-            write.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-            write.descriptorCount = 1;
-            write.pImageInfo = &sampler_Info;
-            descriptorWrites.push_back(write);
+            // Add the background sampler
+            VkDescriptorImageInfo samplerInfo { };
+            samplerInfo.sampler = device->getComposeSampler();
+            VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+            samplerWrite.descriptorCount = 1;
+            samplerWrite.dstSet = descriptorSet;
+            samplerWrite.dstBinding = 0 + SAMPLER_SHIFT;
+            samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+            samplerWrite.pImageInfo = &samplerInfo;
+            descriptorWrites.push_back(samplerWrite);
 
             // Write to the instances' descriptor sets
-            for (RenderInstance& r : rtInstances) {
-                for (VkWriteDescriptorSet& w : descriptorWrites) {
-                    w.dstSet = r.shader->getRasterGroup().descriptorSet;
-                }
-                descriptorWrites[4].dstBinding = r.shader->getSamplerRegisterIndex() + SAMPLER_SHIFT;
-                vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
-            }
+            vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            descriptorWrites.clear();
+        }
+
+        // Update the descriptor set for the compose shader
+        {
+            VkDescriptorSet descriptorSet = device->getComposeDescriptorSet();
+            descriptorWrites.push_back(rtFlow.generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDiffuse.generateDescriptorWrite(1, 1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, 2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, 3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtReflection.generateDescriptorWrite(1, 4 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtRefraction.generateDescriptorWrite(1, 5 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtTransparent.generateDescriptorWrite(1, 6 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+
+            // Add the compose sampler
+            VkDescriptorImageInfo samplerInfo { };
+            samplerInfo.sampler = device->getComposeSampler();
+            VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+            samplerWrite.descriptorCount = 1;
+            samplerWrite.dstBinding = 0 + SAMPLER_SHIFT;
+            samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+            samplerWrite.pImageInfo = &samplerInfo;
+            samplerWrite.dstSet = descriptorSet;
+            descriptorWrites.push_back(samplerWrite);
+
+            // Write to the compose descriptor sets
+            vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            descriptorWrites.clear();
         }
     }
 
@@ -551,7 +659,7 @@ namespace RT64
             // Create the buffer containing the raytracing result (or atleast soon), 
             //  and create the descriptor sets referencing the resources used 
             //  by the raytracing, such as the acceleration structure
-            createShaderDescriptorSets(updateDescriptors);
+            updateShaderDescriptorSets(updateDescriptors);
             
             // Create the shader binding table and indicating which shaders
             // are invoked for each instance in the AS.
@@ -611,7 +719,7 @@ namespace RT64
         // Get the shader group handles
         unsigned int dataSize = handleCount * handleSize;
         std::vector<uint8_t> handles(dataSize);
-        VkResult res = vkGetRayTracingShaderGroupHandlesKHR(device->getVkDevice(), device->getRTPipeline(), 0, handleCount, dataSize, handles.data());
+        VK_CHECK(vkGetRayTracingShaderGroupHandlesKHR(device->getVkDevice(), device->getRTPipeline(), 0, handleCount, dataSize, handles.data()));
 
         // Get the new size of the sbt
         VkDeviceSize newSbtSize = raygenRegion.size + missRegion.size + hitRegion.size + callRegion.size;
@@ -744,6 +852,22 @@ namespace RT64
         beginInfo.pInheritanceInfo = nullptr; // Optional
         VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
+        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+        vkCmdSetScissor(commandBuffer, 0, 1, &scissors);
+
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipeline());
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipelineLayout(), 0, 1, &device->getRTDescriptorSet(), 0, nullptr);
+
+        // Now raytrace!
+        vkCmdTraceRaysKHR(commandBuffer, &raygenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+
+        // VkBufferDeviceAddressInfo addressInfo { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+        // addressInfo.buffer = rtHitColor.getBuffer();
+        // void* address = (void*)vkGetBufferDeviceAddress(device->getVkDevice(), &addressInfo);
+
+        device->transitionImageLayout(rtFlow, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &commandBuffer);
+
+        // Begin the render pass (you can't raytrace with it, so just raytrace before you render pass it up)
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = renderPass;
@@ -757,22 +881,26 @@ namespace RT64
         renderPassInfo.pClearValues = clearValues.data();
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-        vkCmdSetScissor(commandBuffer, 0, 1, &scissors);
-
-        // vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterGroup.pipeline);
-        // vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterGroup.pipelineLayout, 0, 1, &renderInstance.shader->getRasterGroup().descriptorSet, 0, nullptr);
+        // Now compose 
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipeline());
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipelineLayout(), 0, 1, &device->getComposeDescriptorSet(), 0, nullptr);
+        vkCmdDraw(commandBuffer, 0, 0, 0, 0);
 
         // Draw the raster images
         // Draw the background instances to the screen.
         RT64_LOG_PRINTF("Drawing background instances");
         resetScissor();
         resetViewport();
-	    drawInstances(rtInstances, 0, true);
+	    // drawInstances(rtInstances, 0, true);
 	    // drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
 
         vkCmdEndRenderPass(commandBuffer);
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
+
+        rtSwap = !rtSwap;
+        rtSkipReprojection = false;
+        rtFirstInstanceIdReadbackUpdated = false;
+        globalParamsData.frameCount++;
     }
 
     // Public

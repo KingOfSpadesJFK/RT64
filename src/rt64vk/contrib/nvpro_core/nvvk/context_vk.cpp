@@ -138,31 +138,32 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Context::debugMessengerCallback(VkDebugUtilsMessa
 
   int level = LOGLEVEL_INFO;
   // repeating nvprintfLevel to help with breakpoints : so we can selectively break right after the print
+  // (Kos) Added the dashes for readability
   if(messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT)
   {
-    nvprintfLevel(level, "VERBOSE: %s \n --> %s\n", callbackData->pMessageIdName, callbackData->pMessage);
+    nvprintfLevel(level, "VERBOSE: %s \n --> %s\n------------------------------------------------\n", callbackData->pMessageIdName, callbackData->pMessage);
   }
   else if(messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT)
   {
-    nvprintfLevel(level, "INFO: %s \n --> %s\n", callbackData->pMessageIdName, callbackData->pMessage);
+    nvprintfLevel(level, "INFO: %s \n --> %s\n------------------------------------------------\n", callbackData->pMessageIdName, callbackData->pMessage);
   }
   else if(messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
   {
     level = LOGLEVEL_WARNING;
-    nvprintfLevel(level, "WARNING: %s \n --> %s\n", callbackData->pMessageIdName, callbackData->pMessage);
+    nvprintfLevel(level, "WARNING: %s \n --> %s\n------------------------------------------------\n", callbackData->pMessageIdName, callbackData->pMessage);
   }
   else if(messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
   {
     level = LOGLEVEL_ERROR;
-    nvprintfLevel(level, "ERROR: %s \n --> %s\n", callbackData->pMessageIdName, callbackData->pMessage);
+    nvprintfLevel(level, "ERROR: %s \n --> %s\n------------------------------------------------\n", callbackData->pMessageIdName, callbackData->pMessage);
   }
   else if(messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT)
   {
-    nvprintfLevel(level, "GENERAL: %s \n --> %s\n", callbackData->pMessageIdName, callbackData->pMessage);
+    nvprintfLevel(level, "GENERAL: %s \n --> %s\n------------------------------------------------\n", callbackData->pMessageIdName, callbackData->pMessage);
   }
   else
   {
-    nvprintfLevel(level, "%s \n --> %s\n", callbackData->pMessageIdName, callbackData->pMessage);
+    nvprintfLevel(level, "%s \n --> %s\n------------------------------------------------\n", callbackData->pMessageIdName, callbackData->pMessage);
   }
 
   // this seems redundant with the info already in callbackData->pMessage

@@ -158,8 +158,8 @@ namespace RT64
         lightsCount = lightCount;
     }
 
-    VkBuffer& Scene::getLightsBuffer() {
-        return lightsBuffer.getBuffer();
+    AllocatedBuffer& Scene::getLightsBuffer() {
+        return lightsBuffer;
     }
 
     int Scene::getLightsCount() const {

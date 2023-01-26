@@ -182,6 +182,13 @@ namespace RT64 {
 
 			virtual ~AllocatedResource() {}
 
+			AllocatedResource(AllocatedResource& alre) {
+				allocation = alre.allocation;
+				allocator = alre.allocator;
+				mapped = alre.mapped;
+				resourceInit = alre.resourceInit;
+			}
+
 			// Maps a portion of memory to the allocation
 			// Returns the pointer to the first byte in memory
 			virtual void* mapMemory(void** ppData) {
@@ -233,20 +240,25 @@ namespace RT64 {
 	class AllocatedBuffer : public AllocatedResource {
 		private:
 			VkBuffer buffer;
+			VkBufferView bufferView;
 			VkDeviceSize size;
+			VkDescriptorBufferInfo descriptorInfo {};
+			VkFormat viewFormat = VK_FORMAT_UNDEFINED;
+			bool bufferViewCreated = false;
 			
 		public:
 			AllocatedBuffer() { }
 
 			AllocatedBuffer(AllocatedBuffer& albo) {
-				copy(albo);
-			}
-
-			// Copies an outside Albo into this one
-			void copy(AllocatedBuffer& albo) {
 				allocation = albo.allocation;
 				allocator = albo.allocator;
 				mapped = albo.mapped;
+				resourceInit = albo.resourceInit;
+				buffer = albo.buffer;
+				bufferView = albo.bufferView;
+				size = albo.size;
+				descriptorInfo = albo.descriptorInfo;
+				bufferViewCreated = albo.bufferViewCreated;
 			}
 
 			VkResult init(VmaAllocator* allocator, VkBufferCreateInfo& bufferInfo, VmaAllocationCreateInfo& allocCreateInfo, VmaAllocationInfo& allocInfo) {
@@ -257,7 +269,8 @@ namespace RT64 {
 				}
 				this->resourceInit = true;
 				this->allocator = allocator;
-				size = bufferInfo.size;
+				this->size = bufferInfo.size;
+				this->descriptorInfo = { this->buffer, 0, this->size };
 				return res;
 			}
 			
@@ -272,6 +285,11 @@ namespace RT64 {
 
 			void destroyResource() {
 				if (!resourceInit) {return;}
+				VmaAllocatorInfo allocatorInfo;
+				vmaGetAllocatorInfo(*allocator, &allocatorInfo);
+				if (bufferViewCreated) {
+					vkDestroyBufferView(allocatorInfo.device, bufferView, nullptr);
+				}
 				if (mapped) {
 					vmaUnmapMemory(*allocator, allocation);
 				}
@@ -286,7 +304,34 @@ namespace RT64 {
 			}
 
 			VkDescriptorBufferInfo getDescriptorInfo() {
-				return { buffer, 0, size };
+				return descriptorInfo;
+			}
+
+			VkWriteDescriptorSet generateDescriptorWrite(int count, uint32_t dstBinding, VkDescriptorType type, VkDescriptorSet& descSet) {
+				VkWriteDescriptorSet write {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+				write.descriptorCount = count;
+				write.descriptorType = type;
+				write.dstBinding = dstBinding;
+				write.pBufferInfo = &descriptorInfo;
+				write.dstSet = descSet;
+				if (bufferViewCreated) {
+					write.pTexelBufferView = &bufferView;
+				}
+				return write;
+			}
+
+			void createBufferView(VkFormat format) {
+				VmaAllocatorInfo allocatorInfo;
+				vmaGetAllocatorInfo(*allocator, &allocatorInfo);
+				if (bufferViewCreated) {
+					vkDestroyBufferView(allocatorInfo.device, bufferView, nullptr);
+				}
+				VkBufferViewCreateInfo createInfo { VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO };
+				createInfo.buffer = buffer;
+				createInfo.format = format;
+				createInfo.range = size;
+				vkCreateBufferView(allocatorInfo.device, &createInfo, nullptr, &bufferView);
+				bufferViewCreated = true;
 			}
 		};
 
@@ -294,25 +339,28 @@ namespace RT64 {
 		private:
 			VkImage image;
 			VkImageView imageView;
-			VkImageLayout layout;
-			VkExtent3D dimensions;
-			VkFormat format;
-			VkImageType type;
+			VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+			VkExtent3D dimensions { 0, 0, 0 };
+			VkFormat format = VK_FORMAT_UNDEFINED;
+			VkImageType type = VK_IMAGE_TYPE_1D;
+			VkDescriptorImageInfo descriptorInfo {};
 			bool imageViewCreated = false;
 			
 		public:
 			AllocatedImage() { }
 
-			AllocatedImage(AllocatedImage& albo) {
-				copy(albo);
-			}
-
-			// Copies an outside Albo into this one
-			void copy(AllocatedImage& alime) {
+			AllocatedImage(AllocatedImage& alime) {
 				allocation = alime.allocation;
 				allocator = alime.allocator;
-				image = alime.image;
 				mapped = alime.mapped;
+				resourceInit = alime.resourceInit;
+				image = alime.image;
+				imageView = alime.imageView;
+				dimensions = alime.dimensions;
+				format = alime.format;
+				type = alime.type;
+				descriptorInfo = alime.descriptorInfo;
+				imageViewCreated = alime.imageViewCreated;
 			}
 
 			VkResult init(VmaAllocator* allocator, VkImageCreateInfo& createInfo, VmaAllocationCreateInfo& allocCreateInfo, VmaAllocationInfo& allocInfo) {
@@ -349,6 +397,7 @@ namespace RT64 {
 				viewInfo.subresourceRange.baseArrayLayer = 0;
 				viewInfo.subresourceRange.layerCount = 1;
 				vkCreateImageView(allocatorInfo.device, &viewInfo, nullptr, &imageView);
+				descriptorInfo = { nullptr, imageView, layout };
 				return imageView;
 			}
 
@@ -359,7 +408,18 @@ namespace RT64 {
 
 			VkDescriptorImageInfo getDescriptorInfo() {
 				assert(imageViewCreated);
-				return { nullptr, imageView, layout };
+				return descriptorInfo;
+			}
+
+			VkWriteDescriptorSet generateDescriptorWrite(int count, uint32_t dstBinding, VkDescriptorType type, VkDescriptorSet& descSet) {
+				assert(imageViewCreated);
+        		VkWriteDescriptorSet write {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+				write.descriptorCount = count;
+				write.descriptorType = type;
+				write.dstBinding = dstBinding;
+				write.dstSet = descSet;
+				write.pImageInfo = &descriptorInfo;
+				return write;
 			}
 
 			void transitionLayout(VkCommandBuffer* commandBuffer, VkPipelineStageFlags sourceStage, VkPipelineStageFlags destStage, VkImageMemoryBarrier barrier, VkImageLayout newLayout) {
@@ -400,6 +460,22 @@ namespace RT64 {
 				}
 				vmaDestroyImage(*allocator, image, allocation);
 				this->resourceInit = false;
+			}
+
+			VkImageLayout getLayout() { return layout; }
+
+			static void transitionLayouts(AllocatedImage** images, uint32_t imageCount, VkCommandBuffer* commandBuffer, VkPipelineStageFlags sourceStage, VkPipelineStageFlags destStage, VkImageMemoryBarrier* barriers, VkImageLayout newLayout) {
+				vkCmdPipelineBarrier(
+					*commandBuffer,
+					sourceStage, destStage,
+					0,
+					0, nullptr,
+					0, nullptr,
+					imageCount, barriers
+				);
+				for (int i = 0; i < imageCount; i++) {
+					images[i]->layout = newLayout;
+				}
 			}
 	};
 

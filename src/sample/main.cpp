@@ -465,10 +465,10 @@ void destroyRT64() {
 
 int main(int argc, char *argv[]) {
 	// Show a basic message to the user so they know what the sample is meant to do.
-	infoMessage(NULL, 
-		"This sample application will test if your system has the required hardware to run RT64.\n"
-		"If you see some shapes on the screen after clicking the Enter key, then you're good to go!");
-	std::cin.get();
+	// infoMessage(NULL, 
+	// 	"This sample application will test if your system has the required hardware to run RT64.\n"
+	// 	"If you see some shapes on the screen after clicking the Enter key, then you're good to go!");
+	// std::cin.get();
 	// Set-up window.
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
