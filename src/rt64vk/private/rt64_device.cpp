@@ -83,7 +83,7 @@ namespace RT64
 
         // Requesting Vulkan extensions and layers
         nvvk::ContextCreateInfo contextInfo;
-        contextInfo.setVersion(1, 2);                       // Using Vulkan 1.2
+        contextInfo.setVersion(1, 3);                       // Using Vulkan 1.2
         for(uint32_t ext_id = 0; ext_id < count; ext_id++)  // Adding required extensions (surface, win32, linux, ..)
             contextInfo.addInstanceExtension(reqExtensions[ext_id]);
         contextInfo.addInstanceLayer("VK_LAYER_LUNARG_monitor", true);              // FPS in titlebar

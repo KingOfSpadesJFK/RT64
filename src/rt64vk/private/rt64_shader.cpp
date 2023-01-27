@@ -852,7 +852,7 @@ namespace RT64
 		std::wstring sampler_shift = std::to_wstring(SAMPLER_SHIFT);
 		LPCWSTR __sampler_shift = sampler_shift.c_str();
 		arguments.push_back(L"-spirv");
-		arguments.push_back(L"-fspv-target-env=vulkan1.2");	
+		arguments.push_back(L"-fspv-target-env=vulkan1.3");	
 		arguments.push_back(L"-fvk-t-shift");
 		arguments.push_back(__srv_shift);	
 		arguments.push_back(L"0");

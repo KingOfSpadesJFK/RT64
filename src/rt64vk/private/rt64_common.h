@@ -15,7 +15,7 @@
 #include <glm/glm.hpp>
 #include <bits/stl_algo.h>		// Idk why I know have to throw in this include in other than it makes it compile
 #include <vulkan/vulkan.hpp>
-#define RT64_VULKAN_VERSION VK_API_VERSION_1_2
+#define RT64_VULKAN_VERSION VK_API_VERSION_1_3
 
 // Oh hey, that dxc rly do be outputing spir-v code
 #ifndef _WIN32
@@ -33,9 +33,9 @@
 #endif
 
 #define CBV_SHIFT		0
-#define UAV_SHIFT		1024
-#define SRV_SHIFT		2048
-#define SAMPLER_SHIFT	3072
+#define UAV_SHIFT		128
+#define SRV_SHIFT		256
+#define SAMPLER_SHIFT	384
 
 #define HEAP_INDEX(x) (int)(RT64::HeapIndices::x)
 #define UAV_INDEX(x) (int)(RT64::UAVIndices::x)
