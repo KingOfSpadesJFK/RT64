@@ -28,8 +28,10 @@
 
 // Pixel shaders
 #include "shaders/ComposePS.hlsl.h"
+#include "shaders/HelloTrianglePS.hlsl.h"
 // Vertex shaders
 #include "shaders/FullScreenVS.hlsl.h"
+#include "shaders/HelloTriangleVS.hlsl.h"
 
 // The blue noise
 #include "res/bluenoise/LDR_64_64_64_RGB1.h"
@@ -203,18 +205,19 @@ namespace RT64
             vkCreateSampler(vkDevice, &samplerInfo, nullptr, &composeSampler);
         }
 
-        std::vector<VkDescriptorSetLayoutBinding> bindings;
-		VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
 	    RT64_LOG_PRINTF("Creating the composition descriptor set");
         {
-		    bindings.push_back({0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-		    bindings.push_back({1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-		    bindings.push_back({2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-		    bindings.push_back({3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-		    bindings.push_back({4 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-		    bindings.push_back({5 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-		    bindings.push_back({6 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
-		    bindings.push_back({0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
+		    VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+            std::vector<VkDescriptorSetLayoutBinding> bindings {
+                {0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {4 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {5 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {6 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}
+            };
 
             allocateDescriptorSet(bindings, flags, rtComposeDescriptorSetLayout, rtComposeDescriptorPool, rtComposeDescriptorSet);
         }
@@ -223,7 +226,7 @@ namespace RT64
         {
             // Create the shader modules and shader stages
             std::vector<VkPipelineShaderStageCreateInfo> composeStages;
-            createShaderModule(FullScreenVS_SPIRV, sizeof(FullScreenVS_SPIRV), VS_ENTRY, VK_SHADER_STAGE_VERTEX_BIT, composePSStage, composePSModule, &composeStages);
+            createShaderModule(FullScreenVS_SPIRV, sizeof(FullScreenVS_SPIRV), VS_ENTRY, VK_SHADER_STAGE_VERTEX_BIT, fullscreenVSStage, fullscreenVSModule, &composeStages);
             createShaderModule(ComposePS_SPIRV, sizeof(ComposePS_SPIRV), PS_ENTRY, VK_SHADER_STAGE_FRAGMENT_BIT, composePSStage, composePSModule, &composeStages);
 
             // Bind the vertex inputs
@@ -252,6 +255,7 @@ namespace RT64
     void Device::createRayTracingPipeline() {
 	    RT64_LOG_PRINTF("Raytracing pipeline creation started");
         rtShaderGroups.clear();             // Clear the raytracing shader groups
+        hitShaderCount = 0;
 
         // A vector for the shader stages
         std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
@@ -264,7 +268,7 @@ namespace RT64
         group.generalShader = VK_SHADER_UNUSED_KHR;
         group.intersectionShader = VK_SHADER_UNUSED_KHR;
 
-	    RT64_LOG_PRINTF("Loading shader modules");
+	    RT64_LOG_PRINTF("Loading the ray generation modules...");
 
         // Create the main shaders
         if (!mainRtShadersCreated) {
@@ -284,13 +288,19 @@ namespace RT64
             shaderStages.push_back(refractionRayGenStage);
         }
 
-        // Add the generated shaders to the shaderStages vector
+	    RT64_LOG_PRINTF("Loading the hit modules...");
+        // Add the generated hit shaders to the shaderStages vector
         for (Shader* s : shaders) {
-            const Shader::HitGroup &surfaceHitGroup = s->getSurfaceHitGroup();
-            const Shader::HitGroup &shadowHitGroup = s->getShadowHitGroup();
-            shaderStages.push_back(surfaceHitGroup.shaderInfo);
-            shaderStages.push_back(shadowHitGroup.shaderInfo);
+            if (s->hasHitGroups()) {
+                const Shader::HitGroup &surfaceHitGroup = s->getSurfaceHitGroup();
+                const Shader::HitGroup &shadowHitGroup = s->getShadowHitGroup();
+                shaderStages.push_back(surfaceHitGroup.shaderInfo);
+                shaderStages.push_back(shadowHitGroup.shaderInfo);
+                hitShaderCount += 2;
+            }
         }
+
+	    RT64_LOG_PRINTF("Grouping the shaders...");
 
         // Group the shaders
         group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
@@ -314,7 +324,7 @@ namespace RT64
             rtShaderGroups.push_back(group);
         }
 
-	    RT64_LOG_PRINTF("Creating the RT descriptor set layouts and pools");
+	    RT64_LOG_PRINTF("Creating the RT descriptor set layouts and pools...");
         // A vector for the descriptor set layouts
         std::vector<VkDescriptorSetLayout> layouts;
         if (!mainRtShadersCreated) {
@@ -326,7 +336,7 @@ namespace RT64
         // Push the main RT descriptor set layout into the layouts vector
         layouts.push_back(rtDescriptorSetLayout);
 
-	    RT64_LOG_PRINTF("Creating the RT pipeline");
+	    RT64_LOG_PRINTF("Creating the RT pipeline...");
         // Create the pipeline layout create info
         VkPipelineLayoutCreateInfo layoutInfo {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
         layoutInfo.setLayoutCount = layouts.size();
@@ -343,7 +353,7 @@ namespace RT64
         rayPipelineInfo.layout = rtPipelineLayout;
         vkCreateRayTracingPipelinesKHR(vkDevice, {}, {}, 1, &rayPipelineInfo, nullptr, &rtPipeline);
 
-	    RT64_LOG_PRINTF("RT pipeline complete!");
+	    RT64_LOG_PRINTF("Raytracing pipeline created!");
     }
 
     void Device::generateRayTracingDescriptorSetLayout() {
@@ -389,7 +399,8 @@ namespace RT64
             {SRV_INDEX(gTextures) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX, defaultStageFlags, nullptr},
 
             {CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, defaultStageFlags, nullptr},
-            {SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr}
+            {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr},
+            {1 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr}
         };
 
 		allocateDescriptorSet(bindings, flags, rtDescriptorSetLayout, rtDescriptorPool, rtDescriptorSet);
@@ -450,9 +461,6 @@ namespace RT64
             return;
         }
 
-        // Only reset the fence if we are submitting work
-        vkResetFences(vkDevice, 1, &inFlightFences[currentFrame]);
-
         vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 
         // Update the scenes....
@@ -462,6 +470,9 @@ namespace RT64
         for (Scene* s : scenes) {
             s->render(delta);
         }
+
+        // Only reset the fence if we are submitting work
+        vkResetFences(vkDevice, 1, &inFlightFences[currentFrame]);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -496,6 +507,7 @@ namespace RT64
         updateSize(result, "failed to present swap chain image!");
         
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+        std::cout << "============================================\n";
     }
 
     void Device::updateViewport() {
@@ -768,7 +780,7 @@ namespace RT64
     }
 
     void Device::loadBlueNoise() {
-        blueNoise = new RT64::Texture(this);
+        blueNoise = new Texture(this);
         blueNoise->setRGBA8((void*)LDR_64_64_64_RGB1_BGRA8, sizeof(LDR_64_64_64_RGB1_BGRA8), 512, 512, 512 * 4, false);
     }
 
@@ -1241,6 +1253,8 @@ namespace RT64
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR Device::getRTProperties() const { return rtProperties; }
     Texture* Device::getBlueNoise() const { return blueNoise; }
     VkSampler& Device::getComposeSampler() { return composeSampler; }
+    uint32_t Device::getHitShaderCount() const { return hitShaderCount; }
+    VkFence& Device::getCurrentFence() { return inFlightFences[currentFrame]; }
 
     // Shader getters
     VkPipelineShaderStageCreateInfo Device::getPrimaryShaderStage() const { return primaryRayGenStage; }
@@ -1250,7 +1264,7 @@ namespace RT64
     VkPipelineShaderStageCreateInfo Device::getRefractionShaderStage() const { return refractionRayGenStage; }
 
     void Device::initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder) {
-        rtBuilder.setup(vkDevice, &rtAllocator, vkctx.m_queueGCT.queueIndex);
+        rtBuilder.setup(vkDevice, &rtAllocator, vkctx.m_queueC);
     }
 
     // Adds a scene to the device
@@ -1408,35 +1422,57 @@ namespace RT64
         }
     }
 
+    // Copies an image into another
+    //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
+    //  Otherwise, it would create a new command buffer just for this
+    void Device::copyImage(AllocatedImage& src, AllocatedImage& dest, VkExtent3D dimensions, VkImageAspectFlags srcFlags, VkImageAspectFlags destFlags, VkCommandBuffer* commandBuffer) {
+        bool oneTime = !commandBuffer;
+        if (!commandBuffer) {
+            commandBuffer = beginSingleTimeCommands();
+        }
+        
+        VkImageCopy copyRegion {};
+
+        copyRegion.extent = dimensions;
+        copyRegion.srcSubresource.layerCount = 1;
+        copyRegion.srcSubresource.mipLevel = 0;
+        copyRegion.srcSubresource.aspectMask = srcFlags;
+        copyRegion.dstSubresource.layerCount = 1;
+        copyRegion.dstSubresource.mipLevel = 0;
+        copyRegion.dstSubresource.aspectMask = destFlags;
+        vkCmdCopyImage(*commandBuffer, src.getImage(), src.getLayout(), dest.getImage(), dest.getLayout(), 1, &copyRegion);
+
+        if (oneTime) {
+            endSingleTimeCommands(commandBuffer);
+        }
+    }
+
     // Matches an image layout with an access match and pipeline stage
     //  inLayout is the VkImageLayout to be matched with
     //  outMask and outStages are variables that will be modified to match inLayout
-    void Device::matchLayoutToAccessMask(VkImageLayout inLayout, VkAccessFlags& outMask, VkPipelineStageFlags& outStage) 
+    void Device::matchLayoutToAccessMask(VkImageLayout inLayout, VkAccessFlags& outMask) 
     {
         switch (inLayout) {
             case VK_IMAGE_LAYOUT_UNDEFINED:
                 outMask = 0;
-                outStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
                 break;
             case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
                 outMask = VK_ACCESS_SHADER_READ_BIT;
-                outStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
                 break;
             case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
                 outMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-                outStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
                 break;
             case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
                 outMask = VK_ACCESS_SHADER_READ_BIT;
-                outStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
                 break;
             case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-                outMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-                outStage = VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT;
+                outMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
                 break;
             case VK_IMAGE_LAYOUT_GENERAL:
                 outMask = VK_ACCESS_SHADER_WRITE_BIT;
-                outStage = VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR;
+                break;
+            case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                outMask = VK_ACCESS_SHADER_WRITE_BIT;
                 break;
             default:
                 throw std::invalid_argument("unsupported layout transition!");
@@ -1447,7 +1483,7 @@ namespace RT64
     // Turns the layout of one image into another
     //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
     //  Otherwise, it would create a new command buffer just for this
-    void Device::transitionImageLayout(AllocatedImage& image, VkImageLayout newLayout, VkCommandBuffer* commandBuffer) {
+    void Device::transitionImageLayout(AllocatedImage& image, VkImageLayout newLayout, VkAccessFlags oldMask,  VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer) {
         bool oneTime = !commandBuffer;
         if (!commandBuffer) {
             commandBuffer = beginSingleTimeCommands();
@@ -1466,13 +1502,10 @@ namespace RT64
         barrier.subresourceRange.levelCount = 1;
         barrier.subresourceRange.baseArrayLayer = 0;
         barrier.subresourceRange.layerCount = 1;
+        barrier.srcAccessMask = image.getAccessFlags();
+        barrier.dstAccessMask = newMask;
 
-        VkPipelineStageFlags sourceStage;
-        VkPipelineStageFlags destinationStage;
-        matchLayoutToAccessMask(oldLayout, barrier.srcAccessMask, sourceStage);
-        matchLayoutToAccessMask(newLayout, barrier.dstAccessMask, destinationStage);
-
-        image.transitionLayout(commandBuffer, sourceStage, destinationStage, barrier, newLayout);
+        image.transitionLayout(commandBuffer, image.getPieplineStage(), newStage, barrier, newLayout);
 
         if (oneTime) {
             // The fact that you passed on passing in a pointer to a
@@ -1485,7 +1518,7 @@ namespace RT64
     // Turns multiple images of one layout into another
     //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
     //  Otherwise, it would create a new command buffer just for this
-    void Device::transitionImageLayout(AllocatedImage** images, uint32_t imageCount, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer* commandBuffer) {
+    void Device::transitionImageLayout(AllocatedImage** images, uint32_t imageCount, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags oldMask, VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer) {
         bool oneTime = !commandBuffer;
         if (!commandBuffer) {
             commandBuffer = beginSingleTimeCommands();
@@ -1496,7 +1529,7 @@ namespace RT64
         for (int i = 0; i < imageCount; i++) {
             VkImageMemoryBarrier barrier{};
             barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-            barrier.oldLayout = oldLayout;
+            barrier.oldLayout = images[i]->getLayout();
             barrier.newLayout = newLayout;
             barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
@@ -1506,22 +1539,12 @@ namespace RT64
             barrier.subresourceRange.levelCount = 1;
             barrier.subresourceRange.baseArrayLayer = 0;
             barrier.subresourceRange.layerCount = 1;
-            barrier.srcAccessMask = 0;
-            barrier.dstAccessMask = 0;
-            
-            VkPipelineStageFlags a, b;
-            matchLayoutToAccessMask(oldLayout, barrier.srcAccessMask, a);
-            matchLayoutToAccessMask(newLayout, barrier.dstAccessMask, b);
+            barrier.srcAccessMask = images[i]->getAccessFlags();
+            barrier.dstAccessMask = newMask;
             barriers.push_back(barrier);
         }
 
-        VkAccessFlags c, d;
-        VkPipelineStageFlags sourceStage;
-        VkPipelineStageFlags destinationStage;
-        matchLayoutToAccessMask(oldLayout, c, sourceStage);
-        matchLayoutToAccessMask(newLayout, d, destinationStage);
-
-        AllocatedImage::transitionLayouts(images, imageCount, commandBuffer, sourceStage, destinationStage, barriers.data(), newLayout);
+        AllocatedImage::transitionLayouts(images, imageCount, commandBuffer, oldStage, newStage, barriers.data(), newLayout);
 
         if (oneTime) {
             endSingleTimeCommands(commandBuffer);

@@ -33,9 +33,9 @@
 #endif
 
 #define CBV_SHIFT		0
-#define UAV_SHIFT		128
-#define SRV_SHIFT		256
-#define SAMPLER_SHIFT	384
+#define UAV_SHIFT		100
+#define SRV_SHIFT		200
+#define SAMPLER_SHIFT	300
 
 #define HEAP_INDEX(x) (int)(RT64::HeapIndices::x)
 #define UAV_INDEX(x) (int)(RT64::UAVIndices::x)
@@ -340,6 +340,8 @@ namespace RT64 {
 			VkImage image;
 			VkImageView imageView;
 			VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+			VkAccessFlags accessFlags = VK_ACCESS_NONE;
+			VkPipelineStageFlags pipelineStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 			VkExtent3D dimensions { 0, 0, 0 };
 			VkFormat format = VK_FORMAT_UNDEFINED;
 			VkImageType type = VK_IMAGE_TYPE_1D;
@@ -432,6 +434,8 @@ namespace RT64 {
 					1, &barrier
 				);
 				layout = newLayout;
+				accessFlags = barrier.dstAccessMask;
+				pipelineStage = destStage;
 			}
 			
 			AllocatedImage(VmaAllocator* allocator, VkImageCreateInfo& createInfo, VmaAllocationCreateInfo& allocCreateInfo, VmaAllocationInfo& allocInfo) {
@@ -463,6 +467,9 @@ namespace RT64 {
 			}
 
 			VkImageLayout getLayout() { return layout; }
+			VkAccessFlags getAccessFlags() { return accessFlags; }
+			VkAccessFlags getPieplineStage() { return pipelineStage; }
+			VkExtent3D getDimensions() { return dimensions; }
 
 			static void transitionLayouts(AllocatedImage** images, uint32_t imageCount, VkCommandBuffer* commandBuffer, VkPipelineStageFlags sourceStage, VkPipelineStageFlags destStage, VkImageMemoryBarrier* barriers, VkImageLayout newLayout) {
 				vkCmdPipelineBarrier(
@@ -475,6 +482,8 @@ namespace RT64 {
 				);
 				for (int i = 0; i < imageCount; i++) {
 					images[i]->layout = newLayout;
+					images[i]->accessFlags = barriers[i].dstAccessMask;
+					images[i]->pipelineStage = destStage;
 				}
 			}
 	};

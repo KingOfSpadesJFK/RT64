@@ -501,6 +501,24 @@ int main(int argc, char *argv[]) {
 		// Process any poll evenets.
         glfwPollEvents();
 		// Remove when done
+		RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 1000.0f, true);
+
+		RT64_INSTANCE_DESC instDesc;
+		instDesc.scissorRect = { 0, 0, 0, 0 };
+		instDesc.viewportRect = { 0, 0, 0, 0 };
+		instDesc.mesh = RT64.mesh;
+		instDesc.transform = RT64.transform;
+		instDesc.previousTransform = RT64.transform;
+		instDesc.diffuseTexture = RT64.textureDif;
+		instDesc.normalTexture = RT64.textureNrm;
+		instDesc.specularTexture = RT64.textureSpc;
+		instDesc.material = RT64.frameMaterial;
+		instDesc.shader = RT64.shader;
+		instDesc.flags = 0;
+		
+		RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
+		RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
+
 		RT64.lib.DrawDevice(RT64.device, 1, 1000.0 / 60.0);
 	}
 

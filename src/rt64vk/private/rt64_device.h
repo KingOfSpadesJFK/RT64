@@ -135,7 +135,7 @@ namespace RT64
             std::vector<Inspector*> inspectors;
             
 		    Mipmaps* mipmaps = nullptr;
-		    Texture* blueNoise = nullptr;
+		    Texture* blueNoise;
             VkSampler composeSampler;
 
             VmaAllocator allocator;
@@ -169,6 +169,7 @@ namespace RT64
 
             uint32_t currentFrame = 0;
             uint32_t framebufferIndex = 0;
+            uint32_t hitShaderCount = 0;
 
             VkViewport vkViewport;
             VkRect2D vkScissorRect;
@@ -184,7 +185,7 @@ namespace RT64
             VkShaderModule reflectionRayGenModule;
             VkShaderModule refractionRayGenModule;
             VkShaderModule composePSModule;
-            VkShaderModule fullscreenPSModule;
+            VkShaderModule fullscreenVSModule;
             // And their shader stage infos
             VkPipelineShaderStageCreateInfo primaryRayGenStage      {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo directRayGenStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
@@ -192,7 +193,7 @@ namespace RT64
             VkPipelineShaderStageCreateInfo reflectionRayGenStage   {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo refractionRayGenStage   {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo composePSStage          {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo fullscreenPSStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo fullscreenVSStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
 
 #endif
 
@@ -246,6 +247,8 @@ namespace RT64
             VkDescriptorSet& getComposeDescriptorSet();
             VkSampler& getComposeSampler();
             Texture* getBlueNoise() const;
+            uint32_t getHitShaderCount() const;
+            VkFence& getCurrentFence();
             // Shader getters
             VkPipelineShaderStageCreateInfo getPrimaryShaderStage() const;
             VkPipelineShaderStageCreateInfo getDirectShaderStage() const;
@@ -264,9 +267,10 @@ namespace RT64
             VkResult allocateImage(AllocatedImage* alre, VkImageCreateInfo createInfo, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties);
             VkResult allocateImage(uint32_t width, uint32_t height, VkImageType imageType, VkFormat imageFormat, VkImageTiling imageTiling, VkImageLayout initLayout, VkImageUsageFlags imageUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedImage* alre);
             void copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size, VkCommandBuffer* commandBuffer);
-            void matchLayoutToAccessMask(VkImageLayout inLayout, VkAccessFlags& outMask, VkPipelineStageFlags& outStage);
-            void transitionImageLayout(AllocatedImage& image, VkImageLayout newLayout, VkCommandBuffer* commandBuffer);
-            void transitionImageLayout(AllocatedImage** images, uint32_t imageCount, VkImageLayout oldLayout, VkImageLayout newLayout, VkCommandBuffer* commandBuffer);
+            void copyImage(AllocatedImage& src, AllocatedImage& dest, VkExtent3D dimensions, VkImageAspectFlags srcFlags, VkImageAspectFlags destFlags, VkCommandBuffer* commandBuffer);
+            void matchLayoutToAccessMask(VkImageLayout inLayout, VkAccessFlags& outMask);
+            void transitionImageLayout(AllocatedImage& image, VkImageLayout newLayout, VkAccessFlags oldMask, VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer);
+            void transitionImageLayout(AllocatedImage** images, uint32_t imageCount, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags oldMask, VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer);
             void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, VkCommandBuffer* commandBuffer);
             VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
             VkBufferView createBufferView(VkBuffer& buffer, VkFormat format, VkBufferViewCreateFlags flags, VkDeviceSize size);

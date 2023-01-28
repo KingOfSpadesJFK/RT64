@@ -21,9 +21,9 @@ set(NVPRO_DIR ${CONTRIB_DIR}/nvpro_core)
 #   DO NOT CHANGE THESE UNLESS YOU KNOW WHAT YOU ARE DOING!!!!!!
 #       And if you were to change them, change them in rt64_common.h too
 set(CBV_SHIFT 0)
-set(UAV_SHIFT 128)
-set(SRV_SHIFT 256)
-set(SAMPLER_SHIFT 384)
+set(UAV_SHIFT 100)
+set(SRV_SHIFT 200)
+set(SAMPLER_SHIFT 300)
 
 if(NOT (CMAKE_SIZEOF_VOID_P EQUAL 8))
   message( FATAL_ERROR "64-bit builds are mandatory for this framework" )

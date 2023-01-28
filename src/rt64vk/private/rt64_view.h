@@ -11,6 +11,7 @@
 #include "rt64_device.h"
 #include <nvh/alignment.hpp>
 #include <nvvk/raytraceKHR_vk.hpp>
+#include <glm/gtx/euler_angles.hpp>
 // #include "rt64_dlss.h"
 // #include "rt64_fsr.h"
 // #include "rt64_xess.h"
@@ -84,6 +85,12 @@ namespace RT64
 
             Device* device;
             Scene* scene;
+		    int maxReflections = 4;
+            float fovRadians = 40.0f;
+            float nearDist;
+            float farDist;
+            bool perspectiveControlActive;
+            bool perspectiveCanReproject = true;
 
             bool imageBuffersInit = false;
             bool recreateImageBuffers = false;
@@ -117,7 +124,11 @@ namespace RT64
 
             nvvk::RaytracingBuilderKHR rtBuilder;
             AllocatedBuffer shaderBindingTable;
-            VkStridedDeviceAddressRegionKHR raygenRegion{};
+            VkStridedDeviceAddressRegionKHR primaryRayGenRegion{};
+            VkStridedDeviceAddressRegionKHR directRayGenRegion{};
+            VkStridedDeviceAddressRegionKHR indirectRayGenRegion{};
+            VkStridedDeviceAddressRegionKHR reflectionRayGenRegion{};
+            VkStridedDeviceAddressRegionKHR refractionRayGenRegion{};
             VkStridedDeviceAddressRegionKHR missRegion{};
             VkStridedDeviceAddressRegionKHR hitRegion{};
             VkStridedDeviceAddressRegionKHR callRegion{};
@@ -174,7 +185,13 @@ namespace RT64
             void update();
             void render(float deltaTimeMs);
             void resize();
-
+            RT64_VECTOR3 getViewPosition();
+            RT64_VECTOR3 getViewDirection();
+            void setPerspective(RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist);
+            void movePerspective(RT64_VECTOR3 localMovement);
+            void rotatePerspective(float localYaw, float localPitch, float localRoll);
+            void setPerspectiveControlActive(bool v);
+            void setPerspectiveCanReproject(bool v);
             VkImageView& getDepthImageView();
             AllocatedBuffer& getGlobalParamsBuffer();
             void setSkyPlaneTexture(Texture *texture);

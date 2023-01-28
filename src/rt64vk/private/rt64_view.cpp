@@ -123,11 +123,14 @@ namespace RT64
         device->allocateImage(&rtTransparent, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         imageInfo.format = VK_FORMAT_R32_SINT;
+        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         device->allocateImage(&rtInstanceId, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         device->allocateImage(&rtFirstInstanceId, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         
         // Create a buffer big enough to read the resource back.
         uint32_t rowPadding;
+        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         CalculateTextureRowWidthPadding((uint32_t)(imageInfo.extent.width * 4), rtFirstInstanceIdRowWidth, rowPadding);
         device->allocateBuffer( rtFirstInstanceIdRowWidth * imageInfo.extent.height, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags, 
             &rtFirstInstanceIdReadback );
@@ -156,7 +159,7 @@ namespace RT64
             &rtShadingSpecular,
             &rtDiffuse,
             &rtInstanceId,
-            &rtFirstInstanceId,
+            // &rtFirstInstanceId,
             // AllocatedBuffer &rtFirstInstanceIdReadback,
             &rtDirectLightAccum[0], &rtDirectLightAccum[1],
             &rtFilteredDirectLight[0], &rtFilteredDirectLight[1],
@@ -177,7 +180,11 @@ namespace RT64
             // AllocatedBuffer &rtHitInstanceId,
             // &rtOutputUpscaled,
         };
-        device->transitionImageLayout(transRightsBitch, sizeof(transRightsBitch) / sizeof(AllocatedImage*), VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, nullptr);
+        device->transitionImageLayout(transRightsBitch, sizeof(transRightsBitch) / sizeof(AllocatedImage*), 
+            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 
+            VK_ACCESS_NONE, VK_ACCESS_NONE, 
+            VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
+            nullptr);
 
 #ifndef NDEBUG
         rasterBg.setAllocationName("rasterBg");
@@ -342,16 +349,58 @@ namespace RT64
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
+        // Update with the latest scene description.
+        RT64_SCENE_DESC desc = scene->getDescription();
+        globalParamsData.ambientBaseColor = ToVector4(desc.ambientBaseColor, 0.0f);
+        globalParamsData.ambientNoGIColor = ToVector4(desc.ambientNoGIColor, 0.0f);
+        globalParamsData.eyeLightDiffuseColor = ToVector4(desc.eyeLightDiffuseColor, 0.0f);
+        globalParamsData.eyeLightSpecularColor = ToVector4(desc.eyeLightSpecularColor, 0.0f);
+        globalParamsData.skyDiffuseMultiplier = ToVector4(desc.skyDiffuseMultiplier, 0.0f);
+        globalParamsData.skyHSLModifier = ToVector4(desc.skyHSLModifier, 0.0f);
+        globalParamsData.skyYawOffset = desc.skyYawOffset;
+        globalParamsData.giDiffuseStrength = desc.giDiffuseStrength;
+        globalParamsData.giSkyStrength = desc.giSkyStrength;
+
+        // Previous and current view and projection matrices and their inverse.
+        if (perspectiveCanReproject) {
+            globalParamsData.prevViewI = globalParamsData.viewI;
+            globalParamsData.prevViewProj = globalParamsData.viewProj;
+        }
+
+        globalParamsData.viewI = glm::inverse(globalParamsData.view);
+        globalParamsData.projectionI = glm::inverse(globalParamsData.projection);
+        globalParamsData.viewProj = globalParamsData.view * globalParamsData.projection;
+
+        if (!perspectiveCanReproject) {
+            globalParamsData.prevViewI = globalParamsData.viewI;
+            globalParamsData.prevViewProj = globalParamsData.viewProj;
+        }
+
+        // Pinhole camera vectors to generate non-normalized ray direction.
+        // TODO: Make a fake target and focal distance at the midpoint of the near/far planes
+        // until the game sends that data in some way in the future.
+        const float FocalDistance = (nearDist + farDist) / 2.0f;
+        const float AspectRatio = scene->getDevice()->getAspectRatio();
+        const RT64_VECTOR3 Up = { 0.0f, 1.0f, 0.0f };
+        const RT64_VECTOR3 Pos = getViewPosition();
+        const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
+        RT64_VECTOR3 cameraW = Normalize(Target - Pos) * FocalDistance;
+        RT64_VECTOR3 cameraU = Normalize(Cross(cameraW, Up));
+        RT64_VECTOR3 cameraV = Normalize(Cross(cameraU, cameraW));
+        const float ulen = FocalDistance * std::tan(fovRadians * 0.5f) * AspectRatio;
+        const float vlen = FocalDistance * std::tan(fovRadians * 0.5f);
+        cameraU = cameraU * ulen;
+        cameraV = cameraV * vlen;
+        globalParamsData.cameraU = ToVector4(cameraU, 0.0f);
+        globalParamsData.cameraV = ToVector4(cameraV, 0.0f);
+        globalParamsData.cameraW = ToVector4(cameraW, 0.0f);
+
         #define RADIUS 10.0f
         #define YOFF 2.0f
         glm::vec3 eye = glm::vec3(sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS);
         globalParamsData.view = glm::lookAt(eye, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        globalParamsData.projection = glm::perspective(glm::radians(45.0f), (float)this->scene->getDevice()->getAspectRatio(), 0.1f, 1000.0f);
+        globalParamsData.projection = glm::perspective(fovRadians, (float)this->scene->getDevice()->getAspectRatio(), nearDist, farDist);
         globalParamsData.projection[1][1] *= -1;
-
-        globalParamsData.viewI = glm::inverse(globalParamsData.view);
-        globalParamsData.projectionI = glm::inverse(globalParamsData.projection);
-        globalParamsData.viewProj = glm::inverse(globalParamsData.projection);
 
         globalParamsBuffer.setData(&globalParamsData, sizeof(globalParamsData));
     }
@@ -503,6 +552,7 @@ namespace RT64
             texture_infos.resize(usedTextures.size());
             for (int i = 0; i < usedTextures.size(); i++) {
                 texture_infos[i] = usedTextures[i]->getTexture().getDescriptorInfo();
+                usedTextures[i]->setCurrentIndex(-1);
             }
             textureWrite.descriptorCount = texture_infos.size();
             textureWrite.dstBinding = SRV_INDEX(gTextures) + SRV_SHIFT;
@@ -520,6 +570,8 @@ namespace RT64
             samplerWrite.dstBinding = 0 + SAMPLER_SHIFT;
             samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
             samplerWrite.pImageInfo = &samplerInfo;
+            descriptorWrites.push_back(samplerWrite);
+            samplerWrite.dstBinding = 1 + SAMPLER_SHIFT;
             descriptorWrites.push_back(samplerWrite);
 
             // Write to the instances' descriptor sets
@@ -558,7 +610,6 @@ namespace RT64
     void View::update() 
     {
 	    RT64_LOG_PRINTF("Started view update");
-        updateGlobalParamsBuffer();
 
         auto getTextureIndex = [this](Texture *texture) {
             if (texture == nullptr) {
@@ -703,18 +754,25 @@ namespace RT64
     void View::createShaderBindingTable() {
         VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties = device->getRTProperties();
         unsigned int missCount = 0;                                                 // How many miss shaders we have
-        unsigned int hitCount = rtInstances.size();                                 // How many hit shaders we have
-        unsigned int handleCount = SHADER_INDEX(MAX) + missCount + hitCount;        // How many rt shaders in total we have
+        unsigned int hitCount = device->getHitShaderCount();                        // How many hit shaders we have
+        unsigned int raygenCount = SHADER_INDEX(MAX);
+        unsigned int handleCount = raygenCount + missCount + hitCount;        // How many rt shaders in total we have
         unsigned int handleSize = rtProperties.shaderGroupHandleSize;
         // The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
-        unsigned int handleSizeAligned = nvh::align_up(handleSize, rtProperties.shaderGroupHandleAlignment);
+        unsigned int handleSizeAligned = ROUND_UP(handleSize, rtProperties.shaderGroupHandleAlignment);
 
-        raygenRegion.stride = nvh::align_up(handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
+        VkStridedDeviceAddressRegionKHR raygenRegion{};
+        raygenRegion.stride = ROUND_UP(handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
         raygenRegion.size = raygenRegion.stride;    // The size member of pRayGenShaderBindingTable must be equal to its stride member
+        primaryRayGenRegion = raygenRegion;
+        directRayGenRegion = raygenRegion;
+        indirectRayGenRegion = raygenRegion;
+        reflectionRayGenRegion = raygenRegion;
+        refractionRayGenRegion = raygenRegion;
         missRegion.stride = handleSizeAligned;
-        missRegion.size = nvh::align_up(missCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
+        missRegion.size = ROUND_UP(missCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
         hitRegion.stride = handleSizeAligned;
-        hitRegion.size = nvh::align_up(hitCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
+        hitRegion.size = ROUND_UP(hitCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
 
         // Get the shader group handles
         unsigned int dataSize = handleCount * handleSize;
@@ -722,11 +780,7 @@ namespace RT64
         VK_CHECK(vkGetRayTracingShaderGroupHandlesKHR(device->getVkDevice(), device->getRTPipeline(), 0, handleCount, dataSize, handles.data()));
 
         // Get the new size of the sbt
-        VkDeviceSize newSbtSize = raygenRegion.size + missRegion.size + hitRegion.size + callRegion.size;
-        // If it's the same size, then just return since there's no need to do this whole thing again
-        if (newSbtSize == sbtSize) {
-            return;
-        }
+        VkDeviceSize newSbtSize = (raygenRegion.size * raygenCount) + missRegion.size + hitRegion.size + callRegion.size;
 
         // If the SBT has a size (implying there's already an SBT), then destroy the SBT
         if (sbtSize > 0) {
@@ -747,9 +801,13 @@ namespace RT64
         // Find the SBT addresses of each group
         VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, shaderBindingTable.getBuffer()};
         VkDeviceAddress sbtAddress = vkGetBufferDeviceAddress(device->getVkDevice(), &info);
-        raygenRegion.deviceAddress = sbtAddress;
-        missRegion.deviceAddress = sbtAddress + raygenRegion.size;
-        hitRegion.deviceAddress = sbtAddress + raygenRegion.size + missRegion.size;
+        primaryRayGenRegion.deviceAddress = sbtAddress;
+        directRayGenRegion.deviceAddress = primaryRayGenRegion.deviceAddress + primaryRayGenRegion.size;
+        indirectRayGenRegion.deviceAddress = directRayGenRegion.deviceAddress + directRayGenRegion.size;
+        reflectionRayGenRegion.deviceAddress = indirectRayGenRegion.deviceAddress + indirectRayGenRegion.size;
+        refractionRayGenRegion.deviceAddress = reflectionRayGenRegion.deviceAddress + reflectionRayGenRegion.size;
+        missRegion.deviceAddress = refractionRayGenRegion.deviceAddress + refractionRayGenRegion.size;
+        hitRegion.deviceAddress = missRegion.deviceAddress + missRegion.size;
 
         // Helper to retrieve the handle data
         auto getHandle = [&](int i) { return handles.data() + i * handleSize; };
@@ -760,20 +818,19 @@ namespace RT64
         uint32_t handleIdx = 0;
 
         // Raygen
-        memcpy(pData, getHandle(handleIdx++), handleSize);
+        for(uint32_t c = 0; c < raygenCount; c++) {
+            memcpy(pData, getHandle(handleIdx++), handleSize);
+            pData += raygenRegion.stride;
+        }
 
         // Miss
-        pData = pSBTBuffer + raygenRegion.size;
-        for(uint32_t c = 0; c < missCount; c++)
-        {
+        for(uint32_t c = 0; c < missCount; c++) {
             memcpy(pData, getHandle(handleIdx++), handleSize);
             pData += missRegion.stride;
         }
 
         // Hit
-        pData = pSBTBuffer + raygenRegion.size + missRegion.size;
-        for(uint32_t c = 0; c < hitCount; c++)
-        {
+        for(uint32_t c = 0; c < hitCount; c++) {
             memcpy(pData, getHandle(handleIdx++), handleSize);
             pData += hitRegion.stride;
         }
@@ -845,6 +902,43 @@ namespace RT64
             }
         };
 
+        RT64_LOG_PRINTF("Updating global parameters");
+
+        // Determine whether to use the viewport and scissor from the first RT Instance or not.
+        // TODO: Some less hackish way to determine what viewport to use for the raytraced content perhaps.
+        VkRect2D rtScissorRect = scissors;
+        VkViewport rtViewport = viewport;
+        if (!rtInstances.empty()) {
+            rtScissorRect = rtInstances[0].scissorRect;
+            rtViewport = rtInstances[0].viewport;
+            if ((rtScissorRect.offset.x + rtScissorRect.extent.width <= rtScissorRect.offset.x)) {
+                rtScissorRect = scissors;
+            }
+
+            if ((rtViewport.width == 0) || (rtViewport.height == 0)) {
+                rtViewport = viewport;
+            }
+
+            // Only use jitter when an upscaler is active.
+            // bool jitterActive = rtUpscaleActive && (upscaler != nullptr);
+            bool jitterActive = false;
+            if (jitterActive) {
+                // const int phaseCount = upscaler->getJitterPhaseCount(rtWidth, lround(globalParamsBufferData.resolution.z));
+                // globalParamsData.pixelJitter = HaltonJitter(globalParamsData.frameCount, phaseCount);
+            }
+            else {
+                globalParamsData.pixelJitter = { 0.0f, 0.0f };
+            }
+
+            globalParamsData.viewport.x = rtViewport.x;
+            globalParamsData.viewport.y = rtViewport.y;
+            globalParamsData.viewport.z = rtViewport.width;
+            globalParamsData.viewport.w = rtViewport.height;
+
+            updateGlobalParamsBuffer();
+            // updateFilterParamsBuffer();
+        }
+
         // Begin the command buffer
         VkCommandBufferBeginInfo beginInfo{};
         beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -855,17 +949,106 @@ namespace RT64
         vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
         vkCmdSetScissor(commandBuffer, 0, 1, &scissors);
 
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipeline());
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipelineLayout(), 0, 1, &device->getRTDescriptorSet(), 0, nullptr);
-
         // Now raytrace!
-        vkCmdTraceRaysKHR(commandBuffer, &raygenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+        {
+            // Make sure the images are usable
+            AllocatedImage* primaryTranslation[] = {
+                &rtDiffuse,
+                &rtInstanceId,
+                &rtReflection,
+                &rtRefraction,
+                &rtTransparent,
+                &rtFlow,
+                &rtReactiveMask,
+                &rtLockMask,
+                &rtDepth[rtSwap ? 1 : 0]
+            };
+            device->transitionImageLayout(primaryTranslation, sizeof(primaryTranslation) / sizeof(AllocatedImage*), 
+                VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, 
+                VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT, 
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 
+                &commandBuffer);
 
-        // VkBufferDeviceAddressInfo addressInfo { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
-        // addressInfo.buffer = rtHitColor.getBuffer();
-        // void* address = (void*)vkGetBufferDeviceAddress(device->getVkDevice(), &addressInfo);
+            // Bind pipeline and dispatch primary rays.
+		    RT64_LOG_PRINTF("Dispatching primary rays");
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipeline());
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipelineLayout(), 0, 1, &device->getRTDescriptorSet(), 0, nullptr);
+            vkCmdTraceRaysKHR(commandBuffer, &primaryRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 
-        device->transitionImageLayout(rtFlow, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, &commandBuffer);
+	    	// Barriers for shading buffers before dispatching secondary rays.
+            AllocatedImage* shadingBarriers[] = {
+                &rtViewDirection,
+                &rtDirectLightAccum[rtSwap ? 1 : 0],
+                &rtIndirectLightAccum[rtSwap ? 1 : 0],
+                &rtShadingPosition,
+                &rtShadingNormal,
+                &rtShadingSpecular,
+                &rtNormal[rtSwap ? 1 : 0]
+            };
+            device->transitionImageLayout(shadingBarriers, sizeof(shadingBarriers) / sizeof(AllocatedImage*), 
+                VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, 
+                VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT, 
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 
+                &commandBuffer);
+
+    		// Store the first bounce instance Id.
+            device->transitionImageLayout(rtInstanceId, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,  VK_ACCESS_TRANSFER_READ_BIT,
+                VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,  VK_PIPELINE_STAGE_TRANSFER_BIT,
+                &commandBuffer);
+            device->transitionImageLayout(rtFirstInstanceId, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                VK_ACCESS_NONE,  VK_ACCESS_TRANSFER_WRITE_BIT,
+                VK_PIPELINE_STAGE_NONE,  VK_PIPELINE_STAGE_TRANSFER_BIT,
+                &commandBuffer);
+            device->copyImage(rtInstanceId, rtFirstInstanceId, rtInstanceId.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
+
+		    RT64_LOG_PRINTF("Dispatching direct light rays");
+            vkCmdTraceRaysKHR(commandBuffer, &directRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+
+		    RT64_LOG_PRINTF("Dispatching indirect light rays");
+            vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+
+    		// Wait until indirect light is done before dispatching reflection or refraction rays.
+            vkWaitForFences(device->getVkDevice(), 1, &device->getCurrentFence(), VK_TRUE, UINT64_MAX);
+
+            device->transitionImageLayout(rtInstanceId, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                VK_ACCESS_TRANSFER_WRITE_BIT,  VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,  VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                &commandBuffer);
+            
+		    RT64_LOG_PRINTF("Dispatching refraction rays");
+            vkCmdTraceRaysKHR(commandBuffer, &refractionRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+
+		    // Wait until refraction is done before dispatching reflection rays.
+            vkWaitForFences(device->getVkDevice(), 1, &device->getCurrentFence(), VK_TRUE, UINT64_MAX);
+
+            int reflections = maxReflections;
+            while (reflections > 0) {
+			    RT64_LOG_PRINTF("Dispatching reflection rays");
+                vkCmdTraceRaysKHR(commandBuffer, &reflectionRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+                reflections--;
+
+                if (reflections > 0) {
+                    vkWaitForFences(device->getVkDevice(), 1, &device->getCurrentFence(), VK_TRUE, UINT64_MAX);
+                }
+            }
+        }
+        
+	    // Barriers for shading buffers after rays are finished.
+        AllocatedImage* postDispatchBarriers[] = {
+            &rtOutput[rtSwap ? 1 : 0],
+            &rtDiffuse,
+            &rtDirectLightAccum[rtSwap ? 1 : 0],
+            &rtIndirectLightAccum[rtSwap ? 1 : 0],
+            &rtReflection,
+            &rtRefraction,
+            &rtTransparent
+        };
+        device->transitionImageLayout(postDispatchBarriers, sizeof(postDispatchBarriers) / sizeof(AllocatedImage*), 
+            VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+            VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, 
+            VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+            &commandBuffer);
 
         // Begin the render pass (you can't raytrace with it, so just raytrace before you render pass it up)
         VkRenderPassBeginInfo renderPassInfo{};
@@ -881,10 +1064,15 @@ namespace RT64
         renderPassInfo.pClearValues = clearValues.data();
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
+		// Apply the scissor and viewport to the size of the output texture.
+        applyScissor({rtWidth, rtHeight});
+        VkViewport v = {0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f};
+        applyViewport(v);
+
         // Now compose 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipeline());
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipelineLayout(), 0, 1, &device->getComposeDescriptorSet(), 0, nullptr);
-        vkCmdDraw(commandBuffer, 0, 0, 0, 0);
+        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
         // Draw the raster images
         // Draw the background instances to the screen.
@@ -895,6 +1083,42 @@ namespace RT64
 	    // drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
 
         vkCmdEndRenderPass(commandBuffer);
+        
+	    // Barriers for shading buffers after the whole render process is finished
+        AllocatedImage* postRTBarriers[] = {
+            &rasterBg,
+            &rtViewDirection,
+            &rtShadingPosition,
+            &rtShadingNormal,
+            &rtShadingSpecular,
+            &rtInstanceId,
+            &rtFlow,
+            &rtReactiveMask,
+            &rtLockMask,
+            &rtNormal[rtSwap ? 1 : 0],
+            &rtDepth[rtSwap ? 1 : 0]
+        };
+        device->transitionImageLayout(postRTBarriers, sizeof(postRTBarriers) / sizeof(AllocatedImage*), 
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
+            VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_NONE, 
+            VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
+            &commandBuffer);
+
+        AllocatedImage* postFragBarriers[] = {
+            &rtOutput[rtSwap ? 1 : 0],
+            &rtDiffuse,
+            &rtDirectLightAccum[rtSwap ? 1 : 0],
+            &rtIndirectLightAccum[rtSwap ? 1 : 0],
+            &rtReflection,
+            &rtRefraction,
+            &rtTransparent
+        };
+        device->transitionImageLayout(postFragBarriers, sizeof(postFragBarriers) / sizeof(AllocatedImage*), 
+            VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
+            VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_NONE, 
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
+            &commandBuffer);
+            
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
         rtSwap = !rtSwap;
@@ -922,6 +1146,65 @@ namespace RT64
     int View::getHeight() const {
         return scene->getDevice()->getHeight();
     }
+
+    RT64_VECTOR3 View::getViewPosition() {
+        glm::vec4 pos = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f} * globalParamsData.viewI;
+        return { pos.x, pos.y, pos.z };
+    }
+
+    RT64_VECTOR3 View::getViewDirection() {
+        glm::vec4 xdir = glm::vec4{0.0f, 0.0f, 1.0f, 0.0f} * globalParamsData.viewI;
+        RT64_VECTOR3 dir = { xdir.x, xdir.y, xdir.z };
+        float length = Length(dir);
+        return dir / length;
+    }
+
+    void View::setPerspective(RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist) {
+        // Ignore all external calls to set the perspective when control override is active.
+        if (perspectiveControlActive) {
+            return;
+        }
+
+        this->fovRadians = fovRadians;
+        this->nearDist = nearDist;
+        this->farDist = farDist;
+
+        globalParamsData.view = {
+            viewMatrix.m[0][0], viewMatrix.m[0][1], viewMatrix.m[0][2], viewMatrix.m[0][3],
+            viewMatrix.m[1][0], viewMatrix.m[1][1], viewMatrix.m[1][2], viewMatrix.m[1][3],
+            viewMatrix.m[2][0], viewMatrix.m[2][1], viewMatrix.m[2][2], viewMatrix.m[2][3],
+            viewMatrix.m[3][0], viewMatrix.m[3][1], viewMatrix.m[3][2], viewMatrix.m[3][3]
+        };
+
+        globalParamsData.projection = glm::perspective(fovRadians, (float)this->scene->getDevice()->getAspectRatio(), nearDist, farDist);
+    }
+
+    void View::movePerspective(RT64_VECTOR3 localMovement) {
+        glm::vec4 offset = glm::vec4{localMovement.x, localMovement.y, localMovement.z, 0.0f} * globalParamsData.viewI;
+        glm::vec4 det;
+        globalParamsData.view = (glm::inverse(glm::translate(glm::mat4(), glm::vec3{offset.x, offset.y, offset.z})) * globalParamsData.view);
+    }
+
+    void View::rotatePerspective(float localYaw, float localPitch, float localRoll) {
+        glm::vec4 viewPos = (glm::vec4{0.0f, 0.0f, 0.0f, 1.0f} * globalParamsData.viewI);
+        glm::vec4 viewFocus = {0.0f, 0.0f, -farDist, 1.0f};
+        viewFocus = (viewFocus * glm::yawPitchRoll(localYaw, localPitch, localRoll));
+        viewFocus = (viewFocus * globalParamsData.viewI);
+        globalParamsData.view = glm::lookAt(
+            glm::vec3{viewPos.x, viewPos.y, viewPos.z}, 
+            glm::vec3{viewFocus.x, viewFocus.y, viewFocus.z}, 
+            glm::vec3{0.0f, 1.0f, 0.0f}
+        );
+    }
+
+    void View::setPerspectiveControlActive(bool v) {
+        perspectiveControlActive = v;
+    }
+
+    void View::setPerspectiveCanReproject(bool v) {
+        perspectiveCanReproject = v;
+    }
+
 };
 
 // Library exports
@@ -937,6 +1220,13 @@ DLEXPORT RT64_VIEW* RT64_CreateView(RT64_SCENE* scenePtr) {
 	assert(scenePtr != nullptr);
 	RT64::Scene* scene = (RT64::Scene*)(scenePtr);
 	return (RT64_VIEW*)(new RT64::View(scene));
+}
+
+DLEXPORT void RT64_SetViewPerspective(RT64_VIEW* viewPtr, RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist, bool canReproject) {
+	assert(viewPtr != nullptr);
+	RT64::View *view = (RT64::View *)(viewPtr);
+	view->setPerspective(viewMatrix, fovRadians, nearDist, farDist);
+	view->setPerspectiveCanReproject(canReproject);
 }
 
 DLEXPORT void RT64_DestroyView(RT64_VIEW* viewPtr) {
