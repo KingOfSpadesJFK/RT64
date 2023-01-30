@@ -32,7 +32,7 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
     //     return float4(result, 1.0f);
     // }
     // else {
-        // return float4(diffuse.rgb, 1.0f);
+        return float4(diffuse.rgb, 1.0f);
     // }
-        return float4(uv.xy, 0.0f, 1.0f);
+        // return float4(uv.xy, 1.0f, 1.0f);
 }

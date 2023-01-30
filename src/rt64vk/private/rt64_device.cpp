@@ -138,30 +138,28 @@ namespace RT64
 
         // Rasterizer
         VkPipelineRasterizationStateCreateInfo rasterizer{ VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO };
-        rasterizer.depthClampEnable = VK_TRUE;
+        rasterizer.depthClampEnable = VK_FALSE;
         rasterizer.rasterizerDiscardEnable = VK_FALSE;
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
         rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
-		rasterizer.depthBiasClamp = 100.0f;
 
         // Color blending
         VkPipelineColorBlendAttachmentState colorBlendAttachment{};
         colorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
         colorBlendAttachment.blendEnable = VK_FALSE;
-        colorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-        colorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-        colorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD; // Optional
-        colorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE; // Optional
-        colorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO; // Optional
-        colorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD; // Optional
 
         VkPipelineColorBlendStateCreateInfo colorBlending{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
         colorBlending.logicOpEnable = VK_FALSE;
+        colorBlending.logicOp = VK_LOGIC_OP_COPY;
         colorBlending.attachmentCount = 1;
         colorBlending.pAttachments = &colorBlendAttachment;
+        colorBlending.blendConstants[0] = 0.0f;
+        colorBlending.blendConstants[1] = 0.0f;
+        colorBlending.blendConstants[2] = 0.0f;
+        colorBlending.blendConstants[3] = 0.0f;
 
 		// Depth stencil
         VkPipelineDepthStencilStateCreateInfo depthStencil{ VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
@@ -234,8 +232,8 @@ namespace RT64
 
 		    // Create the pipeline layout
             VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
-            pipelineLayoutInfo.setLayoutCount = 0;
-            // pipelineLayoutInfo.pSetLayouts = &rtComposeDescriptorSetLayout;
+            pipelineLayoutInfo.setLayoutCount = 1;
+            pipelineLayoutInfo.pSetLayouts = &rtComposeDescriptorSetLayout;
             VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &rtComposePipelineLayout));
 
             // Create the pipeline
@@ -269,8 +267,8 @@ namespace RT64
             // createShaderModule(RefractionRayGen_SPIRV,  sizeof(RefractionRayGen_SPIRV), "RefractionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, refractionRayGenStage,    refractionRayGenModule, nullptr);
             // For testing purposes
             createShaderModule(TestRayGen_SPIRV,     sizeof(TestRayGen_SPIRV),    "raygen",    VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryRayGenStage,       primaryRayGenModule, nullptr);
-            createShaderModule(TestRayGen_SPIRV,      sizeof(TestRayGen_SPIRV),     "anyhit",     VK_SHADER_STAGE_ANY_HIT_BIT_KHR, directRayGenStage,        directRayGenModule, nullptr);
-            createShaderModule(TestRayGen_SPIRV,    sizeof(TestRayGen_SPIRV),   "miss",   VK_SHADER_STAGE_MISS_BIT_KHR, indirectRayGenStage,      indirectRayGenModule, nullptr);
+            createShaderModule(TestRayGen_SPIRV,      sizeof(TestRayGen_SPIRV),     "miss",     VK_SHADER_STAGE_MISS_BIT_KHR, directRayGenStage,        directRayGenModule, nullptr);
+            createShaderModule(TestRayGen_SPIRV,    sizeof(TestRayGen_SPIRV),   "anyhit",   VK_SHADER_STAGE_ANY_HIT_BIT_KHR, indirectRayGenStage,      indirectRayGenModule, nullptr);
         }
         
         // Push the main shaders into the shader stages
@@ -309,8 +307,8 @@ namespace RT64
         group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
         group.generalShader = SHADER_INDEX(primaryRayGen);
         rtShaderGroups.push_back(group);
-        // group.generalShader = SHADER_INDEX(directRayGen);
-        // rtShaderGroups.push_back(group);
+        group.generalShader = SHADER_INDEX(directRayGen);
+        rtShaderGroups.push_back(group);
         // group.generalShader = SHADER_INDEX(indirectRayGen);
         // rtShaderGroups.push_back(group);
         // group.generalShader = SHADER_INDEX(reflectionRayGen);
@@ -327,11 +325,7 @@ namespace RT64
         //     rtShaderGroups.push_back(group);
         // }
         // For testing purposes
-        group.anyHitShader = SHADER_INDEX(directRayGen);
-        rtShaderGroups.push_back(group);
-        group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
-        group.anyHitShader = VK_SHADER_UNUSED_KHR;
-        group.generalShader = SHADER_INDEX(indirectRayGen);
+        group.anyHitShader = SHADER_INDEX(indirectRayGen);
         rtShaderGroups.push_back(group);
 
 	    RT64_LOG_PRINTF("Creating the RT descriptor set layouts and pools...");

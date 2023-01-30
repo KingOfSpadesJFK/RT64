@@ -396,8 +396,9 @@ namespace RT64
         const RT64_VECTOR3 Up = { 0.0f, 1.0f, 0.0f };
         // const RT64_VECTOR3 Pos = getViewPosition();
         // const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
-        const RT64_VECTOR3 Pos = {sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS};
-        const RT64_VECTOR3 Target = { 0.0f, 0.0f, 0.0f };
+        const glm::vec4 PosGLM = glm::vec4{sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS, 1.0f} * globalParamsData.viewI;
+        const RT64_VECTOR3 Pos = {PosGLM.x, PosGLM.y, PosGLM.z};
+        const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
         RT64_VECTOR3 cameraW = Normalize(Target - Pos) * FocalDistance;
         RT64_VECTOR3 cameraU = Normalize(Cross(cameraW, Up));
         RT64_VECTOR3 cameraV = Normalize(Cross(cameraU, cameraW));
@@ -614,13 +615,13 @@ namespace RT64
         // Update the descriptor set for the compose shader
         {
             VkDescriptorSet& descriptorSet = device->getComposeDescriptorSet();
-            // descriptorWrites.push_back(rtFlow.generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFlow.generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtDiffuse.generateDescriptorWrite(1, 1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, 2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, 3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtReflection.generateDescriptorWrite(1, 4 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtRefraction.generateDescriptorWrite(1, 5 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtTransparent.generateDescriptorWrite(1, 6 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, 2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, 3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtReflection.generateDescriptorWrite(1, 4 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtRefraction.generateDescriptorWrite(1, 5 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtTransparent.generateDescriptorWrite(1, 6 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
 
             // Add the compose sampler
             VkDescriptorImageInfo samplerInfo { };
@@ -999,17 +1000,17 @@ namespace RT64
                 // &rtLockMask,
                 // &rtDepth[rtSwap ? 1 : 0]
             };
-            // device->transitionImageLayout(primaryTranslation, sizeof(primaryTranslation) / sizeof(AllocatedImage*), 
-            //     VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
-            //     VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT, 
-            //     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 
-            //     &commandBuffer);
+            device->transitionImageLayout(primaryTranslation, sizeof(primaryTranslation) / sizeof(AllocatedImage*), 
+                VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, 
+                VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT, 
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 
+                &commandBuffer);
 
             // Bind pipeline and dispatch primary rays.
 		    RT64_LOG_PRINTF("Dispatching primary rays");
-            // vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipeline());
-            // vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipelineLayout(), 0, 1, &device->getRTDescriptorSet(), 0, nullptr);
-            // vkCmdTraceRaysKHR(commandBuffer, &primaryRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipeline());
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipelineLayout(), 0, 1, &device->getRTDescriptorSet(), 0, nullptr);
+            vkCmdTraceRaysKHR(commandBuffer, &primaryRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 
 	    	// Barriers for shading buffers before dispatching secondary rays.
             // AllocatedImage* shadingBarriers[] = {
@@ -1080,11 +1081,11 @@ namespace RT64
             // &rtRefraction,
             // &rtTransparent
         };
-        // device->transitionImageLayout(postDispatchBarriers, sizeof(postDispatchBarriers) / sizeof(AllocatedImage*), 
-        //     VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
-        //     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, 
-        //     VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
-        //     &commandBuffer);
+        device->transitionImageLayout(postDispatchBarriers, sizeof(postDispatchBarriers) / sizeof(AllocatedImage*), 
+            VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, 
+            VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+            &commandBuffer);
 
         // Begin the render pass (you can't raytrace with it, so just raytrace before you render pass it up)
         VkRenderPassBeginInfo renderPassInfo{};
@@ -1101,13 +1102,13 @@ namespace RT64
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 		// Apply the scissor and viewport to the size of the output texture.
-        // applyScissor({rtWidth, rtHeight});
-        // VkViewport v = {0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f};
-        // applyViewport(v);
+        applyScissor({rtWidth, rtHeight});
+        VkViewport v = {0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f};
+        applyViewport(v);
 
         // Now compose 
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipeline());
-        // vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipelineLayout(), 0, 1, &device->getComposeDescriptorSet(), 0, nullptr);
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipelineLayout(), 0, 1, &device->getComposeDescriptorSet(), 0, nullptr);
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
         // Draw the raster images
@@ -1135,25 +1136,25 @@ namespace RT64
             &rtDepth[rtSwap ? 1 : 0]
         };
         // device->transitionImageLayout(postRTBarriers, sizeof(postRTBarriers) / sizeof(AllocatedImage*), 
-        //     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
+        //     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
         //     VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_NONE, 
         //     VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
         //     &commandBuffer);
 
         AllocatedImage* postFragBarriers[] = {
-            &rtOutput[rtSwap ? 1 : 0],
+            // &rtOutput[rtSwap ? 1 : 0],
             &rtDiffuse,
-            &rtDirectLightAccum[rtSwap ? 1 : 0],
-            &rtIndirectLightAccum[rtSwap ? 1 : 0],
-            &rtReflection,
-            &rtRefraction,
-            &rtTransparent
+            // &rtDirectLightAccum[rtSwap ? 1 : 0],
+            // &rtIndirectLightAccum[rtSwap ? 1 : 0],
+            // &rtReflection,
+            // &rtRefraction,
+            // &rtTransparent
         };
-        // device->transitionImageLayout(postFragBarriers, sizeof(postFragBarriers) / sizeof(AllocatedImage*), 
-        //     VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
-        //     VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_NONE, 
-        //     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
-        //     &commandBuffer);
+        device->transitionImageLayout(postFragBarriers, sizeof(postFragBarriers) / sizeof(AllocatedImage*), 
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
+            VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_NONE, 
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
+            &commandBuffer);
             
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
