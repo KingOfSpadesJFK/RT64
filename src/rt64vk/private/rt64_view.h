@@ -30,10 +30,8 @@ namespace RT64
         private:
             struct RenderInstance {
                 Instance* instance;
-                // Don't think Vulkan buffer views work the same way as DX12 buffer views.
-                //  If i'm reading this correctly, VkBufferViews are more for texels than stuff like verticies...
-                // const VkBufferView* vertexBufferView;
-                // const VkBufferView* indexBufferView;
+                VkBuffer* vertexBuffer;
+                VkBuffer* indexBuffer;
                 int indexCount;
                 nvvk::AccelKHR* blas;
                 nvmath::mat4f transform;
@@ -98,11 +96,11 @@ namespace RT64
             std::vector<VkWriteDescriptorSet> rasterDescriptorSetWrite;
             AllocatedBuffer globalParamsBuffer;
             GlobalParams globalParamsData;
-            VkDeviceSize globalParamsSize;
+            VkDeviceSize globalParamsSize = 0;
             AllocatedBuffer activeInstancesBufferTransforms;
-            VkDeviceSize activeInstancesBufferTransformsSize;
+            VkDeviceSize activeInstancesBufferTransformsSize = 0;
             AllocatedBuffer activeInstancesBufferMaterials;
-            VkDeviceSize activeInstancesBufferMaterialsSize;
+            VkDeviceSize activeInstancesBufferMaterialsSize = 0;
             AllocatedImage depthImage;
             VkImageView depthImageView;
             Texture* skyPlaneTexture;
@@ -111,8 +109,8 @@ namespace RT64
             std::vector<RenderInstance> rasterUiInstances;
             std::vector<RenderInstance> rtInstances;
 		    std::vector<Texture*> usedTextures;
-            bool scissorApplied;
-            bool viewportApplied;
+            bool scissorApplied = false;
+            bool viewportApplied = false;
             int rtWidth;
             int rtHeight;
             float resolutionScale = 1.0f;

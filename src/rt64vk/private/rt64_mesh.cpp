@@ -54,7 +54,7 @@ namespace RT64
                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
                 &stagingVertexBuffer);
             device->allocateBuffer(vertexBufferSize, 
-                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, 
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, 
                 VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
                 VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
                 &vertexBuffer);
@@ -92,7 +92,7 @@ namespace RT64
                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT, 
                 &stagingIndexBuffer);
             device->allocateBuffer(indexBufferSize, 
-                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, 
+                VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR, 
                 VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
                 VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT, 
                 &indexBuffer);
@@ -180,8 +180,8 @@ namespace RT64
 
     // Public 
 
-    VkBuffer& Mesh::getVertexBuffer() { return vertexBuffer.getBuffer(); }
-    VkBuffer& Mesh::getIndexBuffer() { return indexBuffer.getBuffer(); }
+    AllocatedBuffer& Mesh::getVertexBuffer() { return vertexBuffer; }
+    AllocatedBuffer& Mesh::getIndexBuffer() { return indexBuffer; }
     int Mesh::getIndexCount() const { return indexCount; }
     int Mesh::getVertexCount() const { return vertexCount; }
     nvvk::AccelKHR& Mesh::getBlas() { return builder.getFirstBlas(); }
@@ -190,7 +190,7 @@ namespace RT64
     void Mesh::updateBottomLevelAS() {
         if (flags & RT64_MESH_RAYTRACE_ENABLED) {
             // Create and store the bottom level AS buffers.
-            createBottomLevelAS({ getVertexBuffer(), getVertexCount() }, { getIndexBuffer(), getIndexCount() });
+            createBottomLevelAS({ getVertexBuffer().getBuffer(), getVertexCount() }, { getIndexBuffer().getBuffer(), getIndexCount() });
         }
     }
 

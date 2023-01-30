@@ -36,10 +36,10 @@ namespace RT64
             Mesh(Device* device, int flags);
             virtual ~Mesh();
             void updateVertexBuffer(void* vertexArray, int vertexCount, int vertexStride);
-            VkBuffer& getVertexBuffer();
+            AllocatedBuffer& getVertexBuffer();
             int getVertexCount() const;
             void updateIndexBuffer(unsigned int* indexArray, int indexCount);
-            VkBuffer& getIndexBuffer();
+            AllocatedBuffer& getIndexBuffer();
             int getIndexCount() const;
             nvvk::AccelKHR& getBlas();
             VkDeviceAddress getBlasAddress() const;

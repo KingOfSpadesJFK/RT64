@@ -25,6 +25,8 @@
 #include "shaders/IndirectRayGen.hlsl.h"
 #include "shaders/ReflectionRayGen.hlsl.h"
 #include "shaders/RefractionRayGen.hlsl.h"
+// TEST SHADER
+#include "shaders/TestRayGen.hlsl.h"
 
 // Pixel shaders
 #include "shaders/ComposePS.hlsl.h"
@@ -100,6 +102,7 @@ namespace RT64
         contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);  // Required by ray tracing pipeline
         contextInfo.addDeviceExtension(VK_KHR_RAY_QUERY_EXTENSION_NAME);  // Required by ray tracing pipeline
         contextInfo.addDeviceExtension(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
+        contextInfo.addDeviceExtension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
 
         // Creating Vulkan base application
         vkctx.initInstance(contextInfo);
@@ -162,13 +165,10 @@ namespace RT64
 
 		// Depth stencil
         VkPipelineDepthStencilStateCreateInfo depthStencil{ VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO };
-        depthStencil.depthTestEnable = VK_TRUE;
-        depthStencil.depthWriteEnable = VK_TRUE;
-        depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
+        depthStencil.depthTestEnable = VK_FALSE;
+        depthStencil.depthWriteEnable = VK_FALSE;
+        // depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
         depthStencil.stencilTestEnable = VK_FALSE;
-
-		// Pipeline layout
-        VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
 
         // Pipeline info
         VkGraphicsPipelineCreateInfo pipelineInfo { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
@@ -180,8 +180,6 @@ namespace RT64
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.renderPass = renderPass;
         pipelineInfo.subpass = 0;
-        pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
-        pipelineInfo.basePipelineIndex = -1; // Optional
 
         RT64_LOG_PRINTF("Creating a generic image sampler for the compose shader");
         {
@@ -235,8 +233,9 @@ namespace RT64
             vertexInputInfo.vertexAttributeDescriptionCount = 0;
 
 		    // Create the pipeline layout
-            pipelineLayoutInfo.setLayoutCount = 1;
-            pipelineLayoutInfo.pSetLayouts = &rtComposeDescriptorSetLayout;
+            VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+            pipelineLayoutInfo.setLayoutCount = 0;
+            // pipelineLayoutInfo.pSetLayouts = &rtComposeDescriptorSetLayout;
             VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &rtComposePipelineLayout));
 
             // Create the pipeline
@@ -254,29 +253,24 @@ namespace RT64
     // Creates the ray tracing pipeline
     void Device::createRayTracingPipeline() {
 	    RT64_LOG_PRINTF("Raytracing pipeline creation started");
-        rtShaderGroups.clear();             // Clear the raytracing shader groups
         hitShaderCount = 0;
 
         // A vector for the shader stages
         std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
 
-        // Shader groups
-        VkRayTracingShaderGroupCreateInfoKHR group
-            {VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR};
-        group.anyHitShader = VK_SHADER_UNUSED_KHR;
-        group.closestHitShader = VK_SHADER_UNUSED_KHR;
-        group.generalShader = VK_SHADER_UNUSED_KHR;
-        group.intersectionShader = VK_SHADER_UNUSED_KHR;
-
 	    RT64_LOG_PRINTF("Loading the ray generation modules...");
 
         // Create the main shaders
         if (!mainRtShadersCreated) {
-            createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "PrimaryRayGen",    VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryRayGenStage,       primaryRayGenModule, nullptr);
-            createShaderModule(DirectRayGen_SPIRV,      sizeof(DirectRayGen_SPIRV),     "DirectRayGen",     VK_SHADER_STAGE_RAYGEN_BIT_KHR, directRayGenStage,        directRayGenModule, nullptr);
-            createShaderModule(IndirectRayGen_SPIRV,    sizeof(IndirectRayGen_SPIRV),   "IndirectRayGen",   VK_SHADER_STAGE_RAYGEN_BIT_KHR, indirectRayGenStage,      indirectRayGenModule, nullptr);
-            createShaderModule(ReflectionRayGen_SPIRV,  sizeof(ReflectionRayGen_SPIRV), "ReflectionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, reflectionRayGenStage,    reflectionRayGenModule, nullptr);
-            createShaderModule(RefractionRayGen_SPIRV,  sizeof(RefractionRayGen_SPIRV), "RefractionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, refractionRayGenStage,    refractionRayGenModule, nullptr);
+            // createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "PrimaryRayGen",    VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryRayGenStage,       primaryRayGenModule, nullptr);
+            // createShaderModule(DirectRayGen_SPIRV,      sizeof(DirectRayGen_SPIRV),     "DirectRayGen",     VK_SHADER_STAGE_RAYGEN_BIT_KHR, directRayGenStage,        directRayGenModule, nullptr);
+            // createShaderModule(IndirectRayGen_SPIRV,    sizeof(IndirectRayGen_SPIRV),   "IndirectRayGen",   VK_SHADER_STAGE_RAYGEN_BIT_KHR, indirectRayGenStage,      indirectRayGenModule, nullptr);
+            // createShaderModule(ReflectionRayGen_SPIRV,  sizeof(ReflectionRayGen_SPIRV), "ReflectionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, reflectionRayGenStage,    reflectionRayGenModule, nullptr);
+            // createShaderModule(RefractionRayGen_SPIRV,  sizeof(RefractionRayGen_SPIRV), "RefractionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, refractionRayGenStage,    refractionRayGenModule, nullptr);
+            // For testing purposes
+            createShaderModule(TestRayGen_SPIRV,     sizeof(TestRayGen_SPIRV),    "raygen",    VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryRayGenStage,       primaryRayGenModule, nullptr);
+            createShaderModule(TestRayGen_SPIRV,      sizeof(TestRayGen_SPIRV),     "anyhit",     VK_SHADER_STAGE_ANY_HIT_BIT_KHR, directRayGenStage,        directRayGenModule, nullptr);
+            createShaderModule(TestRayGen_SPIRV,    sizeof(TestRayGen_SPIRV),   "miss",   VK_SHADER_STAGE_MISS_BIT_KHR, indirectRayGenStage,      indirectRayGenModule, nullptr);
         }
         
         // Push the main shaders into the shader stages
@@ -284,45 +278,61 @@ namespace RT64
             shaderStages.push_back(primaryRayGenStage);
             shaderStages.push_back(directRayGenStage);
             shaderStages.push_back(indirectRayGenStage);
-            shaderStages.push_back(reflectionRayGenStage);
-            shaderStages.push_back(refractionRayGenStage);
+            // shaderStages.push_back(reflectionRayGenStage);
+            // shaderStages.push_back(refractionRayGenStage);
         }
 
 	    RT64_LOG_PRINTF("Loading the hit modules...");
         // Add the generated hit shaders to the shaderStages vector
-        for (Shader* s : shaders) {
-            if (s->hasHitGroups()) {
-                const Shader::HitGroup &surfaceHitGroup = s->getSurfaceHitGroup();
-                const Shader::HitGroup &shadowHitGroup = s->getShadowHitGroup();
-                shaderStages.push_back(surfaceHitGroup.shaderInfo);
-                shaderStages.push_back(shadowHitGroup.shaderInfo);
-                hitShaderCount += 2;
-            }
-        }
+        // for (Shader* s : shaders) {
+        //     if (s->hasHitGroups()) {
+        //         const Shader::HitGroup &surfaceHitGroup = s->getSurfaceHitGroup();
+        //         const Shader::HitGroup &shadowHitGroup = s->getShadowHitGroup();
+        //         shaderStages.push_back(surfaceHitGroup.shaderInfo);
+        //         shaderStages.push_back(shadowHitGroup.shaderInfo);
+        //         hitShaderCount += 2;
+        //     }
+        // }
 
 	    RT64_LOG_PRINTF("Grouping the shaders...");
+
+        // Shader groups
+        std::vector<VkRayTracingShaderGroupCreateInfoKHR> rtShaderGroups;
+        VkRayTracingShaderGroupCreateInfoKHR group
+            {VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_KHR};
+        group.anyHitShader = VK_SHADER_UNUSED_KHR;
+        group.closestHitShader = VK_SHADER_UNUSED_KHR;
+        group.generalShader = VK_SHADER_UNUSED_KHR;
+        group.intersectionShader = VK_SHADER_UNUSED_KHR;
 
         // Group the shaders
         group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
         group.generalShader = SHADER_INDEX(primaryRayGen);
         rtShaderGroups.push_back(group);
-        group.generalShader = SHADER_INDEX(directRayGen);
-        rtShaderGroups.push_back(group);
-        group.generalShader = SHADER_INDEX(indirectRayGen);
-        rtShaderGroups.push_back(group);
-        group.generalShader = SHADER_INDEX(reflectionRayGen);
-        rtShaderGroups.push_back(group);
-        group.generalShader = SHADER_INDEX(refractionRayGen);
-        rtShaderGroups.push_back(group);
+        // group.generalShader = SHADER_INDEX(directRayGen);
+        // rtShaderGroups.push_back(group);
+        // group.generalShader = SHADER_INDEX(indirectRayGen);
+        // rtShaderGroups.push_back(group);
+        // group.generalShader = SHADER_INDEX(reflectionRayGen);
+        // rtShaderGroups.push_back(group);
+        // group.generalShader = SHADER_INDEX(refractionRayGen);
+        // rtShaderGroups.push_back(group);
 
         group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_TRIANGLES_HIT_GROUP_KHR;
         group.generalShader = VK_SHADER_UNUSED_KHR;
-        for (int i = 0; i < shaders.size(); i++) {
-            group.anyHitShader = SHADER_INDEX(MAX) + i * 2;
-            rtShaderGroups.push_back(group);
-            group.anyHitShader = SHADER_INDEX(MAX) + i * 2 + 1;
-            rtShaderGroups.push_back(group);
-        }
+        // for (int i = 0; i < shaders.size(); i++) {
+        //     group.anyHitShader = SHADER_INDEX(MAX) + i * 2;
+        //     rtShaderGroups.push_back(group);
+        //     group.anyHitShader = SHADER_INDEX(MAX) + i * 2 + 1;
+        //     rtShaderGroups.push_back(group);
+        // }
+        // For testing purposes
+        group.anyHitShader = SHADER_INDEX(directRayGen);
+        rtShaderGroups.push_back(group);
+        group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
+        group.anyHitShader = VK_SHADER_UNUSED_KHR;
+        group.generalShader = SHADER_INDEX(indirectRayGen);
+        rtShaderGroups.push_back(group);
 
 	    RT64_LOG_PRINTF("Creating the RT descriptor set layouts and pools...");
         // A vector for the descriptor set layouts
@@ -335,6 +345,12 @@ namespace RT64
         
         // Push the main RT descriptor set layout into the layouts vector
         layouts.push_back(rtDescriptorSetLayout);
+        // for (int i = 0; i < shaders.size(); i++) {
+        //     if (shaders[i]->hasHitGroups()) {
+        //         layouts.push_back(shaders[i]->getSurfaceHitGroup().descriptorSetLayout);
+        //         layouts.push_back(shaders[i]->getShadowHitGroup().descriptorSetLayout);
+        //     }
+        // }
 
 	    RT64_LOG_PRINTF("Creating the RT pipeline...");
         // Create the pipeline layout create info
@@ -344,6 +360,9 @@ namespace RT64
         vkCreatePipelineLayout(vkDevice, &layoutInfo, nullptr, &rtPipelineLayout);
 
         // Assemble the shader stages and recursion depth info into the ray tracing pipeline
+        VkRayTracingPipelineInterfaceCreateInfoKHR interfaceInfo { VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_INTERFACE_CREATE_INFO_KHR };
+        interfaceInfo.maxPipelineRayHitAttributeSize = 2 * sizeof(float);
+        interfaceInfo.maxPipelineRayPayloadSize = 13 * sizeof(float);
         VkRayTracingPipelineCreateInfoKHR rayPipelineInfo{VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR};
         rayPipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());  // Stages are shaders
         rayPipelineInfo.pStages = shaderStages.data();
@@ -351,6 +370,7 @@ namespace RT64
         rayPipelineInfo.pGroups = rtShaderGroups.data();
         rayPipelineInfo.maxPipelineRayRecursionDepth = 1;       // Ray depth
         rayPipelineInfo.layout = rtPipelineLayout;
+        rayPipelineInfo.pLibraryInterface = &interfaceInfo;
         vkCreateRayTracingPipelinesKHR(vkDevice, {}, {}, 1, &rayPipelineInfo, nullptr, &rtPipeline);
 
 	    RT64_LOG_PRINTF("Raytracing pipeline created!");
@@ -360,43 +380,43 @@ namespace RT64
 		VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
         VkShaderStageFlags defaultStageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
-            {UAV_INDEX(gViewDirection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gShadingPosition) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gShadingNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gShadingSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gViewDirection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gShadingPosition) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gShadingNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gShadingSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
             {UAV_INDEX(gDiffuse) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gReflection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gRefraction) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gTransparent) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gReactiveMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gLockMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gPrevNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gPrevDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gPrevDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gPrevIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gFilteredDirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gFilteredIndirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gHitSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, defaultStageFlags, nullptr},
-            {UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gReflection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gRefraction) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gTransparent) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gReactiveMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gLockMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gPrevNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gPrevDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gPrevDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gPrevIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gFilteredDirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gFilteredIndirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gHitSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, defaultStageFlags, nullptr},
+            // {UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, defaultStageFlags, nullptr},
 
-            {SRV_INDEX(gBackground) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, defaultStageFlags, nullptr},
+            // {SRV_INDEX(gBackground) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, defaultStageFlags, nullptr},
             {SRV_INDEX(SceneBVH) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, defaultStageFlags, nullptr},
-		    {SRV_INDEX(vertexBuffer) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},
-		    {SRV_INDEX(indexBuffer) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},
-            {SRV_INDEX(SceneLights) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, defaultStageFlags, nullptr},
-            {SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, defaultStageFlags, nullptr},
-            {SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, defaultStageFlags, nullptr},
-            {SRV_INDEX(gBlueNoise) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, defaultStageFlags, nullptr},
-            {SRV_INDEX(gTextures) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX, defaultStageFlags, nullptr},
+		    // {SRV_INDEX(vertexBuffer) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, SRV_TEXTURES_MAX, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},
+		    // {SRV_INDEX(indexBuffer) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, SRV_TEXTURES_MAX, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},
+            // {SRV_INDEX(SceneLights) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, defaultStageFlags, nullptr},
+            // {SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, defaultStageFlags, nullptr},
+            // {SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, defaultStageFlags, nullptr},
+            // {SRV_INDEX(gBlueNoise) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, defaultStageFlags, nullptr},
+            // {SRV_INDEX(gTextures) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX, defaultStageFlags, nullptr},
 
             {CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, defaultStageFlags, nullptr},
             {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr},
@@ -441,9 +461,9 @@ namespace RT64
 
         if (rtStateDirty) {
             // Actually just make it run once.... for now
-            vkDestroyPipeline(vkDevice, rtPipeline, nullptr);
-            vkDestroyPipelineLayout(vkDevice, rtPipelineLayout, nullptr);
-            createRayTracingPipeline();
+            // vkDestroyPipeline(vkDevice, rtPipeline, nullptr);
+            // vkDestroyPipelineLayout(vkDevice, rtPipelineLayout, nullptr);
+            // createRayTracingPipeline();
             rtStateDirty = false;
         }
 

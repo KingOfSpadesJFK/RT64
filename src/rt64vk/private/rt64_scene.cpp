@@ -122,7 +122,7 @@ namespace RT64
             // lightsBuffer = getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, newSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
             getDevice()->allocateBuffer(
                 newSize,
-                VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                 VMA_MEMORY_USAGE_AUTO_PREFER_HOST, 
                 VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT, 
                 &lightsBuffer

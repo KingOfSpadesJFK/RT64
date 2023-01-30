@@ -2,10 +2,8 @@
 // RT64
 //
 
-void VSMain(            in uint id : SV_VertexID, 
-
-                        out float4 pos : SV_Position,
-    [[vk::location(0)]] out float2 uv : TEXCOORD0) 
+void VSMain(in uint id : SV_VertexID, 
+    out float4 pos : SV_Position, out float2 uv : TEXCOORD0) 
 {
     uv.x = (id << 1) & 2;
     uv.y = id & 2;

@@ -155,7 +155,6 @@ namespace RT64
             VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
             nvvk::RaytracingBuilderKHR rtBlasBuilder;
             nvvk::ResourceAllocatorDma rtAllocator;
-            std::vector<VkRayTracingShaderGroupCreateInfoKHR> rtShaderGroups;
             VkPipelineLayout rtPipelineLayout;
             VkPipeline rtPipeline;
             VkDescriptorSetLayout rtDescriptorSetLayout;
@@ -178,7 +177,7 @@ namespace RT64
             IDxcLibrary* d3dDxcLibrary;     // Bro thinks he's on the team  XDXDXDXDXDXD
 
             //***********************************************************
-            // The Shader Modules
+            // The Raygen Shaders
             VkShaderModule primaryRayGenModule;
             VkShaderModule directRayGenModule;
             VkShaderModule indirectRayGenModule;
@@ -194,7 +193,17 @@ namespace RT64
             VkPipelineShaderStageCreateInfo refractionRayGenStage   {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo composePSStage          {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo fullscreenVSStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-
+            // And pipelines
+            VkPipelineLayout primaryPipelineLayout;
+            VkPipelineLayout directPipelineLayout;
+            VkPipelineLayout indirectPipelineLayout;
+            VkPipelineLayout reflectionPipelineLayout;
+            VkPipelineLayout refractionPipelineLayout;
+            VkPipeline primaryPipeline;
+            VkPipeline directPipeline;
+            VkPipeline indirectPipeline;
+            VkPipeline reflectionPipeline;
+            VkPipeline refractionPipeline;
 #endif
 
             const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};

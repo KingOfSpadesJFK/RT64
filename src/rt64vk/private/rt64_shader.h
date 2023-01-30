@@ -40,6 +40,8 @@ namespace RT64 {
                 void* id = nullptr;
                 VkPipelineShaderStageCreateInfo shaderInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
                 VkShaderModule shaderModule;
+                VkPipeline pipeline;
+                VkPipelineLayout pipelineLayout;
                 VkDescriptorSetLayout descriptorSetLayout;
                 VkDescriptorPool descriptorPool;
                 VkDescriptorSet descriptorSet;
