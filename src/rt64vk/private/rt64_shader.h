@@ -25,8 +25,8 @@ namespace RT64 {
             struct RasterGroup {
                 VkPipelineShaderStageCreateInfo vertexInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
                 VkPipelineShaderStageCreateInfo fragmentInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-                VkShaderModule vertexModule;
-                VkShaderModule fragmentModule;
+                VkShaderModule vertexModule {};
+                VkShaderModule fragmentModule {};
                 VkPipeline pipeline;
                 VkPipelineLayout pipelineLayout;
                 VkDescriptorSetLayout descriptorSetLayout;
@@ -39,9 +39,7 @@ namespace RT64 {
             struct HitGroup {
                 void* id = nullptr;
                 VkPipelineShaderStageCreateInfo shaderInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-                VkShaderModule shaderModule;
-                VkPipeline pipeline;
-                VkPipelineLayout pipelineLayout;
+                VkShaderModule shaderModule {};
                 VkDescriptorSetLayout descriptorSetLayout;
                 VkDescriptorPool descriptorPool;
                 VkDescriptorSet descriptorSet;
@@ -52,9 +50,9 @@ namespace RT64 {
 
         private:
             Device* device;
-            RasterGroup rasterGroup;
-            HitGroup surfaceHitGroup;
-            HitGroup shadowHitGroup;
+            RasterGroup rasterGroup {};
+            HitGroup surfaceHitGroup {};
+            HitGroup shadowHitGroup {};
             uint32_t flags;
             bool descriptorBound = false;
             unsigned int samplerRegisterIndex = 0;
@@ -80,8 +78,8 @@ namespace RT64 {
             ~Shader();
             void updateDescriptorSet(VkWriteDescriptorSet* data, VkDeviceSize size);
             const RasterGroup& getRasterGroup() const;
-            HitGroup& getSurfaceHitGroup();
-            HitGroup& getShadowHitGroup();
+            HitGroup getSurfaceHitGroup();
+            HitGroup getShadowHitGroup();
             uint32_t getFlags() const;
             bool hasRasterGroup() const;
             bool hasHitGroups() const;

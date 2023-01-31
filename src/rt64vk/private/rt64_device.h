@@ -183,6 +183,8 @@ namespace RT64
             VkShaderModule indirectRayGenModule;
             VkShaderModule reflectionRayGenModule;
             VkShaderModule refractionRayGenModule;
+            VkShaderModule surfaceMissModule;
+            VkShaderModule shadowMissModule;
             VkShaderModule composePSModule;
             VkShaderModule fullscreenVSModule;
             // And their shader stage infos
@@ -191,6 +193,8 @@ namespace RT64
             VkPipelineShaderStageCreateInfo indirectRayGenStage     {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo reflectionRayGenStage   {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo refractionRayGenStage   {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo surfaceMissStage        {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo shadowMissStage         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo composePSStage          {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo fullscreenVSStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             // And pipelines

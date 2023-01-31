@@ -69,7 +69,7 @@ void PrimaryRayGen() {
 	payload.nhits = 0;
 	payload.rayDiff = rayDiff;
 
-	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 0, 0, ray, payload);
+	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 1, 0, ray, payload);
 
 	// Process hits.
 	float3 resPosition = float3(0.0f, 0.0f, 0.0f);
@@ -78,13 +78,14 @@ void PrimaryRayGen() {
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
 	float3 resTransparentLight = float3(0.0f, 0.0f, 0.0f);
 	bool resTransparentLightComputed = false;
-	float4 resColor = float4(0, 0, 0, 1);
+	float4 resColor = float4(1, 0, 0, 1);
 	float2 resFlow = (curBgPos - prevBgPos) * resolution.xy;
 	float resReactiveMask = 0.0f;
 	float resLockMask = 0.0f;
 	float resDepth = 1.0f;
 	int resInstanceId = -1;
 	for (uint hit = 0; hit < payload.nhits; hit++) {
+		resColor = float4(0, 0, 0, 1);
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
 		float4 hitColor = gHitColor[hitBufferIndex];
 		float alphaContrib = (resColor.a * hitColor.a);

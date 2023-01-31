@@ -329,14 +329,10 @@ namespace RT64
 		vkDestroyDescriptorPool(device->getVkDevice(), rasterGroup.descriptorPool, nullptr);
 
 		vkDestroyShaderModule(device->getVkDevice(), surfaceHitGroup.shaderModule, nullptr);
-		// vkDestroyPipeline(device->getVkDevice(), surfaceHitGroup.pipeline, nullptr);
-		// vkDestroyPipelineLayout(device->getVkDevice(), surfaceHitGroup.pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device->getVkDevice(), surfaceHitGroup.descriptorSetLayout, nullptr);
 		vkDestroyDescriptorPool(device->getVkDevice(), surfaceHitGroup.descriptorPool, nullptr);
 
 		vkDestroyShaderModule(device->getVkDevice(), shadowHitGroup.shaderModule, nullptr);
-		// vkDestroyPipeline(device->getVkDevice(), shadowHitGroup.pipeline, nullptr);
-		// vkDestroyPipelineLayout(device->getVkDevice(), shadowHitGroup.pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device->getVkDevice(), shadowHitGroup.descriptorSetLayout, nullptr);
 		vkDestroyDescriptorPool(device->getVkDevice(), shadowHitGroup.descriptorPool, nullptr);
 	}
@@ -652,8 +648,8 @@ namespace RT64
 			SS("    }");
 		}
 
-		SS("	float3 prevWorldPos = mul(instanceTransforms[instanceId].objectToWorldPrevious, float4(vertexPosition, 1.0f));");
-		SS("	float3 curWorldPos = mul(instanceTransforms[instanceId].objectToWorld, float4(vertexPosition, 1.0f));");
+		SS("	float3 prevWorldPos = mul(instanceTransforms[instanceId].objectToWorldPrevious, float4(vertexPosition, 1.0f)).xyz;");
+		SS("	float3 curWorldPos = mul(instanceTransforms[instanceId].objectToWorld, float4(vertexPosition, 1.0f)).xyz;");
 		SS("	float3 vertexFlow = curWorldPos - prevWorldPos;");
 		SS("    float3 vertexSpecular = float3(1.0f, 1.0f, 1.0f);");
 		if (vertexUV && specularMapEnabled) {
@@ -705,7 +701,7 @@ namespace RT64
 		// Compile shader.
 		std::string shaderCode = ss.str();
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", surfaceHitGroup.shaderInfo, surfaceHitGroup.shaderModule);
-		generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, true, surfaceHitGroup.descriptorSetLayout, surfaceHitGroup.descriptorPool, surfaceHitGroup.descriptorSet);
+		// generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, true, surfaceHitGroup.descriptorSetLayout, surfaceHitGroup.descriptorPool, surfaceHitGroup.descriptorSet);
 		surfaceHitGroup.hitGroupName = hitGroupName;
 		surfaceHitGroup.closestHitName = closestHitName;
 		surfaceHitGroup.anyHitName = anyHitName;
@@ -788,7 +784,7 @@ namespace RT64
 		// Compile shader.
 		std::string shaderCode = ss.str();
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", shadowHitGroup.shaderInfo, shadowHitGroup.shaderModule);
-		generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, false, shadowHitGroup.descriptorSetLayout, shadowHitGroup.descriptorPool, shadowHitGroup.descriptorSet);
+		// generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, false, shadowHitGroup.descriptorSetLayout, shadowHitGroup.descriptorPool, shadowHitGroup.descriptorSet);
 		shadowHitGroup.hitGroupName = hitGroupName;
 		shadowHitGroup.closestHitName = closestHitName;
 		shadowHitGroup.anyHitName = anyHitName;
@@ -835,6 +831,7 @@ namespace RT64
 	void Shader::compileShaderCode(const std::string& shaderCode, VkShaderStageFlagBits stage, const std::string& entryName, const std::wstring& profile, VkPipelineShaderStageCreateInfo& shaderStage, VkShaderModule& shaderModule) {
 #ifndef NDEBUG
 		fprintf(stdout, "Compiling...\n\n%s\n", shaderCode.c_str());
+		printf("\n____________________________________________\n");
 #endif
 		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> stringConverter;		// Because DXC required wstrings for some reason
 		IDxcBlob* dxcBlob;
@@ -916,11 +913,11 @@ namespace RT64
 		return uniqueID;
 	}
 
-// Public
+	// Public
 	const Shader::RasterGroup& RT64::Shader::getRasterGroup() const { return rasterGroup; }
 	bool Shader::hasRasterGroup() const { return (rasterGroup.vertexModule != nullptr) || (rasterGroup.fragmentModule != nullptr); }
-	Shader::HitGroup& Shader::getSurfaceHitGroup() { return surfaceHitGroup; }
-	Shader::HitGroup& Shader::getShadowHitGroup() { return shadowHitGroup; }
+	Shader::HitGroup Shader::getSurfaceHitGroup() { return surfaceHitGroup; }
+	Shader::HitGroup Shader::getShadowHitGroup() { return shadowHitGroup; }
 	bool Shader::hasHitGroups() const { return (surfaceHitGroup.shaderModule != nullptr) || (shadowHitGroup.shaderModule != nullptr); }
 	uint32_t Shader::getFlags() const { return flags; }
 	unsigned int Shader::getSamplerRegisterIndex() const { return samplerRegisterIndex; }

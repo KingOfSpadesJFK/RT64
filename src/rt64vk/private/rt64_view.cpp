@@ -371,6 +371,13 @@ namespace RT64
         globalParamsData.giDiffuseStrength = desc.giDiffuseStrength;
         globalParamsData.giSkyStrength = desc.giSkyStrength;
 
+        #define RADIUS 10.0f
+        #define YOFF 2.0f
+        // glm::vec3 eye = glm::vec3(sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS);
+        // globalParamsData.view = glm::lookAt(eye, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        // globalParamsData.projection = glm::perspective(glm::radians(45.0f), (float)this->scene->getDevice()->getAspectRatio(), 0.1f, 1000.0f);
+        // globalParamsData.projection[1][1] *= -1;
+
         // Previous and current view and projection matrices and their inverse.
         if (perspectiveCanReproject) {
             globalParamsData.prevViewI = globalParamsData.viewI;
@@ -389,8 +396,6 @@ namespace RT64
         // Pinhole camera vectors to generate non-normalized ray direction.
         // TODO: Make a fake target and focal distance at the midpoint of the near/far planes
         // until the game sends that data in some way in the future.
-        #define RADIUS 10.0f
-        #define YOFF 2.0f
         const float FocalDistance = (nearDist + farDist) / 2.0f;
         const float AspectRatio = scene->getDevice()->getAspectRatio();
         const RT64_VECTOR3 Up = { 0.0f, 1.0f, 0.0f };
@@ -502,58 +507,58 @@ namespace RT64
             VkDescriptorSet& descriptorSet = device->getRTDescriptorSet();
             // The "UAVs"
             VkWriteDescriptorSet write {};
-            // descriptorWrites.push_back(rtViewDirection.generateDescriptorWrite(1, UAV_INDEX(gViewDirection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtShadingPosition.generateDescriptorWrite(1, UAV_INDEX(gShadingPosition) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtShadingNormal.generateDescriptorWrite(1, UAV_INDEX(gShadingNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtShadingSpecular.generateDescriptorWrite(1, UAV_INDEX(gShadingSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtViewDirection.generateDescriptorWrite(1, UAV_INDEX(gViewDirection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtShadingPosition.generateDescriptorWrite(1, UAV_INDEX(gShadingPosition) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtShadingNormal.generateDescriptorWrite(1, UAV_INDEX(gShadingNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtShadingSpecular.generateDescriptorWrite(1, UAV_INDEX(gShadingSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtDiffuse.generateDescriptorWrite(1, UAV_INDEX(gDiffuse) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtInstanceId.generateDescriptorWrite(1, UAV_INDEX(gInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtDirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtReflection.generateDescriptorWrite(1, UAV_INDEX(gReflection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtRefraction.generateDescriptorWrite(1, UAV_INDEX(gRefraction) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtTransparent.generateDescriptorWrite(1, UAV_INDEX(gTransparent) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtFlow.generateDescriptorWrite(1, UAV_INDEX(gFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtReactiveMask.generateDescriptorWrite(1, UAV_INDEX(gReactiveMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtLockMask.generateDescriptorWrite(1, UAV_INDEX(gLockMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtNormal[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtDepth[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtNormal[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtDepth[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtDirectLightAccum[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, UAV_INDEX(gFilteredDirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, UAV_INDEX(gFilteredIndirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtHitDistAndFlow.generateDescriptorWrite(1, UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
-            // descriptorWrites.push_back(rtHitColor.generateDescriptorWrite(1, UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
-            // descriptorWrites.push_back(rtHitNormal.generateDescriptorWrite(1, UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
-            // descriptorWrites.push_back(rtHitSpecular.generateDescriptorWrite(1, UAV_INDEX(gHitSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
-            // descriptorWrites.push_back(rtHitInstanceId.generateDescriptorWrite(1, UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtInstanceId.generateDescriptorWrite(1, UAV_INDEX(gInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtReflection.generateDescriptorWrite(1, UAV_INDEX(gReflection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtRefraction.generateDescriptorWrite(1, UAV_INDEX(gRefraction) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtTransparent.generateDescriptorWrite(1, UAV_INDEX(gTransparent) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFlow.generateDescriptorWrite(1, UAV_INDEX(gFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtReactiveMask.generateDescriptorWrite(1, UAV_INDEX(gReactiveMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtLockMask.generateDescriptorWrite(1, UAV_INDEX(gLockMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtNormal[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDepth[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtNormal[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDepth[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDirectLightAccum[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, UAV_INDEX(gFilteredDirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, UAV_INDEX(gFilteredIndirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtHitDistAndFlow.generateDescriptorWrite(1, UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtHitColor.generateDescriptorWrite(1, UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtHitNormal.generateDescriptorWrite(1, UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtHitSpecular.generateDescriptorWrite(1, UAV_INDEX(gHitSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtHitInstanceId.generateDescriptorWrite(1, UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
             
             // The "SRVs"
-            // descriptorWrites.push_back(rasterBg.generateDescriptorWrite(1, SRV_INDEX(gBackground) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rasterBg.generateDescriptorWrite(1, SRV_INDEX(gBackground) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
 
             // The vertex and index buffers
-            // VkWriteDescriptorSet meshWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-            // std::vector<VkDescriptorBufferInfo> mesh_infos;
-            // for (RenderInstance r : rtInstances) {
-            //     mesh_infos.push_back(r.instance->getMesh()->getVertexBuffer().getDescriptorInfo());
-            // }
-            // meshWrite.descriptorCount = mesh_infos.size();
-            // meshWrite.dstBinding = SRV_INDEX(vertexBuffer) + SRV_SHIFT;
-            // meshWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            // meshWrite.pBufferInfo = mesh_infos.data();
-            // meshWrite.dstSet = descriptorSet;
-            // descriptorWrites.push_back(meshWrite);
-            // mesh_infos.clear();
+            VkWriteDescriptorSet meshWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            std::vector<VkDescriptorBufferInfo> mesh_infos;
+            for (RenderInstance r : rtInstances) {
+                mesh_infos.push_back(r.instance->getMesh()->getVertexBuffer().getDescriptorInfo());
+            }
+            meshWrite.descriptorCount = mesh_infos.size();
+            meshWrite.dstBinding = SRV_INDEX(vertexBuffer) + SRV_SHIFT;
+            meshWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
+            meshWrite.pBufferInfo = mesh_infos.data();
+            meshWrite.dstSet = descriptorSet;
+            descriptorWrites.push_back(meshWrite);
+            mesh_infos.clear();
 
-            // for (RenderInstance r : rtInstances) {
-            //     mesh_infos.push_back(r.instance->getMesh()->getIndexBuffer().getDescriptorInfo());
-            // }
-            // meshWrite.descriptorCount = mesh_infos.size();
-            // meshWrite.dstBinding = SRV_INDEX(indexBuffer) + SRV_SHIFT;
-            // meshWrite.pBufferInfo = mesh_infos.data();
-            // descriptorWrites.push_back(meshWrite);
+            for (RenderInstance r : rtInstances) {
+                mesh_infos.push_back(r.instance->getMesh()->getIndexBuffer().getDescriptorInfo());
+            }
+            meshWrite.descriptorCount = mesh_infos.size();
+            meshWrite.dstBinding = SRV_INDEX(indexBuffer) + SRV_SHIFT;
+            meshWrite.pBufferInfo = mesh_infos.data();
+            descriptorWrites.push_back(meshWrite);
 
             // The top level AS
             VkWriteDescriptorSet tlasWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
@@ -569,40 +574,40 @@ namespace RT64
             tlasWrite.dstSet = descriptorSet;
             descriptorWrites.push_back(tlasWrite);
 
-            // if (scene->getLightsCount() > 0) {
-            //     descriptorWrites.push_back(scene->getLightsBuffer().generateDescriptorWrite(1, SRV_INDEX(SceneLights) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
-            // }
-            // descriptorWrites.push_back(activeInstancesBufferTransforms.generateDescriptorWrite(1, SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
-            // descriptorWrites.push_back(activeInstancesBufferMaterials.generateDescriptorWrite(1, SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
-            // descriptorWrites.push_back(device->getBlueNoise()->getTexture().generateDescriptorWrite(1, SRV_INDEX(gBlueNoise) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            if (scene->getLightsCount() > 0) {
+                descriptorWrites.push_back(scene->getLightsBuffer().generateDescriptorWrite(1, SRV_INDEX(SceneLights) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
+            }
+            descriptorWrites.push_back(activeInstancesBufferTransforms.generateDescriptorWrite(1, SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
+            descriptorWrites.push_back(activeInstancesBufferMaterials.generateDescriptorWrite(1, SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
+            descriptorWrites.push_back(device->getBlueNoise()->getTexture().generateDescriptorWrite(1, SRV_INDEX(gBlueNoise) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             
             // Add the textures
-            // VkWriteDescriptorSet textureWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-            // std::vector<VkDescriptorImageInfo> texture_infos;
-            // texture_infos.resize(usedTextures.size());
-            // for (int i = 0; i < usedTextures.size(); i++) {
-            //     texture_infos[i] = usedTextures[i]->getTexture().getDescriptorInfo();
-            //     usedTextures[i]->setCurrentIndex(-1);
-            // }
-            // textureWrite.descriptorCount = texture_infos.size();
-            // textureWrite.dstBinding = SRV_INDEX(gTextures) + SRV_SHIFT;
-            // textureWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-            // textureWrite.pImageInfo = texture_infos.data();
-            // textureWrite.dstSet = descriptorSet;
-            // descriptorWrites.push_back(textureWrite);
+            VkWriteDescriptorSet textureWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            std::vector<VkDescriptorImageInfo> texture_infos;
+            texture_infos.resize(usedTextures.size());
+            for (int i = 0; i < usedTextures.size(); i++) {
+                texture_infos[i] = usedTextures[i]->getTexture().getDescriptorInfo();
+                usedTextures[i]->setCurrentIndex(-1);
+            }
+            textureWrite.descriptorCount = texture_infos.size();
+            textureWrite.dstBinding = SRV_INDEX(gTextures) + SRV_SHIFT;
+            textureWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            textureWrite.pImageInfo = texture_infos.data();
+            textureWrite.dstSet = descriptorSet;
+            descriptorWrites.push_back(textureWrite);
 
             // Add the background sampler
-            // VkDescriptorImageInfo samplerInfo { };
-            // samplerInfo.sampler = device->getComposeSampler();
-            // VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-            // samplerWrite.descriptorCount = 1;
-            // samplerWrite.dstSet = descriptorSet;
-            // samplerWrite.dstBinding = 0 + SAMPLER_SHIFT;
-            // samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-            // samplerWrite.pImageInfo = &samplerInfo;
-            // descriptorWrites.push_back(samplerWrite);
-            // samplerWrite.dstBinding = 1 + SAMPLER_SHIFT;
-            // descriptorWrites.push_back(samplerWrite);
+            VkDescriptorImageInfo samplerInfo { };
+            samplerInfo.sampler = device->getComposeSampler();
+            VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+            samplerWrite.descriptorCount = 1;
+            samplerWrite.dstSet = descriptorSet;
+            samplerWrite.dstBinding = 0 + SAMPLER_SHIFT;
+            samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+            samplerWrite.pImageInfo = &samplerInfo;
+            descriptorWrites.push_back(samplerWrite);
+            samplerWrite.dstBinding = 1 + SAMPLER_SHIFT;
+            descriptorWrites.push_back(samplerWrite);
 
             // Add the globalParamsBuffer
             descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
@@ -788,8 +793,8 @@ namespace RT64
     //  From nvpro-samples
     void View::createShaderBindingTable() {
         VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties = device->getRTProperties();
-        unsigned int missCount = 1;                                                 // How many miss shaders we have
-        unsigned int hitCount = 1;                        // How many hit shaders we have
+        unsigned int missCount = 2;                                                 // How many miss shaders we have
+        unsigned int hitCount = device->getHitShaderCount();                        // How many hit shaders we have
         unsigned int raygenCount = 1;
         unsigned int handleCount = raygenCount + missCount + hitCount;        // How many rt shaders in total we have
         unsigned int handleSize = rtProperties.shaderGroupHandleSize;
@@ -841,6 +846,7 @@ namespace RT64
         // indirectRayGenRegion.deviceAddress = directRayGenRegion.deviceAddress + directRayGenRegion.size;
         // reflectionRayGenRegion.deviceAddress = indirectRayGenRegion.deviceAddress + indirectRayGenRegion.size;
         // refractionRayGenRegion.deviceAddress = reflectionRayGenRegion.deviceAddress + reflectionRayGenRegion.size;
+        // missRegion.deviceAddress = refractionRayGenRegion.deviceAddress + refractionRayGenRegion.size;
         missRegion.deviceAddress = primaryRayGenRegion.deviceAddress + primaryRayGenRegion.size;
         hitRegion.deviceAddress = missRegion.deviceAddress + missRegion.size;
 
@@ -991,14 +997,14 @@ namespace RT64
             // Make sure the images are usable
             AllocatedImage* primaryTranslation[] = {
                 &rtDiffuse,
-                // &rtInstanceId,
-                // &rtReflection,
-                // &rtRefraction,
-                // &rtTransparent,
-                // &rtFlow,
-                // &rtReactiveMask,
-                // &rtLockMask,
-                // &rtDepth[rtSwap ? 1 : 0]
+                &rtInstanceId,
+                &rtReflection,
+                &rtRefraction,
+                &rtTransparent,
+                &rtFlow,
+                &rtReactiveMask,
+                &rtLockMask,
+                &rtDepth[rtSwap ? 1 : 0]
             };
             device->transitionImageLayout(primaryTranslation, sizeof(primaryTranslation) / sizeof(AllocatedImage*), 
                 VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, 
@@ -1073,13 +1079,13 @@ namespace RT64
         
 	    // Barriers for shading buffers after rays are finished.
         AllocatedImage* postDispatchBarriers[] = {
-            // &rtOutput[rtSwap ? 1 : 0],
+            &rtOutput[rtSwap ? 1 : 0],
             &rtDiffuse,
-            // &rtDirectLightAccum[rtSwap ? 1 : 0],
-            // &rtIndirectLightAccum[rtSwap ? 1 : 0],
-            // &rtReflection,
-            // &rtRefraction,
-            // &rtTransparent
+            &rtDirectLightAccum[rtSwap ? 1 : 0],
+            &rtIndirectLightAccum[rtSwap ? 1 : 0],
+            &rtReflection,
+            &rtRefraction,
+            &rtTransparent
         };
         device->transitionImageLayout(postDispatchBarriers, sizeof(postDispatchBarriers) / sizeof(AllocatedImage*), 
             VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
@@ -1135,20 +1141,20 @@ namespace RT64
             &rtNormal[rtSwap ? 1 : 0],
             &rtDepth[rtSwap ? 1 : 0]
         };
-        // device->transitionImageLayout(postRTBarriers, sizeof(postRTBarriers) / sizeof(AllocatedImage*), 
-        //     VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
-        //     VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_NONE, 
-        //     VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
-        //     &commandBuffer);
+        device->transitionImageLayout(postRTBarriers, sizeof(postRTBarriers) / sizeof(AllocatedImage*), 
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
+            VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_NONE, 
+            VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
+            &commandBuffer);
 
         AllocatedImage* postFragBarriers[] = {
-            // &rtOutput[rtSwap ? 1 : 0],
+            &rtOutput[rtSwap ? 1 : 0],
             &rtDiffuse,
-            // &rtDirectLightAccum[rtSwap ? 1 : 0],
-            // &rtIndirectLightAccum[rtSwap ? 1 : 0],
-            // &rtReflection,
-            // &rtRefraction,
-            // &rtTransparent
+            &rtDirectLightAccum[rtSwap ? 1 : 0],
+            &rtIndirectLightAccum[rtSwap ? 1 : 0],
+            &rtReflection,
+            &rtRefraction,
+            &rtTransparent
         };
         device->transitionImageLayout(postFragBarriers, sizeof(postFragBarriers) / sizeof(AllocatedImage*), 
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,

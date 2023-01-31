@@ -21,7 +21,6 @@ void raygen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	uint2 launchDims = DispatchRaysDimensions().xy;
 	float2 d = (((launchIndex.xy + 0.5f + pixelJitter) / float2(launchDims)) * 2.f - 1.f);
-	float3 nonNormRayDir = d.x * cameraU.xyz + d.y * cameraV.xyz + cameraW.xyz;
 	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
 	float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
 	float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;

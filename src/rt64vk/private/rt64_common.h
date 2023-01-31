@@ -88,10 +88,14 @@ namespace RT64 {
     enum ShaderIndices
     {
         primaryRayGen,
-        directRayGen,
-        indirectRayGen,
-        reflectionRayGen,
-        refractionRayGen,
+        // directRayGen,
+        // indirectRayGen,
+        // reflectionRayGen,
+        // refractionRayGen,
+        // refractionRayGen,
+        // refractionRayGen,
+		surfaceMiss,
+		shadowMiss,
         MAX
     };
 
