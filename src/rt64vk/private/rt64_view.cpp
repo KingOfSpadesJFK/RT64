@@ -148,15 +148,15 @@ namespace RT64
         // Create the hit buffers
         uint64_t hitCountBufferSizeOne = rtWidth * rtHeight;
         uint64_t hitCountBufferSizeAll = hitCountBufferSizeOne * MAX_QUERIES;
-        device->allocateBuffer( hitCountBufferSizeAll * 16, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+        device->allocateBuffer( hitCountBufferSizeAll * 16, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
             &rtHitDistAndFlow );
-        device->allocateBuffer( hitCountBufferSizeAll * 4, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+        device->allocateBuffer( hitCountBufferSizeAll * 4, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
             &rtHitColor );
-        device->allocateBuffer( hitCountBufferSizeAll * 8, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+        device->allocateBuffer( hitCountBufferSizeAll * 8, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
             &rtHitNormal );
-        device->allocateBuffer( hitCountBufferSizeAll * 4, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+        device->allocateBuffer( hitCountBufferSizeAll * 4, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
             &rtHitSpecular );
-        device->allocateBuffer( hitCountBufferSizeAll * 2, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
+        device->allocateBuffer( hitCountBufferSizeAll * 2, VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT | VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags,
             &rtHitInstanceId );
         
         // Now transition every image into a new layout
@@ -191,10 +191,19 @@ namespace RT64
             // &rtOutputUpscaled,
         };
         device->transitionImageLayout(transRightsBitch, sizeof(transRightsBitch) / sizeof(AllocatedImage*), 
-            VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, 
-            VK_ACCESS_NONE, VK_ACCESS_NONE, 
+            VK_IMAGE_LAYOUT_GENERAL, 
+            VK_ACCESS_NONE, 
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
             nullptr);
+
+        // Memory barrier for the hit buffers
+        VkCommandBuffer* cmd = device->beginSingleTimeCommands();
+        device->bufferMemoryBarrier(rtHitDistAndFlow, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, cmd);
+        device->bufferMemoryBarrier(rtHitColor, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, cmd);
+        device->bufferMemoryBarrier(rtHitNormal, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, cmd);
+        device->bufferMemoryBarrier(rtHitSpecular, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, cmd);
+        device->bufferMemoryBarrier(rtHitInstanceId, VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, cmd);
+        device->endSingleTimeCommands(cmd);
 
 #ifndef NDEBUG
         rasterBg.setAllocationName("rasterBg");
@@ -233,7 +242,7 @@ namespace RT64
         rtHitInstanceId.setAllocationName("rtHitInstanceId");
         // rtOutputUpscaled.setAllocationName("rtOutputUpscaled");
 #endif
-        // Create the image views
+        // Create the image/buffer views
         rasterBg.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtOutput[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtOutput[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -373,10 +382,10 @@ namespace RT64
 
         #define RADIUS 10.0f
         #define YOFF 2.0f
-        // glm::vec3 eye = glm::vec3(sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS);
-        // globalParamsData.view = glm::lookAt(eye, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        // globalParamsData.projection = glm::perspective(glm::radians(45.0f), (float)this->scene->getDevice()->getAspectRatio(), 0.1f, 1000.0f);
-        // globalParamsData.projection[1][1] *= -1;
+        glm::vec3 eye = glm::vec3(sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS);
+        globalParamsData.view = glm::lookAt(eye, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        globalParamsData.projection = glm::perspective(glm::radians(45.0f), (float)this->scene->getDevice()->getAspectRatio(), 0.1f, 1000.0f);
+        globalParamsData.projection[1][1] *= -1;
 
         // Previous and current view and projection matrices and their inverse.
         if (perspectiveCanReproject) {
@@ -396,24 +405,24 @@ namespace RT64
         // Pinhole camera vectors to generate non-normalized ray direction.
         // TODO: Make a fake target and focal distance at the midpoint of the near/far planes
         // until the game sends that data in some way in the future.
-        const float FocalDistance = (nearDist + farDist) / 2.0f;
-        const float AspectRatio = scene->getDevice()->getAspectRatio();
-        const RT64_VECTOR3 Up = { 0.0f, 1.0f, 0.0f };
-        // const RT64_VECTOR3 Pos = getViewPosition();
+        // const float FocalDistance = (nearDist + farDist) / 2.0f;
+        // const float AspectRatio = scene->getDevice()->getAspectRatio();
+        // const RT64_VECTOR3 Up = { 0.0f, 1.0f, 0.0f };
+        // // const RT64_VECTOR3 Pos = getViewPosition();
+        // // const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
+        // const glm::vec4 PosGLM = glm::vec4{sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS, 1.0f} * globalParamsData.viewI;
+        // const RT64_VECTOR3 Pos = {PosGLM.x, PosGLM.y, PosGLM.z};
         // const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
-        const glm::vec4 PosGLM = glm::vec4{sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS, 1.0f} * globalParamsData.viewI;
-        const RT64_VECTOR3 Pos = {PosGLM.x, PosGLM.y, PosGLM.z};
-        const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
-        RT64_VECTOR3 cameraW = Normalize(Target - Pos) * FocalDistance;
-        RT64_VECTOR3 cameraU = Normalize(Cross(cameraW, Up));
-        RT64_VECTOR3 cameraV = Normalize(Cross(cameraU, cameraW));
-        const float ulen = FocalDistance * std::tan(fovRadians * 0.5f) * AspectRatio;
-        const float vlen = FocalDistance * std::tan(fovRadians * 0.5f);
-        cameraU = cameraU * ulen;
-        cameraV = cameraV * vlen;
-        globalParamsData.cameraU = ToVector4(cameraU, 0.0f);
-        globalParamsData.cameraV = ToVector4(cameraV, 0.0f);
-        globalParamsData.cameraW = ToVector4(cameraW, 0.0f);
+        // RT64_VECTOR3 cameraW = Normalize(Target - Pos) * FocalDistance;
+        // RT64_VECTOR3 cameraU = Normalize(Cross(cameraW, Up));
+        // RT64_VECTOR3 cameraV = Normalize(Cross(cameraU, cameraW));
+        // const float ulen = FocalDistance * std::tan(fovRadians * 0.5f) * AspectRatio;
+        // const float vlen = FocalDistance * std::tan(fovRadians * 0.5f);
+        // cameraU = cameraU * ulen;
+        // cameraV = cameraV * vlen;
+        // globalParamsData.cameraU = ToVector4(cameraU, 0.0f);
+        // globalParamsData.cameraV = ToVector4(cameraV, 0.0f);
+        // globalParamsData.cameraW = ToVector4(cameraW, 0.0f);
 
         globalParamsBuffer.setData(&globalParamsData, sizeof(globalParamsData));
     }
@@ -478,7 +487,7 @@ namespace RT64
 
     void View::updateInstanceMaterialsBuffer() {
         RT64_MATERIAL* current = nullptr;
-        activeInstancesBufferMaterials.mapMemory(reinterpret_cast<void**>(&current));
+        void* pData = activeInstancesBufferMaterials.mapMemory(reinterpret_cast<void**>(&current));
 
         for (const RenderInstance& inst : rtInstances) {
             *current = inst.material;
@@ -504,7 +513,7 @@ namespace RT64
 
         // Update the descriptor sets for the raytracing pipeline
         {
-            VkDescriptorSet& descriptorSet = device->getRTDescriptorSet();
+            VkDescriptorSet& descriptorSet = device->getRayGenDescriptorSet();
             // The "UAVs"
             VkWriteDescriptorSet write {};
             descriptorWrites.push_back(rtViewDirection.generateDescriptorWrite(1, UAV_INDEX(gViewDirection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
@@ -795,7 +804,7 @@ namespace RT64
         VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties = device->getRTProperties();
         unsigned int missCount = 2;                                                 // How many miss shaders we have
         unsigned int hitCount = device->getHitShaderCount();                        // How many hit shaders we have
-        unsigned int raygenCount = 1;
+        unsigned int raygenCount = SHADER_INDEX(surfaceMiss);
         unsigned int handleCount = raygenCount + missCount + hitCount;        // How many rt shaders in total we have
         unsigned int handleSize = rtProperties.shaderGroupHandleSize;
         // The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
@@ -1007,15 +1016,15 @@ namespace RT64
                 &rtDepth[rtSwap ? 1 : 0]
             };
             device->transitionImageLayout(primaryTranslation, sizeof(primaryTranslation) / sizeof(AllocatedImage*), 
-                VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, 
-                VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT, 
+                VK_IMAGE_LAYOUT_GENERAL, 
+                VK_ACCESS_SHADER_WRITE_BIT, 
                 VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 
                 &commandBuffer);
 
             // Bind pipeline and dispatch primary rays.
 		    RT64_LOG_PRINTF("Dispatching primary rays");
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipeline());
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipelineLayout(), 0, 1, &device->getRTDescriptorSet(), 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipelineLayout(), 0, 1, &device->getRayGenDescriptorSet(), 0, nullptr);
             vkCmdTraceRaysKHR(commandBuffer, &primaryRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 
 	    	// Barriers for shading buffers before dispatching secondary rays.
@@ -1029,18 +1038,18 @@ namespace RT64
             //     &rtNormal[rtSwap ? 1 : 0]
             // };
             // device->transitionImageLayout(shadingBarriers, sizeof(shadingBarriers) / sizeof(AllocatedImage*), 
-            //     VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_GENERAL, 
-            //     VK_ACCESS_NONE, VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT, 
+            //     VK_IMAGE_LAYOUT_GENERAL, 
+            //     VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT, 
             //     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 
             //     &commandBuffer);
 
     		// // Store the first bounce instance Id.
             // device->transitionImageLayout(rtInstanceId, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            //     VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,  VK_ACCESS_TRANSFER_READ_BIT,
+            //     VK_ACCESS_TRANSFER_READ_BIT,
             //     VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,  VK_PIPELINE_STAGE_TRANSFER_BIT,
             //     &commandBuffer);
             // device->transitionImageLayout(rtFirstInstanceId, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            //     VK_ACCESS_NONE,  VK_ACCESS_TRANSFER_WRITE_BIT,
+            //     VK_ACCESS_TRANSFER_WRITE_BIT,
             //     VK_PIPELINE_STAGE_NONE,  VK_PIPELINE_STAGE_TRANSFER_BIT,
             //     &commandBuffer);
             // device->copyImage(rtInstanceId, rtFirstInstanceId, rtInstanceId.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
@@ -1055,7 +1064,7 @@ namespace RT64
             // vkWaitForFences(device->getVkDevice(), 1, &device->getCurrentFence(), VK_TRUE, UINT64_MAX);
 
             // device->transitionImageLayout(rtInstanceId, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-            //     VK_ACCESS_TRANSFER_WRITE_BIT,  VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+            //     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
             //     VK_PIPELINE_STAGE_TRANSFER_BIT,  VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
             //     &commandBuffer);
             
@@ -1088,8 +1097,8 @@ namespace RT64
             &rtTransparent
         };
         device->transitionImageLayout(postDispatchBarriers, sizeof(postDispatchBarriers) / sizeof(AllocatedImage*), 
-            VK_IMAGE_LAYOUT_GENERAL, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-            VK_ACCESS_SHADER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, 
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+            VK_ACCESS_SHADER_READ_BIT, 
             VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
             &commandBuffer);
 
@@ -1142,8 +1151,8 @@ namespace RT64
             &rtDepth[rtSwap ? 1 : 0]
         };
         device->transitionImageLayout(postRTBarriers, sizeof(postRTBarriers) / sizeof(AllocatedImage*), 
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
-            VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_NONE, 
+            VK_IMAGE_LAYOUT_GENERAL,
+            VK_ACCESS_NONE, 
             VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
             &commandBuffer);
 
@@ -1157,8 +1166,8 @@ namespace RT64
             &rtTransparent
         };
         device->transitionImageLayout(postFragBarriers, sizeof(postFragBarriers) / sizeof(AllocatedImage*), 
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, VK_IMAGE_LAYOUT_GENERAL,
-            VK_ACCESS_SHADER_READ_BIT, VK_ACCESS_NONE, 
+            VK_IMAGE_LAYOUT_GENERAL,
+            VK_ACCESS_NONE, 
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
             &commandBuffer);
             

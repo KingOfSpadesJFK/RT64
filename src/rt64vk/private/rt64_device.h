@@ -157,9 +157,11 @@ namespace RT64
             nvvk::ResourceAllocatorDma rtAllocator;
             VkPipelineLayout rtPipelineLayout;
             VkPipeline rtPipeline;
-            VkDescriptorSetLayout rtDescriptorSetLayout;
-            VkDescriptorPool rtDescriptorPool;
-            VkDescriptorSet rtDescriptorSet;
+            VkDescriptorSetLayout raygenDescriptorSetLayout;
+            std::vector<VkDescriptorSetLayout> rtDescriptorSetLayouts;
+            std::vector<VkDescriptorSet> rtDescriptorSets;
+            VkDescriptorPool raygenDescriptorPool;
+            VkDescriptorSet raygenDescriptorSet;
             VkPipelineLayout rtComposePipelineLayout;
             VkPipeline rtComposePipeline;
             VkDescriptorSetLayout rtComposeDescriptorSetLayout;
@@ -168,7 +170,10 @@ namespace RT64
 
             uint32_t currentFrame = 0;
             uint32_t framebufferIndex = 0;
+            uint32_t overallShaderCount = 0;
+            uint32_t rasterShaderCount = 0;
             uint32_t hitShaderCount = 0;
+            uint32_t firstShaderNullSpot = 0;
 
             VkViewport vkViewport;
             VkRect2D vkScissorRect;
@@ -254,13 +259,14 @@ namespace RT64
             VkPhysicalDeviceRayTracingPipelinePropertiesKHR getRTProperties() const;
             VkPipeline& getRTPipeline();
             VkPipelineLayout& getRTPipelineLayout();
-            VkDescriptorSet& getRTDescriptorSet();
+            VkDescriptorSet& getRayGenDescriptorSet();
             VkPipeline& getComposePipeline();
             VkPipelineLayout& getComposePipelineLayout();
             VkDescriptorSet& getComposeDescriptorSet();
             VkSampler& getComposeSampler();
             Texture* getBlueNoise() const;
             uint32_t getHitShaderCount() const;
+            uint32_t getRasterShaderCount() const;
             VkFence& getCurrentFence();
             // Shader getters
             VkPipelineShaderStageCreateInfo getPrimaryShaderStage() const;
@@ -282,8 +288,9 @@ namespace RT64
             void copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size, VkCommandBuffer* commandBuffer);
             void copyImage(AllocatedImage& src, AllocatedImage& dest, VkExtent3D dimensions, VkImageAspectFlags srcFlags, VkImageAspectFlags destFlags, VkCommandBuffer* commandBuffer);
             void matchLayoutToAccessMask(VkImageLayout inLayout, VkAccessFlags& outMask);
-            void transitionImageLayout(AllocatedImage& image, VkImageLayout newLayout, VkAccessFlags oldMask, VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer);
-            void transitionImageLayout(AllocatedImage** images, uint32_t imageCount, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags oldMask, VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer);
+            void bufferMemoryBarrier(AllocatedBuffer& buffer, VkAccessFlags newMask, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer);
+            void transitionImageLayout(AllocatedImage& image, VkImageLayout newLayout, VkAccessFlags newMask, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer);
+            void transitionImageLayout(AllocatedImage** images, uint32_t imageCount, VkImageLayout newLayout, VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer);
             void copyBufferToImage(VkBuffer buffer, VkImage image, uint32_t width, uint32_t height, VkCommandBuffer* commandBuffer);
             VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
             VkBufferView createBufferView(VkBuffer& buffer, VkFormat format, VkBufferViewCreateFlags flags, VkDeviceSize size);

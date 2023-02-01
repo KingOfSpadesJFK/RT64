@@ -23,6 +23,7 @@ namespace RT64 {
             };
 
             struct RasterGroup {
+                uint32_t id = 0;
                 VkPipelineShaderStageCreateInfo vertexInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
                 VkPipelineShaderStageCreateInfo fragmentInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
                 VkShaderModule vertexModule {};
@@ -37,7 +38,7 @@ namespace RT64 {
             };
 
             struct HitGroup {
-                void* id = nullptr;
+                uint32_t id = 0;
                 VkPipelineShaderStageCreateInfo shaderInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
                 VkShaderModule shaderModule {};
                 VkDescriptorSetLayout descriptorSetLayout;
@@ -56,7 +57,7 @@ namespace RT64 {
             uint32_t flags;
             bool descriptorBound = false;
             unsigned int samplerRegisterIndex = 0;
-
+            
             unsigned int uniqueSamplerRegisterIndex(Filter filter, AddressingMode hAddr, AddressingMode vAddr);
             void generateRasterGroup(unsigned int shaderId, 
                 Filter filter, 
@@ -83,6 +84,7 @@ namespace RT64 {
             uint32_t getFlags() const;
             bool hasRasterGroup() const;
             bool hasHitGroups() const;
+            uint32_t  hitGroupCount() const;
             bool isDescriptorBound() const;
             unsigned int getSamplerRegisterIndex() const;
         };

@@ -251,7 +251,6 @@ namespace RT64
     // Creates the ray tracing pipeline
     void Device::createRayTracingPipeline() {
 	    RT64_LOG_PRINTF("Raytracing pipeline creation started");
-        hitShaderCount = 0;
 
         // A vector for the shader stages
         std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
@@ -284,10 +283,8 @@ namespace RT64
             if (s->hasHitGroups()) {
                 Shader::HitGroup surfaceHitGroup = s->getSurfaceHitGroup();
                 shaderStages.push_back(surfaceHitGroup.shaderInfo);
-                hitShaderCount++;
                 Shader::HitGroup shadowHitGroup = s->getShadowHitGroup();
                 shaderStages.push_back(shadowHitGroup.shaderInfo);
-                hitShaderCount++;
             }
         }
 
@@ -328,7 +325,6 @@ namespace RT64
         
 	    RT64_LOG_PRINTF("Creating the RT descriptor set layouts and pools...");
         // A vector for the descriptor set layouts
-        std::vector<VkDescriptorSetLayout> layouts;
         if (!mainRtShadersCreated) {
             // Don't create the descriptor layout and pool if this already happend
             generateRayTracingDescriptorSetLayout();
@@ -336,25 +332,30 @@ namespace RT64
         }
         
         // Push the main RT descriptor set layout into the layouts vector
-        layouts.push_back(rtDescriptorSetLayout);
-        // for (int i = 0; i < shaders.size(); i++) {
-        //     if (shaders[i]->hasHitGroups()) {
-        //         layouts.push_back(shaders[i]->getSurfaceHitGroup().descriptorSetLayout);
-        //         layouts.push_back(shaders[i]->getShadowHitGroup().descriptorSetLayout);
-        //     }
-        // }
+        rtDescriptorSets.clear();
+        rtDescriptorSetLayouts.clear();
+        rtDescriptorSetLayouts.push_back(raygenDescriptorSetLayout);
+        rtDescriptorSets.push_back(raygenDescriptorSet);
+        for (Shader* s : shaders) {
+            if (s->hasHitGroups()) {
+                rtDescriptorSetLayouts.push_back(s->getSurfaceHitGroup().descriptorSetLayout);
+                rtDescriptorSetLayouts.push_back(s->getShadowHitGroup().descriptorSetLayout);
+                rtDescriptorSets.push_back(s->getSurfaceHitGroup().descriptorSet);
+                rtDescriptorSets.push_back(s->getShadowHitGroup().descriptorSet);
+            }
+        }
 
 	    RT64_LOG_PRINTF("Creating the RT pipeline...");
         // Create the pipeline layout create info
         VkPipelineLayoutCreateInfo layoutInfo {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-        layoutInfo.setLayoutCount = layouts.size();
-        layoutInfo.pSetLayouts = layouts.data();
+        layoutInfo.setLayoutCount = rtDescriptorSetLayouts.size();
+        layoutInfo.pSetLayouts = rtDescriptorSetLayouts.data();
         vkCreatePipelineLayout(vkDevice, &layoutInfo, nullptr, &rtPipelineLayout);
 
         // Assemble the shader stages and recursion depth info into the ray tracing pipeline
-        VkRayTracingPipelineInterfaceCreateInfoKHR interfaceInfo { VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_INTERFACE_CREATE_INFO_KHR };
-        interfaceInfo.maxPipelineRayHitAttributeSize = 2 * sizeof(float);
-        interfaceInfo.maxPipelineRayPayloadSize = 13 * sizeof(float);
+        // VkRayTracingPipelineInterfaceCreateInfoKHR interfaceInfo { VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_INTERFACE_CREATE_INFO_KHR };
+        // interfaceInfo.maxPipelineRayHitAttributeSize = 2 * sizeof(float);
+        // interfaceInfo.maxPipelineRayPayloadSize = 13 * sizeof(float);
         VkRayTracingPipelineCreateInfoKHR rayPipelineInfo{VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR};
         rayPipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());  // Stages are shaders
         rayPipelineInfo.pStages = shaderStages.data();
@@ -362,7 +363,7 @@ namespace RT64
         rayPipelineInfo.pGroups = rtShaderGroups.data();
         rayPipelineInfo.maxPipelineRayRecursionDepth = 1;       // Ray depth
         rayPipelineInfo.layout = rtPipelineLayout;
-        rayPipelineInfo.pLibraryInterface = &interfaceInfo;
+        // rayPipelineInfo.pLibraryInterface = &interfaceInfo;
         vkCreateRayTracingPipelinesKHR(vkDevice, {}, {}, 1, &rayPipelineInfo, nullptr, &rtPipeline);
 
 	    RT64_LOG_PRINTF("Raytracing pipeline created!");
@@ -415,7 +416,7 @@ namespace RT64
             {1 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr}
         };
 
-		allocateDescriptorSet(bindings, flags, rtDescriptorSetLayout, rtDescriptorPool, rtDescriptorSet);
+		allocateDescriptorSet(bindings, flags, raygenDescriptorSetLayout, raygenDescriptorPool, raygenDescriptorSet);
     }
 
     /*
@@ -452,7 +453,6 @@ namespace RT64
         RT64_LOG_PRINTF("Device drawing started");
 
         if (rtStateDirty) {
-            // Actually just make it run once.... for now
             vkDestroyPipeline(vkDevice, rtPipeline, nullptr);
             vkDestroyPipelineLayout(vkDevice, rtPipelineLayout, nullptr);
             createRayTracingPipeline();
@@ -1258,7 +1258,7 @@ namespace RT64
     IDxcLibrary* Device::getDxcLibrary() { return d3dDxcLibrary; }
     VkPipeline& Device::getRTPipeline() { return rtPipeline; }
     VkPipelineLayout& Device::getRTPipelineLayout() { return rtPipelineLayout; }
-    VkDescriptorSet& Device::getRTDescriptorSet() { return rtDescriptorSet; }
+    VkDescriptorSet& Device::getRayGenDescriptorSet() { return raygenDescriptorSet; }
     VkPipeline& Device::getComposePipeline() { return rtComposePipeline; }
     VkPipelineLayout& Device::getComposePipelineLayout() { return rtComposePipelineLayout; }
     VkDescriptorSet& Device::getComposeDescriptorSet() { return rtComposeDescriptorSet; }
@@ -1266,6 +1266,7 @@ namespace RT64
     Texture* Device::getBlueNoise() const { return blueNoise; }
     VkSampler& Device::getComposeSampler() { return composeSampler; }
     uint32_t Device::getHitShaderCount() const { return hitShaderCount; }
+    uint32_t Device::getRasterShaderCount() const { return rasterShaderCount; }
     VkFence& Device::getCurrentFence() { return inFlightFences[currentFrame]; }
 
     // Shader getters
@@ -1318,18 +1319,51 @@ namespace RT64
     // Adds a scene to the device
     void Device::addShader(Shader* shader) {
         assert(shader != nullptr);
-        if (shader->hasHitGroups()) {
+        if (shaders.size() > 0 && shaders[firstShaderNullSpot] == nullptr) {
+            shaders[firstShaderNullSpot] = shader;
+            for (int i = firstShaderNullSpot+1; i < shaders.size(); i++) {
+                if (shaders[i] == nullptr) {
+                    firstShaderNullSpot = i;
+                    break;
+                }
+            }
+        } else {
             shaders.push_back(shader);
+        }
+
+        if (shader->hasHitGroups()) {
+            hitShaderCount += shader->hitGroupCount();
+            overallShaderCount += shader->hitGroupCount();
             rtStateDirty = true;
+        }
+        if (shader->hasRasterGroup()) {
+            overallShaderCount++;
+            rasterShaderCount++;
         }
     }
 
     // Removes a shader from the device
     void Device::removeShader(Shader* shader) {
-        assert(shader != nullptr);
+        assert(shader != nullptr && shaders.size() > 0 );
+        if (shaders[shaders.size()-1] == shader) {
+            shaders.pop_back();
+        } else {
+            for (int i = 0; i < shaders.size(); i++) {
+                if (shaders[i] == shader) {
+                    shaders[i] = nullptr;
+                    firstShaderNullSpot = i;
+                    break;
+                }
+            }
+        }
+
         if (shader->hasHitGroups()) {
-            shaders.erase(std::remove(shaders.begin(), shaders.end(), shader), shaders.end());
+            hitShaderCount -= shader->hitGroupCount();
             rtStateDirty = true;
+        }
+        if (shader->hasRasterGroup()) {
+            overallShaderCount--;
+            rasterShaderCount--;
         }
     }
 
@@ -1492,10 +1526,35 @@ namespace RT64
 
     }
 
+    // Creates a memory barrior for the allocated buffer. Gives it new access flags and pipeline stage
+    //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
+    //  Otherwise, it would create a new command buffer just for this
+    void Device::bufferMemoryBarrier(AllocatedBuffer& buffer, VkAccessFlags newMask, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer) {
+        bool oneTime = !commandBuffer;
+        if (!commandBuffer) {
+            commandBuffer = beginSingleTimeCommands();
+        }
+        
+        VkBufferMemoryBarrier barrier { VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER };
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.srcAccessMask = buffer.getAccessFlags();
+        barrier.dstAccessMask = newMask;
+        barrier.buffer = buffer.getBuffer();
+        barrier.size = buffer.getSize();
+        barrier.offset = 0;
+
+        buffer.memoryBarrier(barrier, newStage, commandBuffer);
+
+        if (oneTime) {
+            endSingleTimeCommands(commandBuffer);
+        }
+    }
+
     // Turns the layout of one image into another
     //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
     //  Otherwise, it would create a new command buffer just for this
-    void Device::transitionImageLayout(AllocatedImage& image, VkImageLayout newLayout, VkAccessFlags oldMask,  VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer) {
+    void Device::transitionImageLayout(AllocatedImage& image, VkImageLayout newLayout, VkAccessFlags newMask, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer) {
         bool oneTime = !commandBuffer;
         if (!commandBuffer) {
             commandBuffer = beginSingleTimeCommands();
@@ -1530,7 +1589,7 @@ namespace RT64
     // Turns multiple images of one layout into another
     //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
     //  Otherwise, it would create a new command buffer just for this
-    void Device::transitionImageLayout(AllocatedImage** images, uint32_t imageCount, VkImageLayout oldLayout, VkImageLayout newLayout, VkAccessFlags oldMask, VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer) {
+    void Device::transitionImageLayout(AllocatedImage** images, uint32_t imageCount, VkImageLayout newLayout, VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer) {
         bool oneTime = !commandBuffer;
         if (!commandBuffer) {
             commandBuffer = beginSingleTimeCommands();
@@ -1632,6 +1691,7 @@ namespace RT64
     }
 
     // Begin the use of a command buffer that runs temporarily
+    // Returns the pointer to the new command buffer
     VkCommandBuffer* Device::beginSingleTimeCommands() { return beginSingleTimeCommands(nullptr); }
     // Begin the use of the passed in command buffer that runs temporarily
     VkCommandBuffer* Device::beginSingleTimeCommands(VkCommandBuffer* commandBuffer) {

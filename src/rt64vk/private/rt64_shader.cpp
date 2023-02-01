@@ -430,6 +430,7 @@ namespace RT64
 		std::string shaderCode = ss.str();
 		rasterGroup.pixelShaderName = pixelShaderName;
 		rasterGroup.vertexShaderName = vertexShaderName;
+		rasterGroup.id = device->getRasterShaderCount();
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_VERTEX_BIT, vertexShaderName, L"vs_6_3", rasterGroup.vertexInfo, rasterGroup.vertexModule);
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_FRAGMENT_BIT, pixelShaderName, L"ps_6_3", rasterGroup.fragmentInfo, rasterGroup.fragmentModule);
 		generateRasterDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, rasterGroup.descriptorSetLayout, rasterGroup.descriptorPool, rasterGroup.descriptorSet);
@@ -577,7 +578,7 @@ namespace RT64
 		}
 
 		SS("[shader(\"anyhit\")]");
-		SS("void " + anyHitName + "(inout HitInfo payload, Attributes attrib) {");
+		SS("void " + anyHitName + "(inout HitInfo payload : SV_RayPayload, in Attributes attrib) {");
 		SS("    uint instanceId = InstanceIndex();");
 		SS("    uint triangleIndex = PrimitiveIndex();");
 		SS("    float3 barycentrics = float3((1.0f - attrib.bary.x - attrib.bary.y), attrib.bary.x, attrib.bary.y);");
@@ -613,18 +614,19 @@ namespace RT64
 		SS("    resultColor.rgb = lerp(resultColor.rgb, diffuseColorMix.rgb, max(diffuseColorMix.a, 0.0f));");
 
 		// Apply the solid alpha multiplier.
-		SS("    resultColor.a = clamp(instanceMaterials[instanceId].solidAlphaMultiplier * resultColor.a, 0.0f, 1.0f);");
+		// SS("    resultColor.a = clamp(instanceMaterials[instanceId].solidAlphaMultiplier * resultColor.a, 0.0f, 1.0f);");
+		SS("    resultColor.a = 1.0f;");
 
-	#ifdef TEXTURE_EDGE_ENABLED
-		if (cc.opt_texture_edge) {
-			SS("    if (resultColor.a > 0.3f) {");
-			SS("      resultColor.a = 1.0f;");
-			SS("    }");
-			SS("    else {");
-			SS("      IgnoreHit();");
-			SS("    }");
-		}
-	#endif
+#ifdef TEXTURE_EDGE_ENABLED
+		// if (cc.opt_texture_edge) {
+		// 	SS("    if (resultColor.a > 0.3f) {");
+		// 	SS("      resultColor.a = 1.0f;");
+		// 	SS("    }");
+		// 	SS("    else {");
+		// 	SS("      IgnoreHit();");
+		// 	SS("    }");
+		// }
+#endif
 
 		if (cc.opt_noise) {
 			SS("    uint seed = initRand(DispatchRaysIndex().x + DispatchRaysIndex().y * DispatchRaysDimensions().x, frameCount, 16);");
@@ -635,37 +637,37 @@ namespace RT64
 		SS("float normalSign = (dot(triangleNormal, WorldRayDirection()) <= 0.0f) ? 1.0f : -1.0f;");
 		SS("vertexNormal *= normalSign;");
 		
-		if (vertexUV && normalMapEnabled) {
-			SS("    vertexTangent = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexTangent, 0.f)).xyz) * normalSign;");
-			SS("    vertexBinormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexBinormal, 0.f)).xyz) * normalSign;");
-			SS("    int normalTexIndex = instanceMaterials[instanceId].normalTexIndex;");
-			SS("    if (normalTexIndex >= 0) {");
-			SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
-			SS("        float3 normalColor = gTextures[NonUniformResourceIndex(normalTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).xyz;");
-			SS("        normalColor = (normalColor * 2.0f) - 1.0f;");
-			SS("        float3 newNormal = normalize(vertexNormal * normalColor.z + vertexTangent * normalColor.x + vertexBinormal * normalColor.y);");
-			SS("        vertexNormal = newNormal;");
-			SS("    }");
-		}
+		// if (vertexUV && normalMapEnabled) {
+		// 	SS("    vertexTangent = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexTangent, 0.f)).xyz) * normalSign;");
+		// 	SS("    vertexBinormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexBinormal, 0.f)).xyz) * normalSign;");
+		// 	SS("    int normalTexIndex = instanceMaterials[instanceId].normalTexIndex;");
+		// 	SS("    if (normalTexIndex >= 0) {");
+		// 	SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
+		// 	SS("        float3 normalColor = gTextures[NonUniformResourceIndex(normalTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).xyz;");
+		// 	SS("        normalColor = (normalColor * 2.0f) - 1.0f;");
+		// 	SS("        float3 newNormal = normalize(vertexNormal * normalColor.z + vertexTangent * normalColor.x + vertexBinormal * normalColor.y);");
+		// 	SS("        vertexNormal = newNormal;");
+		// 	SS("    }");
+		// }
 
 		SS("	float3 prevWorldPos = mul(instanceTransforms[instanceId].objectToWorldPrevious, float4(vertexPosition, 1.0f)).xyz;");
 		SS("	float3 curWorldPos = mul(instanceTransforms[instanceId].objectToWorld, float4(vertexPosition, 1.0f)).xyz;");
 		SS("	float3 vertexFlow = curWorldPos - prevWorldPos;");
 		SS("    float3 vertexSpecular = float3(1.0f, 1.0f, 1.0f);");
-		if (vertexUV && specularMapEnabled) {
-			SS("    int specularTexIndex = instanceMaterials[instanceId].specularTexIndex;");
-			SS("    if (specularTexIndex >= 0) {");
-			SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
-			SS("        vertexSpecular = gTextures[NonUniformResourceIndex(specularTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).rgb;");
-			SS("    }");
-		}
+		// if (vertexUV && specularMapEnabled) {
+		// 	SS("    int specularTexIndex = instanceMaterials[instanceId].specularTexIndex;");
+		// 	SS("    if (specularTexIndex >= 0) {");
+		// 	SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
+		// 	SS("        vertexSpecular = gTextures[NonUniformResourceIndex(specularTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).rgb;");
+		// 	SS("    }");
+		// }
 
 		SS("    uint2 pixelIdx = DispatchRaysIndex().xy;");
 		SS("    uint2 pixelDims = DispatchRaysDimensions().xy;");
 		SS("    uint hitStride = pixelDims.x * pixelDims.y;");
 
-		// HACK: Add some bias for the comparison based on the instance ID so coplanar surfaces are friendlier with each other.
-		// This can likely be implemented as an instance property at some point to control depth sorting.
+	// 	// HACK: Add some bias for the comparison based on the instance ID so coplanar surfaces are friendlier with each other.
+	// 	// This can likely be implemented as an instance property at some point to control depth sorting.
 		SS("    float tval = WithDistanceBias(RayTCurrent(), instanceId);");
 		SS("    uint hi = getHitBufferIndex(min(payload.nhits, MAX_HIT_QUERIES), pixelIdx, pixelDims);");
 		SS("    uint minHi = getHitBufferIndex(0, pixelIdx, pixelDims);");
@@ -680,31 +682,31 @@ namespace RT64
 		SS("        lo -= hitStride;");
 		SS("    }");
 		SS("    uint hitPos = hi / hitStride;");
-		SS("    if (hitPos < MAX_HIT_QUERIES) {");
-		SS("        gHitDistAndFlow[hi] = float4(tval, vertexFlow);");
-		SS("        gHitColor[hi] = resultColor;");
-		SS("        gHitNormal[hi] = float4(vertexNormal, 1.0f);");
-		SS("        gHitSpecular[hi] = float4(vertexSpecular, 1.0f);");
-		SS("        gHitInstanceId[hi] = instanceId;");
-		SS("        ++payload.nhits;");
-		SS("        if (hitPos != MAX_HIT_QUERIES - 1) {");
-		SS("            IgnoreHit();");
-		SS("        }");
-		SS("    }");
-		SS("    else {");
-		SS("        IgnoreHit();");
+		SS("    if (hitPos >= MAX_HIT_QUERIES) {");
+		SS("    	IgnoreHit();");
+		SS("    } else {");
+		SS("    	gHitDistAndFlow[hi] = float4(tval, vertexFlow);");
+		SS("    	gHitColor[hi] = resultColor;");
+		SS("    	gHitNormal[hi] = float4(vertexNormal, 1.0f);");
+		SS("    	gHitSpecular[hi] = float4(vertexSpecular, 1.0f);");
+		SS("    	gHitInstanceId[hi] = instanceId;");
+		SS("    	++payload.nhits;");
+		SS("    	if (hitPos != MAX_HIT_QUERIES - 1) {");
+		SS("    		IgnoreHit();");
+		SS("		}");
 		SS("    }");
 		SS("}");
 		SS("[shader(\"closesthit\")]");
-		SS("void " + closestHitName + "(inout HitInfo payload, Attributes attrib) { }");
+		SS("void " + closestHitName + "(inout HitInfo payload : SV_RayPayload, in Attributes attrib) { }");
 
 		// Compile shader.
 		std::string shaderCode = ss.str();
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", surfaceHitGroup.shaderInfo, surfaceHitGroup.shaderModule);
-		// generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, true, surfaceHitGroup.descriptorSetLayout, surfaceHitGroup.descriptorPool, surfaceHitGroup.descriptorSet);
+		generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, true, surfaceHitGroup.descriptorSetLayout, surfaceHitGroup.descriptorPool, surfaceHitGroup.descriptorSet);
 		surfaceHitGroup.hitGroupName = hitGroupName;
 		surfaceHitGroup.closestHitName = closestHitName;
 		surfaceHitGroup.anyHitName = anyHitName;
+		surfaceHitGroup.id = device->getHitShaderCount();
 		surfaceHitGroup.shaderInfo.pName = surfaceHitGroup.anyHitName.c_str();
 	}
 
@@ -726,7 +728,7 @@ namespace RT64
 		}
 		
 		SS("[shader(\"anyhit\")]");
-		SS("void " + anyHitName + "(inout ShadowHitInfo payload, Attributes attrib) {");
+		SS("void " + anyHitName + "(inout ShadowHitInfo payload : SV_RayPayload, in Attributes attrib) {");
 		if (cc.opt_alpha) {
 			SS("    uint instanceId = InstanceIndex();");
 			SS("    uint triangleIndex = PrimitiveIndex();");
@@ -779,15 +781,16 @@ namespace RT64
 		}
 		SS("}");
 		SS("[shader(\"closesthit\")]");
-		SS("void " + closestHitName + "(inout ShadowHitInfo payload, Attributes attrib) { }");
+		SS("void " + closestHitName + "(inout ShadowHitInfo payload : SV_RayPayload, in Attributes attrib) { }");
 
 		// Compile shader.
 		std::string shaderCode = ss.str();
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", shadowHitGroup.shaderInfo, shadowHitGroup.shaderModule);
-		// generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, false, shadowHitGroup.descriptorSetLayout, shadowHitGroup.descriptorPool, shadowHitGroup.descriptorSet);
+		generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, false, shadowHitGroup.descriptorSetLayout, shadowHitGroup.descriptorPool, shadowHitGroup.descriptorSet);
 		shadowHitGroup.hitGroupName = hitGroupName;
 		shadowHitGroup.closestHitName = closestHitName;
 		shadowHitGroup.anyHitName = anyHitName;
+		shadowHitGroup.id = device->getHitShaderCount() + 1;
 		shadowHitGroup.shaderInfo.pName = shadowHitGroup.anyHitName.c_str();
 	}
 
@@ -863,8 +866,6 @@ namespace RT64
 		arguments.push_back(__cbv_shift);
 		arguments.push_back(L"0");
 		arguments.push_back(L"-Qstrip_debug");
-		// Can't do this in SPIR-V
-		// arguments.push_back(L"-Qstrip_reflect");		
 
 		IDxcOperationResult *result = nullptr;
 		D3D12_CHECK(device->getDxcCompiler()->Compile(textBlob, L"", stringConverter.from_bytes(entryName).c_str(), profile.c_str(), arguments.data(), (UINT32)(arguments.size()), nullptr, 0, nullptr, &result));
@@ -919,6 +920,7 @@ namespace RT64
 	Shader::HitGroup Shader::getSurfaceHitGroup() { return surfaceHitGroup; }
 	Shader::HitGroup Shader::getShadowHitGroup() { return shadowHitGroup; }
 	bool Shader::hasHitGroups() const { return (surfaceHitGroup.shaderModule != nullptr) || (shadowHitGroup.shaderModule != nullptr); }
+	uint32_t Shader::hitGroupCount() const { return (surfaceHitGroup.shaderModule != nullptr) + (shadowHitGroup.shaderModule != nullptr); };
 	uint32_t Shader::getFlags() const { return flags; }
 	unsigned int Shader::getSamplerRegisterIndex() const { return samplerRegisterIndex; }
 

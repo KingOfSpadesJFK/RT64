@@ -68,13 +68,13 @@ namespace RT64 {
         VkCommandBuffer* commandBuffer = nullptr;
         commandBuffer = device->beginSingleTimeCommands(commandBuffer);
         device->transitionImageLayout(texture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
-            VK_ACCESS_NONE, VK_ACCESS_TRANSFER_WRITE_BIT, 
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 
+            VK_ACCESS_TRANSFER_WRITE_BIT, 
+            VK_PIPELINE_STAGE_TRANSFER_BIT, 
             commandBuffer);
         device->copyBufferToImage(stagingTexture.getBuffer(), texture.getImage(), static_cast<uint32_t>(width), static_cast<uint32_t>(height), commandBuffer);
         device->transitionImageLayout(texture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-        VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_SHADER_READ_BIT, 
-        VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+        VK_ACCESS_SHADER_READ_BIT, 
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
         commandBuffer);
         device->endSingleTimeCommands(commandBuffer);
         

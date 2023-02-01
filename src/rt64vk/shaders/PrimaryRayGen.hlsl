@@ -37,7 +37,6 @@ void PrimaryRayGen() {
 	float4 target = mul(projectionI, float4(d.x, -d.y, 1, 1));
 	float3 rayOrigin = mul(viewI, float4(0, 0, 0, 1)).xyz;
 	float3 rayDirection = mul(viewI, float4(target.xyz, 0)).xyz;
-	printf("We gon be alright %f", rayOrigin.x);
 
 	// Initialize the buffers.
 	gViewDirection[launchIndex] = float4(rayDirection, 0.0f);
@@ -78,7 +77,7 @@ void PrimaryRayGen() {
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
 	float3 resTransparentLight = float3(0.0f, 0.0f, 0.0f);
 	bool resTransparentLightComputed = false;
-	float4 resColor = float4(1, 0, 0, 1);
+	float4 resColor = float4(0.25, 0.4, 0.6, 1);
 	float2 resFlow = (curBgPos - prevBgPos) * resolution.xy;
 	float resReactiveMask = 0.0f;
 	float resLockMask = 0.0f;

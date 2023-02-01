@@ -249,6 +249,8 @@ namespace RT64 {
 			VkDescriptorBufferInfo descriptorInfo {};
 			VkFormat viewFormat = VK_FORMAT_UNDEFINED;
 			bool bufferViewCreated = false;
+			VkAccessFlags accessMask = VK_ACCESS_NONE;
+			VkPipelineStageFlags pipelineStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 			
 		public:
 			AllocatedBuffer() { }
@@ -336,6 +338,36 @@ namespace RT64 {
 				createInfo.range = size;
 				vkCreateBufferView(allocatorInfo.device, &createInfo, nullptr, &bufferView);
 				bufferViewCreated = true;
+			}
+
+			void memoryBarrier(VkBufferMemoryBarrier barrier, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer) {
+				vkCmdPipelineBarrier(*commandBuffer, 
+					pipelineStage, newStage, 
+					0, 
+					0, nullptr, 
+					1, &barrier, 
+					0, nullptr
+				);
+				pipelineStage = newStage;
+				accessMask = barrier.dstAccessMask;
+			}
+
+			VkAccessFlags getAccessFlags() const { return accessMask; }
+			VkDeviceSize getSize() const { return size; }
+
+			static void memoryBarrier(AllocatedBuffer* buffers, uint32_t bufferCount, std::vector<VkBufferMemoryBarrier> barriers, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer) {
+				vkCmdPipelineBarrier(*commandBuffer, 
+					oldStage, newStage, 
+					0, 
+					0, nullptr, 
+					barriers.size(), barriers.data(), 
+					0, nullptr
+				);
+
+				for (int i = 0; i < bufferCount; i++) {
+					buffers[i].accessMask = barriers[i].dstAccessMask;
+					buffers[i].pipelineStage = newStage;
+				}
 			}
 		};
 
