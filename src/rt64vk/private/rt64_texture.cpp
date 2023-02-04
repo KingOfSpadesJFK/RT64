@@ -102,17 +102,19 @@ namespace RT64 {
     int Texture::getCurrentIndex() const { return currentIndex; }
     int Texture::getWidth() { return width; }
     int Texture::getHeight() { return height; }
+    void Texture::setName(const char* newName) { name = newName; }
 };
 
 // Library exports
 
-DLEXPORT RT64_TEXTURE *RT64_CreateTexture(RT64_DEVICE *devicePtr, RT64_TEXTURE_DESC textureDesc) {
+DLEXPORT RT64_TEXTURE* RT64_CreateTexture(RT64_DEVICE *devicePtr, RT64_TEXTURE_DESC textureDesc) {
 	assert(devicePtr != nullptr);
-	RT64::Device *device = (RT64::Device *)(devicePtr);
-	RT64::Texture *texture = new RT64::Texture(device);
+	RT64::Device* device = (RT64::Device *)(devicePtr);
+	RT64::Texture* texture = new RT64::Texture(device);
 
 	// Try to load the texture data.
 	try {
+        texture->setName(textureDesc.name);
 		switch (textureDesc.format) {
 		case RT64_TEXTURE_FORMAT_RGBA8:
 			texture->setRGBA8(textureDesc.bytes, textureDesc.byteCount, textureDesc.width, textureDesc.height, textureDesc.rowPitch, true);
@@ -122,7 +124,7 @@ DLEXPORT RT64_TEXTURE *RT64_CreateTexture(RT64_DEVICE *devicePtr, RT64_TEXTURE_D
 		// 	break;
 		}
 
-		return (RT64_TEXTURE *)(texture);
+		return (RT64_TEXTURE*)(texture);
 	}
 	RT64_CATCH_EXCEPTION();
 
@@ -130,8 +132,8 @@ DLEXPORT RT64_TEXTURE *RT64_CreateTexture(RT64_DEVICE *devicePtr, RT64_TEXTURE_D
 	return nullptr;
 }
 
-DLEXPORT void RT64_DestroyTexture(RT64_TEXTURE *texturePtr) {
-	delete (RT64::Texture *)(texturePtr);
+DLEXPORT void RT64_DestroyTexture(RT64_TEXTURE* texturePtr) {
+	delete (RT64::Texture*)(texturePtr);
 }
 
 #endif

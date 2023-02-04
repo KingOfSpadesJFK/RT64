@@ -21,6 +21,7 @@
 #include <nvvk/context_vk.hpp>
 #include <nvvk/raytraceKHR_vk.hpp>
 #include <nvvk/resourceallocator_vk.hpp>
+#include <unordered_map>
 
 #ifdef _WIN32
     #define VK_USE_PLATFORM_WIN32_KHR
@@ -260,6 +261,7 @@ namespace RT64
             VkPipeline& getRTPipeline();
             VkPipelineLayout& getRTPipelineLayout();
             VkDescriptorSet& getRayGenDescriptorSet();
+            std::vector<VkDescriptorSet>& getRTDescriptorSets();
             VkPipeline& getComposePipeline();
             VkPipelineLayout& getComposePipelineLayout();
             VkDescriptorSet& getComposeDescriptorSet();
@@ -308,6 +310,9 @@ namespace RT64
             void createShaderModule(const void* code, size_t size, const char* entryName, VkShaderStageFlagBits stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, VkShaderModule& shader, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
             void initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder);
             void allocateDescriptorSet(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet);
+            uint32_t getFirstAvailableHitDescriptorSetIndex() const;
+            uint32_t getFirstAvailableHitShaderID() const;
+            uint32_t getFirstAvailableRasterShaderID() const;
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }

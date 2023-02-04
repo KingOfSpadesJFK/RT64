@@ -98,18 +98,21 @@ struct VertexLayout {
 };
 
 void incMeshBuffers(std::stringstream &ss) {
-	SS("ByteAddressBuffer vertexBuffers[512] : register(t2);");
-	SS("ByteAddressBuffer indexBuffers[512] : register(t3);");
+	SS("[[vk::shader_record_ext]] cbuffer sbtData {");
+	SS("	uint64_t vertexBuffer;");
+	SS("	uint64_t indexBuffer;")
+	SS("};");
+
 }
 
 void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal, bool vertexUV, int inputCount, bool useAlpha, bool vertexBinormalAndTangent) {
 	VertexLayout vl(vertexPosition, vertexNormal, vertexUV, inputCount, useAlpha);
 
-	SS("uint3 index3 = indexBuffers[instanceId].Load3((triangleIndex * 3) * 4);");
+	SS("uint3 index3 = vk::RawBufferLoad<uint3>(indexBuffer + (triangleIndex * 3) * 4);");
 
 	if (vertexPosition) {
 		for (int i = 0; i < 3; i++) {
-			SS("float3 pos" + std::to_string(i) + " = asfloat(vertexBuffers[instanceId].Load3(index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.positionOffset) + "));");
+			SS("float3 pos" + std::to_string(i) + " = vk::RawBufferLoad<float3>(vertexBuffer + index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.positionOffset) + ");");
 			SS("float3 posW" + std::to_string(i) + " = mul(instanceTransforms[instanceId].objectToWorld, float4(pos" + std::to_string(i) + ", 1.0f)).xyz; ");
 		}
 
@@ -118,7 +121,7 @@ void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal
 
 	if (vertexNormal) {
 		for (int i = 0; i < 3; i++) {
-			SS("float3 norm" + std::to_string(i) + " = asfloat(vertexBuffers[instanceId].Load3(index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.normalOffset) + "));");
+			SS("float3 norm" + std::to_string(i) + " = vk::RawBufferLoad<float3>(vertexBuffer + index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.normalOffset) + ");");
 		}
 
 		SS("float3 vertexNormal = norm0 * barycentrics[0] + norm1 * barycentrics[1] + norm2 * barycentrics[2];");
@@ -131,7 +134,7 @@ void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal
 
 	if (vertexUV) {
 		for (int i = 0; i < 3; i++) {
-			SS("float2 uv" + std::to_string(i) + " = asfloat(vertexBuffers[instanceId].Load2(index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.uvOffset) + "));");
+			SS("float2 uv" + std::to_string(i) + " = vk::RawBufferLoad<float2>(vertexBuffer + index3[" + std::to_string(i) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.uvOffset) + ");");
 		}
 
 		SS("float2 vertexUV = uv0 * barycentrics[0] + uv1 * barycentrics[1] + uv2 * barycentrics[2];");
@@ -141,7 +144,7 @@ void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal
 		std::string floatNum = useAlpha ? "4" : "3";
 		std::string index = std::to_string(i + 1);
 		for (int j = 0; j < 3; j++) {
-			SS("float" + floatNum + " input" + index + std::to_string(j) + " = asfloat(vertexBuffers[instanceId].Load" + floatNum + "(index3[" + std::to_string(j) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.inputOffset[i]) + "));");
+			SS("float" + floatNum + " input" + index + std::to_string(j) + " = vk::RawBufferLoad<float" + floatNum + ">(vertexBuffer + index3[" + std::to_string(j) + "] * " + std::to_string(vl.vertexSize) + " + " + std::to_string(vl.inputOffset[i]) + ");");
 		}
 
 		SS("float4 input" + index + " = " + (useAlpha ? "" : "float4(") + "input" + index + "0 * barycentrics[0] + input" + index + "1 * barycentrics[1] + input" + index + "2 * barycentrics[2]" + (useAlpha ? "" : ", 1.0f)") + ";");
@@ -288,6 +291,7 @@ namespace RT64
 		this->device = device;
 		this->flags = flags;
 		this->samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
+		this->descriptorSetIndex = device->getFirstAvailableHitDescriptorSetIndex();
 
 		bool normalMapEnabled = flags & RT64_SHADER_NORMAL_MAP_ENABLED;
 		bool specularMapEnabled = flags & RT64_SHADER_SPECULAR_MAP_ENABLED;
@@ -329,12 +333,9 @@ namespace RT64
 		vkDestroyDescriptorPool(device->getVkDevice(), rasterGroup.descriptorPool, nullptr);
 
 		vkDestroyShaderModule(device->getVkDevice(), surfaceHitGroup.shaderModule, nullptr);
-		vkDestroyDescriptorSetLayout(device->getVkDevice(), surfaceHitGroup.descriptorSetLayout, nullptr);
-		vkDestroyDescriptorPool(device->getVkDevice(), surfaceHitGroup.descriptorPool, nullptr);
-
 		vkDestroyShaderModule(device->getVkDevice(), shadowHitGroup.shaderModule, nullptr);
-		vkDestroyDescriptorSetLayout(device->getVkDevice(), shadowHitGroup.descriptorSetLayout, nullptr);
-		vkDestroyDescriptorPool(device->getVkDevice(), shadowHitGroup.descriptorPool, nullptr);
+		vkDestroyDescriptorSetLayout(device->getVkDevice(), rtDescriptorSetLayout, nullptr);
+		vkDestroyDescriptorPool(device->getVkDevice(), rtDescriptorPool, nullptr);
 	}
 
 	void Shader::generateRasterGroup(
@@ -430,9 +431,9 @@ namespace RT64
 		std::string shaderCode = ss.str();
 		rasterGroup.pixelShaderName = pixelShaderName;
 		rasterGroup.vertexShaderName = vertexShaderName;
-		rasterGroup.id = device->getRasterShaderCount();
-		compileShaderCode(shaderCode, VK_SHADER_STAGE_VERTEX_BIT, vertexShaderName, L"vs_6_3", rasterGroup.vertexInfo, rasterGroup.vertexModule);
-		compileShaderCode(shaderCode, VK_SHADER_STAGE_FRAGMENT_BIT, pixelShaderName, L"ps_6_3", rasterGroup.fragmentInfo, rasterGroup.fragmentModule);
+		rasterGroup.id = device->getFirstAvailableRasterShaderID();
+		compileShaderCode(shaderCode, VK_SHADER_STAGE_VERTEX_BIT, vertexShaderName, L"vs_6_3", rasterGroup.vertexInfo, rasterGroup.vertexModule, 0);
+		compileShaderCode(shaderCode, VK_SHADER_STAGE_FRAGMENT_BIT, pixelShaderName, L"ps_6_3", rasterGroup.fragmentInfo, rasterGroup.fragmentModule, 0);
 		generateRasterDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, rasterGroup.descriptorSetLayout, rasterGroup.descriptorPool, rasterGroup.descriptorSet);
 
 		// Set up the push constnants
@@ -571,7 +572,7 @@ namespace RT64
 		SS(INCLUDE_HLSLI(RandomHLSLI));
 		SS(INCLUDE_HLSLI(GlobalParamsHLSLI));
 
-		unsigned int samplerRegisterIndex = 0; //uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
+		unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 		if (cc.useTextures[0]) {
 			SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
 			SS(INCLUDE_HLSLI(TexturesHLSLI));
@@ -701,12 +702,14 @@ namespace RT64
 
 		// Compile shader.
 		std::string shaderCode = ss.str();
-		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", surfaceHitGroup.shaderInfo, surfaceHitGroup.shaderModule);
-		generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, true, surfaceHitGroup.descriptorSetLayout, surfaceHitGroup.descriptorPool, surfaceHitGroup.descriptorSet);
+		surfaceHitGroup.id = device->getFirstAvailableHitShaderID();
+		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", surfaceHitGroup.shaderInfo, surfaceHitGroup.shaderModule, descriptorSetIndex);
+		if (rtDescriptorSetLayout == nullptr) {
+			generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, true, rtDescriptorSetLayout, rtDescriptorPool, rtDescriptorSet);
+		}
 		surfaceHitGroup.hitGroupName = hitGroupName;
 		surfaceHitGroup.closestHitName = closestHitName;
 		surfaceHitGroup.anyHitName = anyHitName;
-		surfaceHitGroup.id = device->getHitShaderCount();
 		surfaceHitGroup.shaderInfo.pName = surfaceHitGroup.anyHitName.c_str();
 	}
 
@@ -721,7 +724,7 @@ namespace RT64
 		SS(INCLUDE_HLSLI(RandomHLSLI));
 		SS(INCLUDE_HLSLI(GlobalParamsHLSLI));
 
-		unsigned int samplerRegisterIndex = 0; //uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
+		unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 		if (cc.useTextures[0]) {
 			SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
 			SS(INCLUDE_HLSLI(TexturesHLSLI));
@@ -785,12 +788,14 @@ namespace RT64
 
 		// Compile shader.
 		std::string shaderCode = ss.str();
-		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", shadowHitGroup.shaderInfo, shadowHitGroup.shaderModule);
-		generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, false, shadowHitGroup.descriptorSetLayout, shadowHitGroup.descriptorPool, shadowHitGroup.descriptorSet);
+		shadowHitGroup.id = device->getFirstAvailableHitShaderID() + 1;
+		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", shadowHitGroup.shaderInfo, shadowHitGroup.shaderModule, descriptorSetIndex);
+		if (rtDescriptorSetLayout == nullptr) {
+			generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, false, rtDescriptorSetLayout, rtDescriptorPool, rtDescriptorSet);
+		}
 		shadowHitGroup.hitGroupName = hitGroupName;
 		shadowHitGroup.closestHitName = closestHitName;
 		shadowHitGroup.anyHitName = anyHitName;
-		shadowHitGroup.id = device->getHitShaderCount() + 1;
 		shadowHitGroup.shaderInfo.pName = shadowHitGroup.anyHitName.c_str();
 	}
 
@@ -798,8 +803,6 @@ namespace RT64
 		VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
 
         std::vector<VkDescriptorSetLayoutBinding> bindings;
-		bindings.push_back({SRV_INDEX(vertexBuffer) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, SRV_TEXTURES_MAX, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr});
-		bindings.push_back({SRV_INDEX(indexBuffer) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, SRV_TEXTURES_MAX, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr});
 		if (hitBuffers) {
 			bindings.push_back({UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr});
 			bindings.push_back({UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr});
@@ -831,7 +834,7 @@ namespace RT64
 		device->allocateDescriptorSet(bindings, flags, descriptorSetLayout, descriptorPool, descriptorSet);
 	}
 	
-	void Shader::compileShaderCode(const std::string& shaderCode, VkShaderStageFlagBits stage, const std::string& entryName, const std::wstring& profile, VkPipelineShaderStageCreateInfo& shaderStage, VkShaderModule& shaderModule) {
+	void Shader::compileShaderCode(const std::string& shaderCode, VkShaderStageFlagBits stage, const std::string& entryName, const std::wstring& profile, VkPipelineShaderStageCreateInfo& shaderStage, VkShaderModule& shaderModule, uint32_t setIndex) {
 #ifndef NDEBUG
 		fprintf(stdout, "Compiling...\n\n%s\n", shaderCode.c_str());
 		printf("\n____________________________________________\n");
@@ -851,20 +854,24 @@ namespace RT64
 		LPCWSTR __cbv_shift = cbv_shift.c_str();
 		std::wstring sampler_shift = std::to_wstring(SAMPLER_SHIFT);
 		LPCWSTR __sampler_shift = sampler_shift.c_str();
+		std::wstring setIndexStr = std::to_wstring(setIndex);
+		LPCWSTR __setIndexStr = setIndexStr.c_str();
 		arguments.push_back(L"-spirv");
 		arguments.push_back(L"-fspv-target-env=vulkan1.3");	
+		arguments.push_back(L"-auto-binding-space");
+		arguments.push_back(__setIndexStr);
 		arguments.push_back(L"-fvk-t-shift");
 		arguments.push_back(__srv_shift);	
-		arguments.push_back(L"0");
+		arguments.push_back(__setIndexStr);
 		arguments.push_back(L"-fvk-s-shift");
 		arguments.push_back(__sampler_shift);	
-		arguments.push_back(L"0");
+		arguments.push_back(__setIndexStr);
 		arguments.push_back(L"-fvk-u-shift");
 		arguments.push_back(__uav_shift);	
-		arguments.push_back(L"0");
+		arguments.push_back(__setIndexStr);
 		arguments.push_back(L"-fvk-b-shift");
 		arguments.push_back(__cbv_shift);
-		arguments.push_back(L"0");
+		arguments.push_back(__setIndexStr);
 		arguments.push_back(L"-Qstrip_debug");
 
 		IDxcOperationResult *result = nullptr;
@@ -919,6 +926,9 @@ namespace RT64
 	bool Shader::hasRasterGroup() const { return (rasterGroup.vertexModule != nullptr) || (rasterGroup.fragmentModule != nullptr); }
 	Shader::HitGroup Shader::getSurfaceHitGroup() { return surfaceHitGroup; }
 	Shader::HitGroup Shader::getShadowHitGroup() { return shadowHitGroup; }
+	VkDescriptorSetLayout& Shader::getRTDescriptorSetLayout() { return rtDescriptorSetLayout; }
+	VkDescriptorPool& Shader::getRTDescriptorPool() { return rtDescriptorPool; }
+	VkDescriptorSet& Shader::getRTDescriptorSet() { return rtDescriptorSet; }
 	bool Shader::hasHitGroups() const { return (surfaceHitGroup.shaderModule != nullptr) || (shadowHitGroup.shaderModule != nullptr); }
 	uint32_t Shader::hitGroupCount() const { return (surfaceHitGroup.shaderModule != nullptr) + (shadowHitGroup.shaderModule != nullptr); };
 	uint32_t Shader::getFlags() const { return flags; }

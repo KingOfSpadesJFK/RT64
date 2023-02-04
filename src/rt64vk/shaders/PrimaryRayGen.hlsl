@@ -68,7 +68,7 @@ void PrimaryRayGen() {
 	payload.nhits = 0;
 	payload.rayDiff = rayDiff;
 
-	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 1, 0, ray, payload);
+	TraceRay(SceneBVH, RAY_FLAG_FORCE_NON_OPAQUE | RAY_FLAG_CULL_BACK_FACING_TRIANGLES | RAY_FLAG_SKIP_CLOSEST_HIT_SHADER, 0xFF, 0, 0, 0, ray, payload);
 
 	// Process hits.
 	float3 resPosition = float3(0.0f, 0.0f, 0.0f);

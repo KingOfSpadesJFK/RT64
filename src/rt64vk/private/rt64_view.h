@@ -12,6 +12,8 @@
 #include <nvh/alignment.hpp>
 #include <nvvk/raytraceKHR_vk.hpp>
 #include <glm/gtx/euler_angles.hpp>
+#include <nvvk/sbtwrapper_vk.hpp>
+#include <unordered_map>
 // #include "rt64_dlss.h"
 // #include "rt64_fsr.h"
 // #include "rt64_xess.h"
@@ -29,13 +31,13 @@ namespace RT64
 	class View {
         private:
             struct RenderInstance {
-                Instance* instance;
-                VkBuffer* vertexBuffer;
-                VkBuffer* indexBuffer;
-                int indexCount;
-                nvvk::AccelKHR* blas;
-                nvmath::mat4f transform;
-                nvmath::mat4f transformPrevious;
+                Instance* instance = nullptr;
+                VkBuffer* vertexBuffer = nullptr;
+                VkBuffer* indexBuffer = nullptr;
+                int indexCount = -1;
+                nvvk::AccelKHR* blas = nullptr;
+                nvmath::mat4f transform {};
+                nvmath::mat4f transformPrevious {};
                 RT64_MATERIAL material;
                 Shader* shader;
                 VkRect2D scissorRect;

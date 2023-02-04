@@ -11,11 +11,12 @@
 namespace RT64 {
     class Texture {
         private:
-            Device* device;
+            Device* device = nullptr;
             AllocatedImage texture;
             VkFormat format;
 		    int currentIndex;
             int width, height;
+            const char* name = nullptr;
 
 		    void setRawWithFormat(VkFormat format, void* pixels, int byteCount, int width, int height, int rowPitch, bool generateMipmaps);
         public:
@@ -30,5 +31,6 @@ namespace RT64 {
             int getCurrentIndex() const;
             int getWidth();
             int getHeight();
+            void setName(const char* newName);
     };
 };

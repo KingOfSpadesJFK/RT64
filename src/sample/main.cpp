@@ -176,21 +176,22 @@ bool createRT64(GLFWwindow* glfwWindow) {
 	return true;
 }
 
-RT64_TEXTURE *loadTexturePNG(const char *path) {
+RT64_TEXTURE* loadTexturePNG(const char* path) {
 	RT64_TEXTURE_DESC texDesc;
 	int texChannels;
 	texDesc.format = RT64_TEXTURE_FORMAT_RGBA8;
 	texDesc.bytes = stbi_load(path, &texDesc.width, &texDesc.height, &texChannels, STBI_rgb_alpha);
 	texDesc.rowPitch = texDesc.width * 4;
 	texDesc.byteCount = texDesc.rowPitch * texDesc.height;
-	RT64_TEXTURE *texture = RT64.lib.CreateTexture(RT64.device, texDesc);
-	stbi_image_free((void *)(texDesc.bytes));
+	texDesc.name = path;
+	RT64_TEXTURE* texture = RT64.lib.CreateTexture(RT64.device, texDesc);
+	stbi_image_free((void*)(texDesc.bytes));
 	return texture;
 }
 
-RT64_TEXTURE *loadTextureDDS(const char *path) {
-	RT64_TEXTURE *texture = nullptr;
-	FILE *ddsFp = stbi__fopen("res/grass_dif.dds", "rb");
+RT64_TEXTURE* loadTextureDDS(const char* path) {
+	RT64_TEXTURE* texture = nullptr;
+	FILE* ddsFp = stbi__fopen("res/grass_dif.dds", "rb");
 	if (ddsFp != nullptr) {
 		fseek(ddsFp, 0, SEEK_END);
 		int ddsDataSize = ftell(ddsFp);
@@ -427,11 +428,6 @@ void setupRT64Scene() {
 	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
 	RT64.lib.SetInstanceDescription(floorInstance, instDesc);
-
-	// Setup view after all of that
-	// THIS IS ONLY TEMPORARY
-	// TODO: Make it so create view isn't the last thing called
-	// RT64.view = RT64.lib.CreateView(RT64.scene);
 }
 
 void destroyRT64() {

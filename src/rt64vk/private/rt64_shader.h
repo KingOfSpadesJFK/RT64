@@ -41,9 +41,6 @@ namespace RT64 {
                 uint32_t id = 0;
                 VkPipelineShaderStageCreateInfo shaderInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
                 VkShaderModule shaderModule {};
-                VkDescriptorSetLayout descriptorSetLayout;
-                VkDescriptorPool descriptorPool;
-                VkDescriptorSet descriptorSet;
                 std::string hitGroupName;
                 std::string closestHitName;
                 std::string anyHitName;
@@ -57,6 +54,10 @@ namespace RT64 {
             uint32_t flags;
             bool descriptorBound = false;
             unsigned int samplerRegisterIndex = 0;
+            VkDescriptorSetLayout rtDescriptorSetLayout {};
+            VkDescriptorPool rtDescriptorPool {};
+            VkDescriptorSet rtDescriptorSet {};
+            unsigned int descriptorSetIndex = 0;
             
             unsigned int uniqueSamplerRegisterIndex(Filter filter, AddressingMode hAddr, AddressingMode vAddr);
             void generateRasterGroup(unsigned int shaderId, 
@@ -73,7 +74,7 @@ namespace RT64 {
             // ID3D12RootSignature *generateHitRootSignature(Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex, bool hitBuffers);
             void generateRasterDescriptorSetLayout(Filter filter, AddressingMode hAddr, AddressingMode vAddr, uint32_t samplerRegisterIndex, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet);
             void generateHitDescriptorSetLayout(Filter filter, AddressingMode hAddr, AddressingMode vAddr, uint32_t samplerRegisterIndex, bool hitBuffers, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet);
-            void compileShaderCode(const std::string& shaderCode, VkShaderStageFlagBits stage, const std::string& entryName, const std::wstring& profile, VkPipelineShaderStageCreateInfo& shaderStage, VkShaderModule& shaderModule);
+            void compileShaderCode(const std::string& shaderCode, VkShaderStageFlagBits stage, const std::string& entryName, const std::wstring& profile, VkPipelineShaderStageCreateInfo& shaderStage, VkShaderModule& shaderModule, uint32_t setIndex);
         public:
             Shader(Device* device, unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, int flags);
             ~Shader();
@@ -81,6 +82,9 @@ namespace RT64 {
             const RasterGroup& getRasterGroup() const;
             HitGroup getSurfaceHitGroup();
             HitGroup getShadowHitGroup();
+            VkDescriptorSetLayout& getRTDescriptorSetLayout();
+            VkDescriptorPool& getRTDescriptorPool();
+            VkDescriptorSet& getRTDescriptorSet();
             uint32_t getFlags() const;
             bool hasRasterGroup() const;
             bool hasHitGroups() const;

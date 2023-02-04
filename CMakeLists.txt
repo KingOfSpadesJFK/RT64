@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.0.0)
+cmake_minimum_required(VERSION 3.12.0)
 project(rt64 VERSION 0.1.0)
 
 include(CTest)
@@ -137,6 +137,8 @@ target_link_libraries(rt64vk
     ${DXC_LIBRARIES}
 )
 
+set_property(TARGET rt64vk PROPERTY CXX_STANDARD 20)
+
 #######################################################################
 # Build the sample
 
@@ -151,6 +153,8 @@ target_link_libraries(sample
 add_custom_command(TARGET sample POST_BUILD
     COMMAND cp -r ${SAMPLE_DIR}/res ${CMAKE_BINARY_DIR}
 )
+
+set_property(TARGET sample PROPERTY CXX_STANDARD 20)
 
 ##########################################################
 

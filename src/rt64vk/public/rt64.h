@@ -215,6 +215,7 @@ typedef struct {
 	int width;
 	int height;
 	int rowPitch;
+	const char* name;
 } RT64_TEXTURE_DESC;
 
 inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src) {

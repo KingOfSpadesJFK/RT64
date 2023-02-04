@@ -429,7 +429,7 @@ namespace RT64
 
     void View::createInstanceTransformsBuffer() {
         uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size());
-        uint32_t newBufferSize = ROUND_UP(totalInstances * sizeof(InstanceTransforms), CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+        uint32_t newBufferSize = totalInstances * sizeof(InstanceTransforms);
         if (activeInstancesBufferTransformsSize != newBufferSize) {
             activeInstancesBufferTransforms.destroyResource();
             scene->getDevice()->allocateBuffer(
@@ -472,7 +472,7 @@ namespace RT64
 
     void View::createInstanceMaterialsBuffer() {
         uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size());
-        uint32_t newBufferSize = ROUND_UP(totalInstances * sizeof(RT64_MATERIAL), CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+        uint32_t newBufferSize = totalInstances * sizeof(RT64_MATERIAL);
         if (activeInstancesBufferMaterialsSize != newBufferSize) {
             activeInstancesBufferMaterials.destroyResource();
             device->allocateBuffer(
@@ -511,7 +511,15 @@ namespace RT64
 	    assert(usedTextures.size() <= SRV_TEXTURES_MAX);
         std::vector<VkWriteDescriptorSet> descriptorWrites;
 
-        // Update the descriptor sets for the raytracing pipeline
+        // Create the descriptor infos for the textures;
+        std::vector<VkDescriptorImageInfo> texture_infos;
+        texture_infos.resize(usedTextures.size());
+        for (int i = 0; i < usedTextures.size(); i++) {
+            texture_infos[i] = usedTextures[i]->getTexture().getDescriptorInfo();
+            usedTextures[i]->setCurrentIndex(-1);
+        }
+
+        // Update the descriptor sets for the raygen shaders
         {
             VkDescriptorSet& descriptorSet = device->getRayGenDescriptorSet();
             // The "UAVs"
@@ -547,28 +555,6 @@ namespace RT64
             // The "SRVs"
             descriptorWrites.push_back(rasterBg.generateDescriptorWrite(1, SRV_INDEX(gBackground) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
 
-            // The vertex and index buffers
-            VkWriteDescriptorSet meshWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-            std::vector<VkDescriptorBufferInfo> mesh_infos;
-            for (RenderInstance r : rtInstances) {
-                mesh_infos.push_back(r.instance->getMesh()->getVertexBuffer().getDescriptorInfo());
-            }
-            meshWrite.descriptorCount = mesh_infos.size();
-            meshWrite.dstBinding = SRV_INDEX(vertexBuffer) + SRV_SHIFT;
-            meshWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
-            meshWrite.pBufferInfo = mesh_infos.data();
-            meshWrite.dstSet = descriptorSet;
-            descriptorWrites.push_back(meshWrite);
-            mesh_infos.clear();
-
-            for (RenderInstance r : rtInstances) {
-                mesh_infos.push_back(r.instance->getMesh()->getIndexBuffer().getDescriptorInfo());
-            }
-            meshWrite.descriptorCount = mesh_infos.size();
-            meshWrite.dstBinding = SRV_INDEX(indexBuffer) + SRV_SHIFT;
-            meshWrite.pBufferInfo = mesh_infos.data();
-            descriptorWrites.push_back(meshWrite);
-
             // The top level AS
             VkWriteDescriptorSet tlasWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
             VkAccelerationStructureKHR tlas = rtBuilder.getAccelerationStructure();
@@ -592,12 +578,6 @@ namespace RT64
             
             // Add the textures
             VkWriteDescriptorSet textureWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-            std::vector<VkDescriptorImageInfo> texture_infos;
-            texture_infos.resize(usedTextures.size());
-            for (int i = 0; i < usedTextures.size(); i++) {
-                texture_infos[i] = usedTextures[i]->getTexture().getDescriptorInfo();
-                usedTextures[i]->setCurrentIndex(-1);
-            }
             textureWrite.descriptorCount = texture_infos.size();
             textureWrite.dstBinding = SRV_INDEX(gTextures) + SRV_SHIFT;
             textureWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
@@ -621,9 +601,54 @@ namespace RT64
             // Add the globalParamsBuffer
             descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
 
+            // Write to the raygen descriptor set
+            vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            descriptorWrites.clear();
+        }
+
+        // Update the instance descriptor sets
+        std::unordered_map<Shader*, Shader&> usedShaders;
+        for (int i = 0; i < rtInstances.size(); i++) {
+            Shader* shader = rtInstances[i].shader;
+            if (usedShaders.contains(shader)) {
+                continue;
+            }
+
+            VkDescriptorSet& descriptorSet = shader->getRTDescriptorSet();
+            if (shader->getSurfaceHitGroup().shaderModule != nullptr) {
+                descriptorWrites.push_back(rtHitDistAndFlow.generateDescriptorWrite(1, UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+                descriptorWrites.push_back(rtHitColor.generateDescriptorWrite(1, UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+                descriptorWrites.push_back(rtHitNormal.generateDescriptorWrite(1, UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+                descriptorWrites.push_back(rtHitSpecular.generateDescriptorWrite(1, UAV_INDEX(gHitSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+                descriptorWrites.push_back(rtHitInstanceId.generateDescriptorWrite(1, UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            }
+            descriptorWrites.push_back(activeInstancesBufferTransforms.generateDescriptorWrite(1, SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
+            descriptorWrites.push_back(activeInstancesBufferMaterials.generateDescriptorWrite(1, SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
+
+            // Add the textures
+            VkWriteDescriptorSet textureWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            textureWrite.descriptorCount = texture_infos.size();
+            textureWrite.dstBinding = SRV_INDEX(gTextures) + SRV_SHIFT;
+            textureWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            textureWrite.pImageInfo = texture_infos.data();
+            textureWrite.dstSet = descriptorSet;
+            descriptorWrites.push_back(textureWrite);
+
+            // Add the texture sampler
+            VkDescriptorImageInfo samplerInfo { };
+            samplerInfo.sampler = device->getComposeSampler();
+            VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+            samplerWrite.descriptorCount = 1;
+            samplerWrite.dstSet = descriptorSet;
+            samplerWrite.dstBinding = shader->getSamplerRegisterIndex() + SAMPLER_SHIFT;
+            samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+            samplerWrite.pImageInfo = &samplerInfo;
+            descriptorWrites.push_back(samplerWrite);
+
             // Write to the instances' descriptor sets
             vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
             descriptorWrites.clear();
+            usedShaders.emplace(std::pair<Shader*, Shader&>{shader, *shader});
         }
 
         // Update the descriptor set for the compose shader
@@ -742,7 +767,6 @@ namespace RT64
                     rasterBgInstances.push_back(renderInstance);
                 }
                 else {
-                    // rtInstances.push_back(renderInstance);
                     rasterFgInstances.push_back(renderInstance);
                 }
             }
@@ -792,6 +816,7 @@ namespace RT64
             rayInst.accelerationStructureReference = r.instance->getMesh()->getBlasAddress();
             rayInst.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
             rayInst.mask = 0xFF;
+            rayInst.instanceShaderBindingTableRecordOffset = id * 2;
             tlas.emplace_back(rayInst);
             id++;
         }
@@ -802,10 +827,10 @@ namespace RT64
     //  From nvpro-samples
     void View::createShaderBindingTable() {
         VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties = device->getRTProperties();
-        unsigned int missCount = 2;                                                 // How many miss shaders we have
-        unsigned int hitCount = device->getHitShaderCount();                        // How many hit shaders we have
-        unsigned int raygenCount = SHADER_INDEX(surfaceMiss);
-        unsigned int handleCount = raygenCount + missCount + hitCount;        // How many rt shaders in total we have
+        unsigned int missCount = 2;                                                 // How many miss shaders exist in the pipeline
+        unsigned int hitCount = device->getHitShaderCount();                        // How many hit shaders exist in the pipeline
+        unsigned int raygenCount = SHADER_INDEX(surfaceMiss);                       // How many raygen shaders exist in the pipeline
+        unsigned int handleCount = raygenCount + missCount + hitCount;              // How many rt shaders in total exist in the pipeline
         unsigned int handleSize = rtProperties.shaderGroupHandleSize;
         // The SBT (buffer) need to have starting groups to be aligned and handles in the group to be aligned.
         unsigned int handleSizeAligned = ROUND_UP(handleSize, rtProperties.shaderGroupHandleAlignment);
@@ -820,8 +845,17 @@ namespace RT64
         // refractionRayGenRegion = raygenRegion;
         missRegion.stride = handleSizeAligned;
         missRegion.size = ROUND_UP(missCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
-        hitRegion.stride = handleSizeAligned;
-        hitRegion.size = ROUND_UP(hitCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
+
+        // Stride is the size of the handle + the addresses to the vertex/index buffer
+        // hitRegion.size and hitCount will differ 
+        //  - hitRegion.size is how many rtInstances there are
+        //  - hitCount is how many hit shaders there are in the pipeline
+        // The number of group handles should match how many overall hit shaders there are in the pipeline. Then 
+        //  once we get to copying data to the buffer, the sbt will use the already generated handles instead
+        //  of trying to find rtInstances.size() worth of handles, which most likely won't exist and then it
+        //  will cause Bad Things(TM) to happen
+        hitRegion.stride = ROUND_UP(handleSizeAligned + sizeof(VkDeviceAddress) * 2, rtProperties.shaderGroupHandleAlignment);
+        hitRegion.size = ROUND_UP(hitCount * hitRegion.stride * rtInstances.size(), rtProperties.shaderGroupBaseAlignment);
 
         // Get the shader group handles
         unsigned int dataSize = handleCount * handleSize;
@@ -844,6 +878,7 @@ namespace RT64
             VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT,
             &shaderBindingTable
         );
+        device->bufferMemoryBarrier(shaderBindingTable, VK_ACCESS_SHADER_READ_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, nullptr);
         shaderBindingTable.setAllocationName("ShaderBindingTable");
         sbtSize = newSbtSize;
 
@@ -874,16 +909,35 @@ namespace RT64
         }
 
         // Miss
-        pData = pSBTBuffer + primaryRayGenRegion.size;
+        pData = pSBTBuffer + raygenRegion.size;
         for(uint32_t c = 0; c < missCount; c++) {
             memcpy(pData, getHandle(handleIdx++), handleSize);
             pData += missRegion.stride;
         }
 
         // Hit
-        pData = pSBTBuffer + primaryRayGenRegion.size + missRegion.size;
-        for(uint32_t c = 0; c < hitCount; c++) {
-            memcpy(pData, getHandle(handleIdx++), handleSize);
+        VkBufferDeviceAddressInfo vertAddr { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+        VkBufferDeviceAddressInfo indAddr { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+        pData = pSBTBuffer + raygenRegion.size + missRegion.size;
+        for(uint32_t c = 0; c < rtInstances.size(); c++) {
+            vertAddr.buffer = *rtInstances[c].vertexBuffer;
+            indAddr.buffer = *rtInstances[c].indexBuffer;
+            // The SBT data consists of the addresses to the vertex and index buffers
+            VkDeviceAddress sbtData[] = {
+                vkGetBufferDeviceAddress(device->getVkDevice(), &vertAddr),
+                vkGetBufferDeviceAddress(device->getVkDevice(), &indAddr)
+            };
+
+            // Get the surface hit group
+            auto surfaceHitGroup = rtInstances[c].shader->getSurfaceHitGroup();
+            memcpy(pData, getHandle(handleIdx + surfaceHitGroup.id), handleSize);       // Copy the handle for the current surface hit group
+            memcpy(pData + handleSize, sbtData, sizeof(sbtData));                       // After that, copy the SBT data
+            pData += hitRegion.stride;
+
+            // Get the shadow hit group
+            auto shadowHitGroup = rtInstances[c].shader->getShadowHitGroup();           
+            memcpy(pData, getHandle(handleIdx + shadowHitGroup.id), handleSize);        // Copy the handle for the current shadow hit group
+            memcpy(pData + handleSize, sbtData, sizeof(sbtData));                       // You know what it is
             pData += hitRegion.stride;
         }
         shaderBindingTable.unmapMemory();
@@ -1024,7 +1078,7 @@ namespace RT64
             // Bind pipeline and dispatch primary rays.
 		    RT64_LOG_PRINTF("Dispatching primary rays");
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipeline());
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipelineLayout(), 0, 1, &device->getRayGenDescriptorSet(), 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipelineLayout(), 0, device->getRTDescriptorSets().size(), device->getRTDescriptorSets().data(), 0, nullptr);
             vkCmdTraceRaysKHR(commandBuffer, &primaryRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 
 	    	// Barriers for shading buffers before dispatching secondary rays.

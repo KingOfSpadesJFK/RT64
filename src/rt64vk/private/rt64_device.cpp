@@ -332,16 +332,11 @@ namespace RT64
         }
         
         // Push the main RT descriptor set layout into the layouts vector
-        rtDescriptorSets.clear();
         rtDescriptorSetLayouts.clear();
         rtDescriptorSetLayouts.push_back(raygenDescriptorSetLayout);
-        rtDescriptorSets.push_back(raygenDescriptorSet);
         for (Shader* s : shaders) {
             if (s->hasHitGroups()) {
-                rtDescriptorSetLayouts.push_back(s->getSurfaceHitGroup().descriptorSetLayout);
-                rtDescriptorSetLayouts.push_back(s->getShadowHitGroup().descriptorSetLayout);
-                rtDescriptorSets.push_back(s->getSurfaceHitGroup().descriptorSet);
-                rtDescriptorSets.push_back(s->getShadowHitGroup().descriptorSet);
+                rtDescriptorSetLayouts.push_back(s->getRTDescriptorSetLayout());
             }
         }
 
@@ -365,6 +360,14 @@ namespace RT64
         rayPipelineInfo.layout = rtPipelineLayout;
         // rayPipelineInfo.pLibraryInterface = &interfaceInfo;
         vkCreateRayTracingPipelinesKHR(vkDevice, {}, {}, 1, &rayPipelineInfo, nullptr, &rtPipeline);
+
+        rtDescriptorSets.clear();
+        rtDescriptorSets.push_back(raygenDescriptorSet);
+        for (Shader* s : shaders) {
+            if (s->hasHitGroups()) {
+                rtDescriptorSets.push_back(s->getRTDescriptorSet());
+            }
+        }
 
 	    RT64_LOG_PRINTF("Raytracing pipeline created!");
     }
@@ -403,8 +406,6 @@ namespace RT64
 
             {SRV_INDEX(gBackground) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, defaultStageFlags, nullptr},
             {SRV_INDEX(SceneBVH) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR, 1, defaultStageFlags, nullptr},
-		    {SRV_INDEX(vertexBuffer) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, SRV_TEXTURES_MAX, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},
-		    {SRV_INDEX(indexBuffer) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, SRV_TEXTURES_MAX, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, nullptr},
             {SRV_INDEX(SceneLights) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, defaultStageFlags, nullptr},
             {SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, defaultStageFlags, nullptr},
             {SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, defaultStageFlags, nullptr},
@@ -1259,6 +1260,7 @@ namespace RT64
     VkPipeline& Device::getRTPipeline() { return rtPipeline; }
     VkPipelineLayout& Device::getRTPipelineLayout() { return rtPipelineLayout; }
     VkDescriptorSet& Device::getRayGenDescriptorSet() { return raygenDescriptorSet; }
+    std::vector<VkDescriptorSet>& Device::getRTDescriptorSets() { return rtDescriptorSets; }
     VkPipeline& Device::getComposePipeline() { return rtComposePipeline; }
     VkPipelineLayout& Device::getComposePipelineLayout() { return rtComposePipelineLayout; }
     VkDescriptorSet& Device::getComposeDescriptorSet() { return rtComposeDescriptorSet; }
@@ -1351,7 +1353,9 @@ namespace RT64
             for (int i = 0; i < shaders.size(); i++) {
                 if (shaders[i] == shader) {
                     shaders[i] = nullptr;
-                    firstShaderNullSpot = i;
+                    if (i < firstShaderNullSpot) {
+                        firstShaderNullSpot = i;
+                    }
                     break;
                 }
             }
@@ -1359,12 +1363,61 @@ namespace RT64
 
         if (shader->hasHitGroups()) {
             hitShaderCount -= shader->hitGroupCount();
+            overallShaderCount -= shader->hitGroupCount();
             rtStateDirty = true;
         }
         if (shader->hasRasterGroup()) {
             overallShaderCount--;
             rasterShaderCount--;
         }
+    }
+
+    uint32_t Device::getFirstAvailableRasterShaderID() const {
+        uint32_t id = 0;
+        for (int i = 0; i < shaders.size(); i++) {
+            if (shaders[i] == nullptr) {
+                break;
+            } else {
+                if (shaders[i]->hasRasterGroup()) {
+                    id++;
+                } else {
+                    break;
+                }
+            }
+        }
+        return id;
+    }
+
+    uint32_t Device::getFirstAvailableHitDescriptorSetIndex() const {
+        uint32_t index = 1;
+        for (int i = 0; i < shaders.size(); i++) {
+            if (shaders[i] == nullptr) {
+                break;
+            } else {
+                if (shaders[i]->getRTDescriptorSet() != nullptr) {
+                    index++;
+                } else {
+                    break;
+                }
+            }
+        }
+        return index;
+    }
+
+    uint32_t Device::getFirstAvailableHitShaderID() const {
+        uint32_t id = 0;
+        for (int i = 0; i < shaders.size(); i++) {
+            if (shaders[i] == nullptr) {
+                break;
+            } else {
+                if (shaders[i]->hasHitGroups()) {
+                    id += shaders[i]->hitGroupCount();
+                } else {
+                    break;
+                }
+            }
+        }
+        return id;
     }
 
     void Device::addDepthImageView(VkImageView* depthImageView) {

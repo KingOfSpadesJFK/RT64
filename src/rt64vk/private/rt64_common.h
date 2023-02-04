@@ -352,6 +352,14 @@ namespace RT64 {
 				accessMask = barrier.dstAccessMask;
 			}
 
+			VkDeviceAddress getAddress() const {
+				VmaAllocatorInfo allocatorInfo;
+				vmaGetAllocatorInfo(*allocator, &allocatorInfo);
+				VkBufferDeviceAddressInfo addrInfo { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
+				addrInfo.buffer = buffer;
+				return vkGetBufferDeviceAddress(allocatorInfo.device, &addrInfo);
+			}
+
 			VkAccessFlags getAccessFlags() const { return accessMask; }
 			VkDeviceSize getSize() const { return size; }
 
