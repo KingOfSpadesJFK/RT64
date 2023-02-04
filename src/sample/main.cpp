@@ -498,6 +498,9 @@ int main(int argc, char *argv[]) {
         glfwPollEvents();
 		// Remove when done
 		RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 1000.0f, true);
+		
+		RT64.frameMaterial = RT64.baseMaterial;
+		RT64_ApplyMaterialAttributes(&RT64.frameMaterial, &RT64.materialMods);
 
 		RT64_INSTANCE_DESC instDesc;
 		instDesc.scissorRect = { 0, 0, 0, 0 };
