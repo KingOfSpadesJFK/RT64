@@ -9,9 +9,9 @@
 struct LightInfo {
 	float3 position;
 	float3 diffuseColor;
+	float3 specularColor;
 	float attenuationRadius;
 	float pointRadius;
-	float3 specularColor;
 	float shadowOffset;
 	float attenuationExponent;
 	float flickerIntensity;

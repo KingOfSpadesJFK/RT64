@@ -45,55 +45,13 @@
 #define SRV_TEXTURES_MAX 512
 
 namespace RT64 {
-	// Matches order in heap used in shader binding table.
-	enum class HeapIndices : int {
-		gViewDirection,
-		gShadingPosition,
-		gShadingNormal,
-		gShadingSpecular,
-		gDiffuse,
-		gInstanceId,
-		gDirectLightAccum,
-		gIndirectLightAccum,
-		gReflection,
-		gRefraction,
-		gTransparent,
-		gFlow,
-		gReactiveMask,
-		gLockMask,
-		gNormal,
-		gDepth,
-		gPrevNormal,
-		gPrevDepth,
-		gPrevDirectLightAccum,
-		gPrevIndirectLightAccum,
-		gFilteredDirectLight,
-		gFilteredIndirectLight,
-		gHitDistAndFlow,
-		gHitColor,
-		gHitNormal,
-		gHitSpecular,
-		gHitInstanceId,
-		gBackground,
-		gParams,
-		SceneBVH,
-		SceneLights,
-		instanceTransforms,
-		instanceMaterials,
-		gBlueNoise,
-		gTextures,
-		MAX
-	};
-
     enum ShaderIndices
     {
         primaryRayGen,
-        // directRayGen,
-        // indirectRayGen,
-        // reflectionRayGen,
-        // refractionRayGen,
-        // refractionRayGen,
-        // refractionRayGen,
+        directRayGen,
+        indirectRayGen,
+        reflectionRayGen,
+        refractionRayGen,
 		surfaceMiss,
 		shadowMiss,
         MAX

@@ -615,18 +615,17 @@ namespace RT64
 		SS("    resultColor.rgb = lerp(resultColor.rgb, diffuseColorMix.rgb, max(diffuseColorMix.a, 0.0f));");
 
 		// Apply the solid alpha multiplier.
-		// SS("    resultColor.a = clamp(instanceMaterials[instanceId].solidAlphaMultiplier * resultColor.a, 0.0f, 1.0f);");
-		SS("    resultColor.a = 1.0f;");
+		SS("    resultColor.a = clamp(instanceMaterials[instanceId].solidAlphaMultiplier * resultColor.a, 0.0f, 1.0f);");
 
 #ifdef TEXTURE_EDGE_ENABLED
-		// if (cc.opt_texture_edge) {
-		// 	SS("    if (resultColor.a > 0.3f) {");
-		// 	SS("      resultColor.a = 1.0f;");
-		// 	SS("    }");
-		// 	SS("    else {");
-		// 	SS("      IgnoreHit();");
-		// 	SS("    }");
-		// }
+		if (cc.opt_texture_edge) {
+			SS("    if (resultColor.a > 0.3f) {");
+			SS("      resultColor.a = 1.0f;");
+			SS("    }");
+			SS("    else {");
+			SS("      IgnoreHit();");
+			SS("    }");
+		}
 #endif
 
 		if (cc.opt_noise) {
@@ -638,30 +637,30 @@ namespace RT64
 		SS("float normalSign = (dot(triangleNormal, WorldRayDirection()) <= 0.0f) ? 1.0f : -1.0f;");
 		SS("vertexNormal *= normalSign;");
 		
-		// if (vertexUV && normalMapEnabled) {
-		// 	SS("    vertexTangent = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexTangent, 0.f)).xyz) * normalSign;");
-		// 	SS("    vertexBinormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexBinormal, 0.f)).xyz) * normalSign;");
-		// 	SS("    int normalTexIndex = instanceMaterials[instanceId].normalTexIndex;");
-		// 	SS("    if (normalTexIndex >= 0) {");
-		// 	SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
-		// 	SS("        float3 normalColor = gTextures[NonUniformResourceIndex(normalTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).xyz;");
-		// 	SS("        normalColor = (normalColor * 2.0f) - 1.0f;");
-		// 	SS("        float3 newNormal = normalize(vertexNormal * normalColor.z + vertexTangent * normalColor.x + vertexBinormal * normalColor.y);");
-		// 	SS("        vertexNormal = newNormal;");
-		// 	SS("    }");
-		// }
+		if (vertexUV && normalMapEnabled) {
+			SS("    vertexTangent = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexTangent, 0.f)).xyz) * normalSign;");
+			SS("    vertexBinormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexBinormal, 0.f)).xyz) * normalSign;");
+			SS("    int normalTexIndex = instanceMaterials[instanceId].normalTexIndex;");
+			SS("    if (normalTexIndex >= 0) {");
+			SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
+			SS("        float3 normalColor = gTextures[NonUniformResourceIndex(normalTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).xyz;");
+			SS("        normalColor = (normalColor * 2.0f) - 1.0f;");
+			SS("        float3 newNormal = normalize(vertexNormal * normalColor.z + vertexTangent * normalColor.x + vertexBinormal * normalColor.y);");
+			// SS("        vertexNormal = newNormal;");
+			SS("    }");
+		}
 
 		SS("	float3 prevWorldPos = mul(instanceTransforms[instanceId].objectToWorldPrevious, float4(vertexPosition, 1.0f)).xyz;");
 		SS("	float3 curWorldPos = mul(instanceTransforms[instanceId].objectToWorld, float4(vertexPosition, 1.0f)).xyz;");
 		SS("	float3 vertexFlow = curWorldPos - prevWorldPos;");
 		SS("    float3 vertexSpecular = float3(1.0f, 1.0f, 1.0f);");
-		// if (vertexUV && specularMapEnabled) {
-		// 	SS("    int specularTexIndex = instanceMaterials[instanceId].specularTexIndex;");
-		// 	SS("    if (specularTexIndex >= 0) {");
-		// 	SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
-		// 	SS("        vertexSpecular = gTextures[NonUniformResourceIndex(specularTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).rgb;");
-		// 	SS("    }");
-		// }
+		if (vertexUV && specularMapEnabled) {
+			SS("    int specularTexIndex = instanceMaterials[instanceId].specularTexIndex;");
+			SS("    if (specularTexIndex >= 0) {");
+			SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
+			SS("        vertexSpecular = gTextures[NonUniformResourceIndex(specularTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).rgb;");
+			SS("    }");
+		}
 
 		SS("    uint2 pixelIdx = DispatchRaysIndex().xy;");
 		SS("    uint2 pixelDims = DispatchRaysDimensions().xy;");
@@ -757,7 +756,7 @@ namespace RT64
 			}
 
 			SS("    resultAlpha = clamp(resultAlpha * instanceMaterials[instanceId].shadowAlphaMultiplier, 0.0f, 1.0f);");
-
+			
 	#ifdef TEXTURE_EDGE_ENABLED
 			if (cc.opt_texture_edge) {
 				SS("    if (resultAlpha > 0.3f) {");

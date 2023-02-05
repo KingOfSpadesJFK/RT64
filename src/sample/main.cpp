@@ -222,12 +222,12 @@ void setupRT64Scene() {
 	RT64.scene = RT64.lib.CreateScene(RT64.device);
 	RT64.sceneDesc.ambientBaseColor = { 0.1f, 0.1f, 0.1f };
 	RT64.sceneDesc.ambientNoGIColor = { 0.2f, 0.2f, 0.2f };
-	RT64.sceneDesc.eyeLightDiffuseColor = { 0.08f, 0.08f, 0.08f };
-	RT64.sceneDesc.eyeLightSpecularColor = { 0.04f, 0.04f, 0.04f };
+	RT64.sceneDesc.eyeLightDiffuseColor = { 0.00f, 0.00f, 0.00f };
+	RT64.sceneDesc.eyeLightSpecularColor = { 0.00f, 0.00f, 0.00f };
 	RT64.sceneDesc.skyDiffuseMultiplier = { 1.0f, 1.0f, 1.0f };
 	RT64.sceneDesc.skyHSLModifier = { 0.0f, 0.0f, 0.0f };
 	RT64.sceneDesc.skyYawOffset = 0.0f;
-	RT64.sceneDesc.giDiffuseStrength = 0.7f;
+	RT64.sceneDesc.giDiffuseStrength = 1.0f;
 	RT64.sceneDesc.giSkyStrength = 0.35f;
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
@@ -261,10 +261,11 @@ void setupRT64Scene() {
 	// RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
 	// Make initial transform with a 0.1f scale.
+	float scale = 0.30f;
 	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
-	RT64.transform.m[0][0] = 1.0f;
-	RT64.transform.m[1][1] = 1.0f;
-	RT64.transform.m[2][2] = 1.0f;
+	RT64.transform.m[0][0] = scale;
+	RT64.transform.m[1][1] = scale;
+	RT64.transform.m[2][2] = scale;
 	RT64.transform.m[3][3] = 1.0f;
 
 	// Make initial view.
@@ -283,7 +284,7 @@ void setupRT64Scene() {
 	std::vector<tinyobj::material_t> materials;
 	std::string warn;
 	std::string err;
-	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/sphere.obj", NULL, true);
+	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/teapot.obj", NULL, true);
 	assert(loaded);
 	
 	for (size_t i = 0; i < shapes.size(); i++) {

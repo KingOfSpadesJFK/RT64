@@ -212,7 +212,8 @@ namespace RT64
                 {4 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
                 {5 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
                 {6 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-                {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}
+                {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {0 + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
             };
 
             allocateDescriptorSet(bindings, flags, rtComposeDescriptorSetLayout, rtComposeDescriptorPool, rtComposeDescriptorSet);
@@ -260,19 +261,19 @@ namespace RT64
         // Create the main shaders
         if (!mainRtShadersCreated) {
             createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "PrimaryRayGen",    VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryRayGenStage,         primaryRayGenModule, &shaderStages);
-            // createShaderModule(DirectRayGen_SPIRV,      sizeof(DirectRayGen_SPIRV),     "DirectRayGen",     VK_SHADER_STAGE_RAYGEN_BIT_KHR, directRayGenStage,          directRayGenModule, &shaderStages);
-            // createShaderModule(IndirectRayGen_SPIRV,    sizeof(IndirectRayGen_SPIRV),   "IndirectRayGen",   VK_SHADER_STAGE_RAYGEN_BIT_KHR, indirectRayGenStage,        indirectRayGenModule, &shaderStages);
-            // createShaderModule(ReflectionRayGen_SPIRV,  sizeof(ReflectionRayGen_SPIRV), "ReflectionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, reflectionRayGenStage,      reflectionRayGenModule, &shaderStages);
-            // createShaderModule(RefractionRayGen_SPIRV,  sizeof(RefractionRayGen_SPIRV), "RefractionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, refractionRayGenStage,      refractionRayGenModule, &shaderStages);
+            createShaderModule(DirectRayGen_SPIRV,      sizeof(DirectRayGen_SPIRV),     "DirectRayGen",     VK_SHADER_STAGE_RAYGEN_BIT_KHR, directRayGenStage,          directRayGenModule, &shaderStages);
+            createShaderModule(IndirectRayGen_SPIRV,    sizeof(IndirectRayGen_SPIRV),   "IndirectRayGen",   VK_SHADER_STAGE_RAYGEN_BIT_KHR, indirectRayGenStage,        indirectRayGenModule, &shaderStages);
+            createShaderModule(ReflectionRayGen_SPIRV,  sizeof(ReflectionRayGen_SPIRV), "ReflectionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, reflectionRayGenStage,      reflectionRayGenModule, &shaderStages);
+            createShaderModule(RefractionRayGen_SPIRV,  sizeof(RefractionRayGen_SPIRV), "RefractionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, refractionRayGenStage,      refractionRayGenModule, &shaderStages);
             createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "SurfaceMiss",      VK_SHADER_STAGE_MISS_BIT_KHR, surfaceMissStage,             surfaceMissModule, &shaderStages);
             createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "ShadowMiss",       VK_SHADER_STAGE_MISS_BIT_KHR, shadowMissStage,              shadowMissModule, &shaderStages);
         } else {
             // Push the main shaders into the shader stages
             shaderStages.push_back(primaryRayGenStage);
-            // shaderStages.push_back(directRayGenStage);
-            // shaderStages.push_back(indirectRayGenStage);
-            // shaderStages.push_back(reflectionRayGenStage);
-            // shaderStages.push_back(refractionRayGenStage);
+            shaderStages.push_back(directRayGenStage);
+            shaderStages.push_back(indirectRayGenStage);
+            shaderStages.push_back(reflectionRayGenStage);
+            shaderStages.push_back(refractionRayGenStage);
             shaderStages.push_back(surfaceMissStage);
             shaderStages.push_back(shadowMissStage);
         }
@@ -303,14 +304,14 @@ namespace RT64
         group.type = VK_RAY_TRACING_SHADER_GROUP_TYPE_GENERAL_KHR;
         group.generalShader = SHADER_INDEX(primaryRayGen);
         rtShaderGroups.push_back(group);
-        // group.generalShader = SHADER_INDEX(directRayGen);
-        // rtShaderGroups.push_back(group);
-        // group.generalShader = SHADER_INDEX(indirectRayGen);
-        // rtShaderGroups.push_back(group);
-        // group.generalShader = SHADER_INDEX(reflectionRayGen);
-        // rtShaderGroups.push_back(group);
-        // group.generalShader = SHADER_INDEX(refractionRayGen);
-        // rtShaderGroups.push_back(group);
+        group.generalShader = SHADER_INDEX(directRayGen);
+        rtShaderGroups.push_back(group);
+        group.generalShader = SHADER_INDEX(indirectRayGen);
+        rtShaderGroups.push_back(group);
+        group.generalShader = SHADER_INDEX(reflectionRayGen);
+        rtShaderGroups.push_back(group);
+        group.generalShader = SHADER_INDEX(refractionRayGen);
+        rtShaderGroups.push_back(group);
         group.generalShader = SHADER_INDEX(surfaceMiss);
         rtShaderGroups.push_back(group);
         group.generalShader = SHADER_INDEX(shadowMiss);
@@ -348,9 +349,9 @@ namespace RT64
         vkCreatePipelineLayout(vkDevice, &layoutInfo, nullptr, &rtPipelineLayout);
 
         // Assemble the shader stages and recursion depth info into the ray tracing pipeline
-        // VkRayTracingPipelineInterfaceCreateInfoKHR interfaceInfo { VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_INTERFACE_CREATE_INFO_KHR };
-        // interfaceInfo.maxPipelineRayHitAttributeSize = 2 * sizeof(float);
-        // interfaceInfo.maxPipelineRayPayloadSize = 13 * sizeof(float);
+        VkRayTracingPipelineInterfaceCreateInfoKHR interfaceInfo { VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_INTERFACE_CREATE_INFO_KHR };
+        interfaceInfo.maxPipelineRayHitAttributeSize = 2 * sizeof(float);
+        interfaceInfo.maxPipelineRayPayloadSize = 13 * sizeof(float);
         VkRayTracingPipelineCreateInfoKHR rayPipelineInfo{VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_CREATE_INFO_KHR};
         rayPipelineInfo.stageCount = static_cast<uint32_t>(shaderStages.size());  // Stages are shaders
         rayPipelineInfo.pStages = shaderStages.data();
@@ -358,7 +359,7 @@ namespace RT64
         rayPipelineInfo.pGroups = rtShaderGroups.data();
         rayPipelineInfo.maxPipelineRayRecursionDepth = 1;       // Ray depth
         rayPipelineInfo.layout = rtPipelineLayout;
-        // rayPipelineInfo.pLibraryInterface = &interfaceInfo;
+        rayPipelineInfo.pLibraryInterface = &interfaceInfo;
         vkCreateRayTracingPipelinesKHR(vkDevice, {}, {}, 1, &rayPipelineInfo, nullptr, &rtPipeline);
 
         rtDescriptorSets.clear();
@@ -464,6 +465,7 @@ namespace RT64
             createFramebuffers();
             framebufferCreated = true;
         }
+
         vkWaitForFences(vkDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         VkResult result = vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
@@ -474,18 +476,16 @@ namespace RT64
             return;
         }
 
-        vkResetCommandBuffer(commandBuffers[currentFrame], 0);
-
         // Update the scenes....
         updateScenes();
+
+        vkResetFences(vkDevice, 1, &inFlightFences[currentFrame]);
+        vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 
         // Draw the scenes!
         for (Scene* s : scenes) {
             s->render(delta);
         }
-
-        // Only reset the fence if we are submitting work
-        vkResetFences(vkDevice, 1, &inFlightFences[currentFrame]);
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -515,6 +515,9 @@ namespace RT64
         presentInfo.pResults = nullptr; // Optional
         // Now pop it on the screen!
         result = vkQueuePresentKHR(presentQueue, &presentInfo); 
+        
+        // Now wait for GPU
+        vkWaitForFences(vkDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
 
         // Handle resizing again
         updateSize(result, "failed to present swap chain image!");

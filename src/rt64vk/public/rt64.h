@@ -129,6 +129,10 @@ typedef struct {
 } RT64_RECT;
 
 typedef struct {
+	RT64_VECTOR4 diffuseColorMix;
+	alignas(16) RT64_VECTOR3 specularColor;
+	alignas(16) RT64_VECTOR3 selfLight;
+	alignas(16) RT64_VECTOR3 fogColor;
 	int diffuseTexIndex;
 	int normalTexIndex;
 	int specularTexIndex;
@@ -138,16 +142,12 @@ typedef struct {
 	float reflectionFresnelFactor;
 	float reflectionShineFactor;
 	float refractionFactor;
-	RT64_VECTOR3 specularColor;
 	float specularExponent;
 	float solidAlphaMultiplier;
 	float shadowAlphaMultiplier;
 	float depthBias;
 	float shadowRayBias;
-	RT64_VECTOR3 selfLight;
 	unsigned int lightGroupMaskBits;
-	RT64_VECTOR3 fogColor;
-	RT64_VECTOR4 diffuseColorMix;
 	float fogMul;
 	float fogOffset;
 	unsigned int fogEnabled;
@@ -159,11 +159,11 @@ typedef struct {
 
 // Light
 typedef struct {
-	RT64_VECTOR3 position;
-	RT64_VECTOR3 diffuseColor;
+	alignas(16) RT64_VECTOR3 position;
+	alignas(16) RT64_VECTOR3 diffuseColor;
+	alignas(16) RT64_VECTOR3 specularColor;
 	float attenuationRadius;
 	float pointRadius;
-	RT64_VECTOR3 specularColor;
 	float shadowOffset;
 	float attenuationExponent;
 	float flickerIntensity;

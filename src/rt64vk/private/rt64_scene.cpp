@@ -133,7 +133,7 @@ namespace RT64
         uint64_t* pData;
         VkDeviceSize i = 0;
         // D3D12_CHECK(lightsBuffer.Get()->Map(0, nullptr, (void **)&pData));
-        lightsBuffer.mapMemory((void**)&pData);
+        void* lightBufferAddr = lightsBuffer.mapMemory((void**)&pData);
 
         if (lightArray != nullptr) {
             memcpy(pData, lightArray, sizeof(RT64_LIGHT) * lightCount);

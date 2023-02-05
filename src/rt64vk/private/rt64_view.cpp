@@ -30,8 +30,8 @@ namespace RT64
         globalParamsData.motionBlurStrength = 0.0f;
         globalParamsData.skyPlaneTexIndex = -1;
         globalParamsData.randomSeed = 0;
-        globalParamsData.diSamples = 0;
-        globalParamsData.giSamples = 0;
+        globalParamsData.diSamples = 2;
+        globalParamsData.giSamples = 2;
         globalParamsData.maxLights = 12;
         globalParamsData.motionBlurSamples = 32;
         globalParamsData.visualizationMode = 0;
@@ -656,11 +656,14 @@ namespace RT64
             VkDescriptorSet& descriptorSet = device->getComposeDescriptorSet();
             descriptorWrites.push_back(rtFlow.generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtDiffuse.generateDescriptorWrite(1, 1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, 2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, 3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            // descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, 2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            // descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, 3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, 2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, 3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtReflection.generateDescriptorWrite(1, 4 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtRefraction.generateDescriptorWrite(1, 5 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtTransparent.generateDescriptorWrite(1, 6 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
 
             // Add the compose sampler
             VkDescriptorImageInfo samplerInfo { };
@@ -839,10 +842,10 @@ namespace RT64
         raygenRegion.stride = ROUND_UP(handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
         raygenRegion.size = raygenRegion.stride;    // The size member of pRayGenShaderBindingTable must be equal to its stride member
         primaryRayGenRegion = raygenRegion;
-        // directRayGenRegion = raygenRegion;
-        // indirectRayGenRegion = raygenRegion;
-        // reflectionRayGenRegion = raygenRegion;
-        // refractionRayGenRegion = raygenRegion;
+        directRayGenRegion = raygenRegion;
+        indirectRayGenRegion = raygenRegion;
+        reflectionRayGenRegion = raygenRegion;
+        refractionRayGenRegion = raygenRegion;
         missRegion.stride = handleSizeAligned;
         missRegion.size = ROUND_UP(missCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
 
@@ -886,12 +889,11 @@ namespace RT64
         VkBufferDeviceAddressInfo info{VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, nullptr, shaderBindingTable.getBuffer()};
         VkDeviceAddress sbtAddress = vkGetBufferDeviceAddress(device->getVkDevice(), &info);
         primaryRayGenRegion.deviceAddress = sbtAddress;
-        // directRayGenRegion.deviceAddress = primaryRayGenRegion.deviceAddress + primaryRayGenRegion.size;
-        // indirectRayGenRegion.deviceAddress = directRayGenRegion.deviceAddress + directRayGenRegion.size;
-        // reflectionRayGenRegion.deviceAddress = indirectRayGenRegion.deviceAddress + indirectRayGenRegion.size;
-        // refractionRayGenRegion.deviceAddress = reflectionRayGenRegion.deviceAddress + reflectionRayGenRegion.size;
-        // missRegion.deviceAddress = refractionRayGenRegion.deviceAddress + refractionRayGenRegion.size;
-        missRegion.deviceAddress = primaryRayGenRegion.deviceAddress + primaryRayGenRegion.size;
+        directRayGenRegion.deviceAddress = primaryRayGenRegion.deviceAddress + primaryRayGenRegion.size;
+        indirectRayGenRegion.deviceAddress = directRayGenRegion.deviceAddress + directRayGenRegion.size;
+        reflectionRayGenRegion.deviceAddress = indirectRayGenRegion.deviceAddress + indirectRayGenRegion.size;
+        refractionRayGenRegion.deviceAddress = reflectionRayGenRegion.deviceAddress + reflectionRayGenRegion.size;
+        missRegion.deviceAddress = refractionRayGenRegion.deviceAddress + refractionRayGenRegion.size;
         hitRegion.deviceAddress = missRegion.deviceAddress + missRegion.size;
 
         // Helper to retrieve the handle data
@@ -909,7 +911,7 @@ namespace RT64
         }
 
         // Miss
-        pData = pSBTBuffer + raygenRegion.size;
+        pData = pSBTBuffer + (raygenRegion.size * raygenCount);
         for(uint32_t c = 0; c < missCount; c++) {
             memcpy(pData, getHandle(handleIdx++), handleSize);
             pData += missRegion.stride;
@@ -918,7 +920,7 @@ namespace RT64
         // Hit
         VkBufferDeviceAddressInfo vertAddr { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
         VkBufferDeviceAddressInfo indAddr { VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO };
-        pData = pSBTBuffer + raygenRegion.size + missRegion.size;
+        pData = pSBTBuffer + (raygenRegion.size * raygenCount) + missRegion.size;
         for(uint32_t c = 0; c < rtInstances.size(); c++) {
             vertAddr.buffer = *rtInstances[c].vertexBuffer;
             indAddr.buffer = *rtInstances[c].indexBuffer;
@@ -1082,62 +1084,86 @@ namespace RT64
             vkCmdTraceRaysKHR(commandBuffer, &primaryRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 
 	    	// Barriers for shading buffers before dispatching secondary rays.
-            // AllocatedImage* shadingBarriers[] = {
-            //     &rtViewDirection,
-            //     &rtDirectLightAccum[rtSwap ? 1 : 0],
-            //     &rtIndirectLightAccum[rtSwap ? 1 : 0],
-            //     &rtShadingPosition,
-            //     &rtShadingNormal,
-            //     &rtShadingSpecular,
-            //     &rtNormal[rtSwap ? 1 : 0]
-            // };
-            // device->transitionImageLayout(shadingBarriers, sizeof(shadingBarriers) / sizeof(AllocatedImage*), 
-            //     VK_IMAGE_LAYOUT_GENERAL, 
-            //     VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT, 
-            //     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 
-            //     &commandBuffer);
+            AllocatedImage* shadingBarriers[] = {
+                &rtViewDirection,
+                &rtDirectLightAccum[rtSwap ? 1 : 0],
+                &rtIndirectLightAccum[rtSwap ? 1 : 0],
+                &rtShadingPosition,
+                &rtShadingNormal,
+                &rtShadingSpecular,
+                &rtNormal[rtSwap ? 1 : 0]
+            };
+            device->transitionImageLayout(shadingBarriers, sizeof(shadingBarriers) / sizeof(AllocatedImage*), 
+                VK_IMAGE_LAYOUT_GENERAL, 
+                VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT, 
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 
+                &commandBuffer);
 
-    		// // Store the first bounce instance Id.
-            // device->transitionImageLayout(rtInstanceId, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            //     VK_ACCESS_TRANSFER_READ_BIT,
-            //     VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,  VK_PIPELINE_STAGE_TRANSFER_BIT,
-            //     &commandBuffer);
-            // device->transitionImageLayout(rtFirstInstanceId, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            //     VK_ACCESS_TRANSFER_WRITE_BIT,
-            //     VK_PIPELINE_STAGE_NONE,  VK_PIPELINE_STAGE_TRANSFER_BIT,
-            //     &commandBuffer);
-            // device->copyImage(rtInstanceId, rtFirstInstanceId, rtInstanceId.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
+    		// Store the first bounce instance Id.
+            device->transitionImageLayout(rtInstanceId, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                VK_ACCESS_TRANSFER_READ_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                &commandBuffer);
+            device->transitionImageLayout(rtFirstInstanceId, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                VK_ACCESS_TRANSFER_WRITE_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                &commandBuffer);
+            device->copyImage(rtInstanceId, rtFirstInstanceId, rtInstanceId.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
 
-		    // RT64_LOG_PRINTF("Dispatching direct light rays");
-            // vkCmdTraceRaysKHR(commandBuffer, &directRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+		    RT64_LOG_PRINTF("Dispatching direct light rays");
+            vkCmdTraceRaysKHR(commandBuffer, &directRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 
-		    // RT64_LOG_PRINTF("Dispatching indirect light rays");
-            // vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+		    RT64_LOG_PRINTF("Dispatching indirect light rays");
+            vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 
-    		// // Wait until indirect light is done before dispatching reflection or refraction rays.
-            // vkWaitForFences(device->getVkDevice(), 1, &device->getCurrentFence(), VK_TRUE, UINT64_MAX);
+    		// Wait until indirect light is done before dispatching reflection or refraction rays.
+            // TODO: This is only required to prevent simultaneous usage of the anyhit buffers.
+            //  This barrier can be removed if this no longer happens, resulting in less serialization of the commands.
+            device->transitionImageLayout(rtIndirectLightAccum[rtSwap ? 1 : 0], 
+                VK_IMAGE_LAYOUT_GENERAL,
+                VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+                VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                &commandBuffer);
 
-            // device->transitionImageLayout(rtInstanceId, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
-            //     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            //     VK_PIPELINE_STAGE_TRANSFER_BIT,  VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
-            //     &commandBuffer);
+		    // Transition the instance ID buffer into an optimal attachment
+            device->transitionImageLayout(rtInstanceId, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                &commandBuffer);
             
-		    // RT64_LOG_PRINTF("Dispatching refraction rays");
-            // vkCmdTraceRaysKHR(commandBuffer, &refractionRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+		    RT64_LOG_PRINTF("Dispatching refraction rays");
+            vkCmdTraceRaysKHR(commandBuffer, &refractionRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 
-		    // // Wait until refraction is done before dispatching reflection rays.
-            // vkWaitForFences(device->getVkDevice(), 1, &device->getCurrentFence(), VK_TRUE, UINT64_MAX);
+		    // Wait until refraction is done before dispatching reflection rays.
+            // TODO: This is only required to prevent simultaneous usage of the anyhit buffers.
+            //  This barrier can be removed if this no longer happens, resulting in less serialization of the commands.
+            device->transitionImageLayout(rtReflection, 
+                VK_IMAGE_LAYOUT_GENERAL,
+                VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+                VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                &commandBuffer);
 
-            // int reflections = maxReflections;
-            // while (reflections > 0) {
-			//     RT64_LOG_PRINTF("Dispatching reflection rays");
-            //     vkCmdTraceRaysKHR(commandBuffer, &reflectionRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
-            //     reflections--;
+            int reflections = maxReflections;
+            while (reflections > 0) {
+			    RT64_LOG_PRINTF("Dispatching reflection rays");
+                vkCmdTraceRaysKHR(commandBuffer, &reflectionRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+                reflections--;
 
-            //     if (reflections > 0) {
-            //         vkWaitForFences(device->getVkDevice(), 1, &device->getCurrentFence(), VK_TRUE, UINT64_MAX);
-            //     }
-            // }
+			    // Add a barrier to wait for the input bindings to be finished if there's more passes left to be done.
+                if (reflections > 0) {
+                    AllocatedImage* newInputBarriers[] = {
+                        &rtViewDirection,
+                        &rtShadingNormal,
+                        &rtInstanceId,
+                        &rtReflection
+                    };
+                    device->transitionImageLayout(newInputBarriers, sizeof(shadingBarriers) / sizeof(AllocatedImage*), 
+                        VK_IMAGE_LAYOUT_GENERAL, 
+                        VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT, 
+                        VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 
+                        &commandBuffer);
+                }
+            }
         }
         
 	    // Barriers for shading buffers after rays are finished.
