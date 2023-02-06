@@ -91,7 +91,7 @@ namespace RT64 {
     }
 
     void Texture::setRGBA8(void* bytes, int byteCount, int width, int height, int rowPitch, bool generateMipmaps) {
-        setRawWithFormat(VK_FORMAT_R8G8B8A8_SRGB, bytes, byteCount, width, height, rowPitch, generateMipmaps);
+        setRawWithFormat(VK_FORMAT_R8G8B8A8_UNORM, bytes, byteCount, width, height, rowPitch, generateMipmaps);
     }
 
     // Public
@@ -116,12 +116,12 @@ DLEXPORT RT64_TEXTURE* RT64_CreateTexture(RT64_DEVICE *devicePtr, RT64_TEXTURE_D
 	try {
         texture->setName(textureDesc.name);
 		switch (textureDesc.format) {
-		case RT64_TEXTURE_FORMAT_RGBA8:
-			texture->setRGBA8(textureDesc.bytes, textureDesc.byteCount, textureDesc.width, textureDesc.height, textureDesc.rowPitch, true);
-			break;
-		// case RT64_TEXTURE_FORMAT_DDS:
-		// 	texture->setDDS(textureDesc.bytes, textureDesc.byteCount);
-		// 	break;
+            case RT64_TEXTURE_FORMAT_RGBA8:
+                texture->setRGBA8(textureDesc.bytes, textureDesc.byteCount, textureDesc.width, textureDesc.height, textureDesc.rowPitch, true);
+                break;
+            // case RT64_TEXTURE_FORMAT_DDS:
+            // 	texture->setDDS(textureDesc.bytes, textureDesc.byteCount);
+            // 	break;
 		}
 
 		return (RT64_TEXTURE*)(texture);

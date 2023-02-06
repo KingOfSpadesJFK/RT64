@@ -1219,7 +1219,29 @@ namespace RT64
         
         rtAllocator.deinit();
 		vmaDestroyAllocator(allocator);
-        // TODO: Actually delete stuff instead of just leaking everything.
+
+        // Destroy shader modules
+        vkDestroyShaderModule(vkDevice, primaryRayGenModule, nullptr);
+        vkDestroyShaderModule(vkDevice, directRayGenModule, nullptr);
+        vkDestroyShaderModule(vkDevice, indirectRayGenModule, nullptr);
+        vkDestroyShaderModule(vkDevice, reflectionRayGenModule, nullptr);
+        vkDestroyShaderModule(vkDevice, refractionRayGenModule, nullptr);
+        vkDestroyShaderModule(vkDevice, surfaceMissModule, nullptr);
+        vkDestroyShaderModule(vkDevice, shadowMissModule, nullptr);
+        vkDestroyShaderModule(vkDevice, fullscreenVSModule, nullptr);
+        vkDestroyShaderModule(vkDevice, composePSModule, nullptr);
+        vkDestroySampler(vkDevice, composeSampler, nullptr);
+
+        // Destroy RT pipeline and descriptor set/pool
+        vkDestroyPipeline(vkDevice, rtPipeline, nullptr);
+        vkDestroyPipelineLayout(vkDevice, rtPipelineLayout, nullptr);
+        vkDestroyDescriptorPool(vkDevice, raygenDescriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(vkDevice, raygenDescriptorSetLayout, nullptr);
+        // Destroy compose pipeline and descriptor set/pool
+        vkDestroyPipeline(vkDevice, rtComposePipeline, nullptr);
+        vkDestroyPipelineLayout(vkDevice, rtComposePipelineLayout, nullptr);
+        vkDestroyDescriptorPool(vkDevice, rtComposeDescriptorPool, nullptr);
+        vkDestroyDescriptorSetLayout(vkDevice, rtComposeDescriptorSetLayout, nullptr);
 #endif
         if (enableValidationLayers) {
             DestroyDebugUtilsMessengerEXT(vkInstance, debugMessenger, nullptr);

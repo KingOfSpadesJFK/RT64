@@ -161,7 +161,10 @@ void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal
 		SS("float3 dpos1 = pos1 - pos0;");
 		SS("float3 dpos2 = pos2 - pos0;");
 		SS("float3 vertexTangent;");
-		SS("if (uvk != 0) vertexTangent = normalize((uvc * dpos2 - uvd * dpos1) / uvk);");
+		SS("if (uvk != 0) {");
+		SS("");
+		SS("	vertexTangent = normalize((uvc * dpos2 - uvd * dpos1) / uvk);");
+		SS("}");
 		SS("else {");
 		SS("    if (uva != 0) vertexTangent = normalize(dpos1 / uva);");
 		SS("    else if (uvb != 0) vertexTangent = normalize(dpos2 / uvb);");
@@ -305,7 +308,7 @@ namespace RT64
 		if (flags & RT64_SHADER_RASTER_ENABLED) {
 			const std::string vertexShader = baseName + "VS";
 			const std::string pixelShader = baseName + "PS";
-			generateRasterGroup(shaderId, filter, hAddr, vAddr, vertexShader, pixelShader);
+			generateRasterGroup(shaderId, filter, flags & RT64_SHADER_RASTER_TRANSFORMS_ENABLED, hAddr, vAddr, vertexShader, pixelShader);
 		}
 
 		if (flags & RT64_SHADER_RAYTRACE_ENABLED) {
@@ -341,6 +344,7 @@ namespace RT64
 	void Shader::generateRasterGroup(
 			unsigned int shaderId, 
 			Filter filter, 
+            bool use3DTransforms,
 			AddressingMode hAddr, 
 			AddressingMode vAddr, 
 			const std::string &vertexShaderName, 
@@ -357,7 +361,7 @@ namespace RT64
 		SS("struct PushConstant { int instanceId; };");
 		SS("[[vk::push_constant]] PushConstant pc;");
 
-		unsigned int samplerRegisterIndex = 0; //uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
+		unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 		if (cc.useTextures[0]) {
 			SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
 			SS(INCLUDE_HLSLI(TexturesHLSLI));
@@ -383,9 +387,11 @@ namespace RT64
 			SS("    out float4 oInput" + std::to_string(i + 1) + " : COLOR" + std::to_string(i) + std::string(((i + 1) < cc.inputCount) ? "," : ""));
 		}
 		SS(") {");
-		SS("    oPosition = mul(projection, mul(view, mul(instanceTransforms[pc.instanceId].objectToWorld, float4(iPosition.xyz, 1.0))));");
-		// SS("    oPosition = mul(projection, mul(view, mul(instanceTransforms[0].objectToWorld, float4(iPosition.xyz, 1.0))));");
-		// SS("    oPosition = iPosition;");
+		if (use3DTransforms) {
+			SS("    oPosition = mul(projection, mul(view, mul(instanceTransforms[pc.instanceId].objectToWorld, float4(iPosition.xyz, 1.0))));");
+		} else {
+			SS("    oPosition = iPosition;");
+		}
 		
 		SS("    oNormal = iNormal;");
 		if (vertexUV) {
@@ -640,13 +646,14 @@ namespace RT64
 		if (vertexUV && normalMapEnabled) {
 			SS("    vertexTangent = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexTangent, 0.f)).xyz) * normalSign;");
 			SS("    vertexBinormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexBinormal, 0.f)).xyz) * normalSign;");
+			SS("    float3x3 tbn = float3x3(vertexTangent, vertexBinormal, vertexNormal);");
 			SS("    int normalTexIndex = instanceMaterials[instanceId].normalTexIndex;");
 			SS("    if (normalTexIndex >= 0) {");
 			SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
 			SS("        float3 normalColor = gTextures[NonUniformResourceIndex(normalTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).xyz;");
 			SS("        normalColor = (normalColor * 2.0f) - 1.0f;");
-			SS("        float3 newNormal = normalize(vertexNormal * normalColor.z + vertexTangent * normalColor.x + vertexBinormal * normalColor.y);");
-			// SS("        vertexNormal = newNormal;");
+			SS("        float3 newNormal = normalize(mul(normalColor, tbn));");
+			SS("        vertexNormal = newNormal;");
 			SS("    }");
 		}
 

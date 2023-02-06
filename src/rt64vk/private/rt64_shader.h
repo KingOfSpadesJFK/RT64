@@ -62,6 +62,7 @@ namespace RT64 {
             unsigned int uniqueSamplerRegisterIndex(Filter filter, AddressingMode hAddr, AddressingMode vAddr);
             void generateRasterGroup(unsigned int shaderId, 
                 Filter filter, 
+                bool use3DTransforms,
                 AddressingMode hAddr, 
                 AddressingMode vAddr, 
                 const std::string &vertexShaderName, 

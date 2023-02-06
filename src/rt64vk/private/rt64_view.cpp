@@ -368,6 +368,13 @@ namespace RT64
         auto currentTime = std::chrono::high_resolution_clock::now();
         float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
 
+        #define RADIUS 10.0f
+        #define YOFF 2.0f
+        glm::vec3 eye = glm::vec3(sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS);
+        globalParamsData.view = glm::lookAt(eye, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        globalParamsData.projection = glm::perspective(glm::radians(45.0f), (float)this->scene->getDevice()->getAspectRatio(), 0.1f, 1000.0f);
+        globalParamsData.projection[1][1] *= -1;
+
         // Update with the latest scene description.
         RT64_SCENE_DESC desc = scene->getDescription();
         globalParamsData.ambientBaseColor = ToVector4(desc.ambientBaseColor, 0.0f);
@@ -379,13 +386,6 @@ namespace RT64
         globalParamsData.skyYawOffset = desc.skyYawOffset;
         globalParamsData.giDiffuseStrength = desc.giDiffuseStrength;
         globalParamsData.giSkyStrength = desc.giSkyStrength;
-
-        #define RADIUS 10.0f
-        #define YOFF 2.0f
-        glm::vec3 eye = glm::vec3(sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS);
-        globalParamsData.view = glm::lookAt(eye, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        globalParamsData.projection = glm::perspective(glm::radians(45.0f), (float)this->scene->getDevice()->getAspectRatio(), 0.1f, 1000.0f);
-        globalParamsData.projection[1][1] *= -1;
 
         // Previous and current view and projection matrices and their inverse.
         if (perspectiveCanReproject) {
@@ -405,24 +405,24 @@ namespace RT64
         // Pinhole camera vectors to generate non-normalized ray direction.
         // TODO: Make a fake target and focal distance at the midpoint of the near/far planes
         // until the game sends that data in some way in the future.
-        // const float FocalDistance = (nearDist + farDist) / 2.0f;
-        // const float AspectRatio = scene->getDevice()->getAspectRatio();
-        // const RT64_VECTOR3 Up = { 0.0f, 1.0f, 0.0f };
-        // // const RT64_VECTOR3 Pos = getViewPosition();
-        // // const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
-        // const glm::vec4 PosGLM = glm::vec4{sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS, 1.0f} * globalParamsData.viewI;
-        // const RT64_VECTOR3 Pos = {PosGLM.x, PosGLM.y, PosGLM.z};
+        const float FocalDistance = (nearDist + farDist) / 2.0f;
+        const float AspectRatio = scene->getDevice()->getAspectRatio();
+        const RT64_VECTOR3 Up = { 0.0f, 1.0f, 0.0f };
+        // const RT64_VECTOR3 Pos = getViewPosition();
         // const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
-        // RT64_VECTOR3 cameraW = Normalize(Target - Pos) * FocalDistance;
-        // RT64_VECTOR3 cameraU = Normalize(Cross(cameraW, Up));
-        // RT64_VECTOR3 cameraV = Normalize(Cross(cameraU, cameraW));
-        // const float ulen = FocalDistance * std::tan(fovRadians * 0.5f) * AspectRatio;
-        // const float vlen = FocalDistance * std::tan(fovRadians * 0.5f);
-        // cameraU = cameraU * ulen;
-        // cameraV = cameraV * vlen;
-        // globalParamsData.cameraU = ToVector4(cameraU, 0.0f);
-        // globalParamsData.cameraV = ToVector4(cameraV, 0.0f);
-        // globalParamsData.cameraW = ToVector4(cameraW, 0.0f);
+        const glm::vec4 PosGLM = glm::vec4{sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS, 1.0f} * globalParamsData.viewI;
+        const RT64_VECTOR3 Pos = {PosGLM.x, PosGLM.y, PosGLM.z};
+        const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
+        RT64_VECTOR3 cameraW = Normalize(Target - Pos) * FocalDistance;
+        RT64_VECTOR3 cameraU = Normalize(Cross(cameraW, Up));
+        RT64_VECTOR3 cameraV = Normalize(Cross(cameraU, cameraW));
+        const float ulen = FocalDistance * std::tan(fovRadians * 0.5f) * AspectRatio;
+        const float vlen = FocalDistance * std::tan(fovRadians * 0.5f);
+        cameraU = cameraU * ulen;
+        cameraV = cameraV * vlen;
+        globalParamsData.cameraU = ToVector4(cameraU, 0.0f);
+        globalParamsData.cameraV = ToVector4(cameraV, 0.0f);
+        globalParamsData.cameraW = ToVector4(cameraW, 0.0f);
 
         globalParamsBuffer.setData(&globalParamsData, sizeof(globalParamsData));
     }
@@ -444,7 +444,7 @@ namespace RT64
 
     void View::updateInstanceTransformsBuffer() {
         InstanceTransforms* current = nullptr;
-        activeInstancesBufferTransforms.mapMemory(reinterpret_cast<void **>(&current));
+        activeInstancesBufferTransforms.mapMemory(reinterpret_cast<void**>(&current));
         // D3D12_CHECK(activeInstancesBufferTransforms.Get()->Map(0, &readRange, reinterpret_cast<void **>(&current)));
 
         for (const RenderInstance &inst : rtInstances) {

@@ -116,7 +116,7 @@ void IndirectRayGen() {
 			float3 resIndirect = ambientBaseColor.rgb;
 			if (resInstanceId >= 0) {
 				float3 directLight = ComputeLightsRandom(launchIndex, rayDirection, resInstanceId, resPosition, resNormal, resSpecular, 1, true) + instanceMaterials[resInstanceId].selfLight;
-				float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
+				float3 indirectLight = resColor.rgb * (1.0f - resColor.a) * (ambientNoGIColor.rgb + directLight) * giDiffuseStrength;
 				resIndirect += indirectLight;
 			}
 

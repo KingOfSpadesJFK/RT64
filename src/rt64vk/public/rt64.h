@@ -67,6 +67,7 @@
 #define RT64_SHADER_RAYTRACE_ENABLED			0x02
 #define RT64_SHADER_NORMAL_MAP_ENABLED			0x04
 #define RT64_SHADER_SPECULAR_MAP_ENABLED		0x08
+#define RT64_SHADER_RASTER_TRANSFORMS_ENABLED	0x10
 
 // Instance flags.
 #define RT64_INSTANCE_RASTER_BACKGROUND			0x1
@@ -95,8 +96,8 @@
 #define RT64_FEATURE_DLSS						0x1
 
 // Texture formats.
-#define RT64_TEXTURE_FORMAT_RGBA8				0x1
-#define RT64_TEXTURE_FORMAT_DDS					0x2
+#define RT64_TEXTURE_FORMAT_RGBA8				0x01
+#define RT64_TEXTURE_FORMAT_DDS					0x02
 
 // Forward declaration of types.
 typedef struct RT64_DEVICE RT64_DEVICE;

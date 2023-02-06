@@ -189,7 +189,7 @@ RT64_TEXTURE* loadTexturePNG(const char* path) {
 	return texture;
 }
 
-RT64_TEXTURE* loadTextureDDS(const char* path) {
+RT64_TEXTURE* loadTextureDDS(const char* path, bool normal) {
 	RT64_TEXTURE* texture = nullptr;
 	FILE* ddsFp = stbi__fopen("res/grass_dif.dds", "rb");
 	if (ddsFp != nullptr) {
@@ -220,8 +220,8 @@ RT64_TEXTURE* loadTextureDDS(const char* path) {
 void setupRT64Scene() {
 	// Setup scene.
 	RT64.scene = RT64.lib.CreateScene(RT64.device);
-	RT64.sceneDesc.ambientBaseColor = { 0.1f, 0.1f, 0.1f };
-	RT64.sceneDesc.ambientNoGIColor = { 0.2f, 0.2f, 0.2f };
+	RT64.sceneDesc.ambientBaseColor = { 0.007f, 0.007f, 0.007f };
+	RT64.sceneDesc.ambientNoGIColor = { 0.0f, 0.0f, 0.0f };
 	RT64.sceneDesc.eyeLightDiffuseColor = { 0.00f, 0.00f, 0.00f };
 	RT64.sceneDesc.eyeLightSpecularColor = { 0.00f, 0.00f, 0.00f };
 	RT64.sceneDesc.skyDiffuseMultiplier = { 1.0f, 1.0f, 1.0f };
