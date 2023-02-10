@@ -15,6 +15,7 @@ set(IMGUI_DIR ${CONTRIB_DIR}/imgui)
 set(VMA_DIR ${CONTRIB_DIR}/VulkanMemoryAllocator)
 set(DXC_DIR ${CONTRIB_DIR}/dxc)
 set(NVPRO_DIR ${CONTRIB_DIR}/nvpro_core)
+set(IM3D_DIR ${CONTRIB_DIR}/im3d)
 
 # DX12 Register shift variables
 #   These map the different dx12 registers to binding values on Vulkan
@@ -78,7 +79,7 @@ endforeach()
 add_custom_command(TARGET shaders PRE_BUILD
     COMMAND echo Building geometry shaders Im3DGSPoints and Im3DGSLines..
     COMMAND ${DXC_DIR}/bin/dxc ${SHADER_DIR}/Im3DGSPoints.hlsl -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0  -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSPoints.hlsl.h -Vn Im3DGSPoints_SPIRV
-    COMMAND ${DXC_DIR}/bin/dxc ${SHADER_DIR}/Im3DGSLines.hlsl -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSLines.hlsl.h -Vn Im3DGSPLines_SPIRV
+    COMMAND ${DXC_DIR}/bin/dxc ${SHADER_DIR}/Im3DGSLines.hlsl -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSLines.hlsl.h -Vn Im3DGSLines_SPIRV
 )
 
 #######################################################################
@@ -116,11 +117,13 @@ add_library(rt64vk SHARED
     ${LIBRT64VK_DIR}/private/rt64_texture.cpp
     ${LIBRT64VK_DIR}/private/rt64_shader.cpp
     ${LIBRT64VK_DIR}/private/rt64_instance.cpp
+    # ${LIBRT64VK_DIR}/private/rt64_inspector.cpp
     ${NVPRO_DIR}/nvp/perproject_globals.cpp
     ${SHADER_HEADERS}
     ${NVVK_SOURCE}
     ${NVH_SOURCE}
     ${NVMATH_SOURCE}
+    ${IM3D_DIR}/im3d.cpp
 )
 target_include_directories(rt64vk PRIVATE 
     ${LIBRT64VK_DIR}
@@ -148,6 +151,9 @@ add_executable(sample
 )
 target_link_libraries(sample 
     rt64vk
+)
+target_include_directories(sample PRIVATE 
+    ${SAMPLE_DIR}/contrib/tinygltf
 )
 # Copy the res files into the build folder
 add_custom_command(TARGET sample POST_BUILD

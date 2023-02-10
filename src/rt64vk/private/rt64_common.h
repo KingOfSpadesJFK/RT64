@@ -11,7 +11,7 @@
 #include <string>
 #include <vector>
 #include <stdio.h>
-#include <nvmath/nvmath.h>
+#include "../contrib/nvpro_core/nvmath/nvmath.h"
 #include <glm/glm.hpp>
 #include <bits/stl_algo.h>		// Idk why I know have to throw in this include in other than it makes it compile
 #include <vulkan/vulkan.hpp>
@@ -19,7 +19,7 @@
 
 // Oh hey, that dxc rly do be outputing spir-v code
 #ifndef _WIN32
-    #include <dxc/include/linux/dxcapi.h>
+    #include "../contrib/dxc/include/linux/dxcapi.h"
 #endif
 
 #include "../contrib/VulkanMemoryAllocator/vk_mem_alloc.h"

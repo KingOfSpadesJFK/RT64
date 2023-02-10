@@ -31,7 +31,6 @@ namespace RT64 {
                 VkPipeline pipeline;
                 VkPipelineLayout pipelineLayout;
                 VkDescriptorSetLayout descriptorSetLayout;
-                VkDescriptorPool descriptorPool;
                 VkDescriptorSet descriptorSet;
                 std::string vertexShaderName;
                 std::string pixelShaderName;
@@ -55,9 +54,9 @@ namespace RT64 {
             bool descriptorBound = false;
             unsigned int samplerRegisterIndex = 0;
             VkDescriptorSetLayout rtDescriptorSetLayout {};
-            VkDescriptorPool rtDescriptorPool {};
             VkDescriptorSet rtDescriptorSet {};
             unsigned int descriptorSetIndex = 0;
+            VkSampler sampler;
             
             unsigned int uniqueSamplerRegisterIndex(Filter filter, AddressingMode hAddr, AddressingMode vAddr);
             void generateRasterGroup(unsigned int shaderId, 
@@ -70,27 +69,27 @@ namespace RT64 {
             );
             void generateSurfaceHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, bool normalMapEnabled, bool specularMapEnabled, const std::string& hitGroupName, const std::string& closestHitName, const std::string& anyHitName);
             void generateShadowHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, const std::string& hitGroupName, const std::string& closestHitName, const std::string& anyHitName);
-            // void fillSamplerDesc(D3D12_STATIC_SAMPLER_DESC &desc, Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex);
-            // ID3D12RootSignature *generateRasterRootSignature(Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex);
-            // ID3D12RootSignature *generateHitRootSignature(Filter filter, AddressingMode hAddr, AddressingMode vAddr, unsigned int samplerRegisterIndex, bool hitBuffers);
-            void generateRasterDescriptorSetLayout(Filter filter, AddressingMode hAddr, AddressingMode vAddr, uint32_t samplerRegisterIndex, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet);
-            void generateHitDescriptorSetLayout(Filter filter, AddressingMode hAddr, AddressingMode vAddr, uint32_t samplerRegisterIndex, bool hitBuffers, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet);
+            void generateRasterDescriptorSetLayout(Filter filter, bool useGParams, AddressingMode hAddr, AddressingMode vAddr, uint32_t samplerRegisterIndex, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorSet& descriptorSet);
+            void generateHitDescriptorSetLayout(Filter filter, AddressingMode hAddr, AddressingMode vAddr, uint32_t samplerRegisterIndex, bool hitBuffers, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorSet& descriptorSet);
             void compileShaderCode(const std::string& shaderCode, VkShaderStageFlagBits stage, const std::string& entryName, const std::wstring& profile, VkPipelineShaderStageCreateInfo& shaderStage, VkShaderModule& shaderModule, uint32_t setIndex);
         public:
             Shader(Device* device, unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, int flags);
             ~Shader();
             void updateDescriptorSet(VkWriteDescriptorSet* data, VkDeviceSize size);
-            const RasterGroup& getRasterGroup() const;
+            RasterGroup& getRasterGroup();
             HitGroup getSurfaceHitGroup();
             HitGroup getShadowHitGroup();
             VkDescriptorSetLayout& getRTDescriptorSetLayout();
-            VkDescriptorPool& getRTDescriptorPool();
             VkDescriptorSet& getRTDescriptorSet();
+            VkSampler& getSampler();
             uint32_t getFlags() const;
+            bool has3DRaster() const;
             bool hasRasterGroup() const;
             bool hasHitGroups() const;
             uint32_t  hitGroupCount() const;
             bool isDescriptorBound() const;
             unsigned int getSamplerRegisterIndex() const;
+            void allocateRasterDescriptorSet();
+            void allocateRTDescriptorSet();
         };
 };

@@ -18,7 +18,7 @@
 #include "rt64_shader.h"
 // #include "rt64_texture.h"
 
-// #include "im3d/im3d.h"
+#include "im3d/im3d.h"
 // #include "xxhash/xxhash32.h"
 
 namespace RT64
@@ -27,19 +27,38 @@ namespace RT64
         this->scene = scene;
         this->device = scene->getDevice();
 
+        // Init global params data
         globalParamsData.motionBlurStrength = 0.0f;
         globalParamsData.skyPlaneTexIndex = -1;
         globalParamsData.randomSeed = 0;
-        globalParamsData.diSamples = 2;
-        globalParamsData.giSamples = 2;
+        globalParamsData.diSamples = 3;
+        globalParamsData.giSamples = 1;
         globalParamsData.maxLights = 12;
         globalParamsData.motionBlurSamples = 32;
         globalParamsData.visualizationMode = 0;
         globalParamsData.frameCount = 0;
         device->initRTBuilder(rtBuilder);
 
-        createOutputBuffers();
+        // Create the sky plane sampler
+		VkSamplerCreateInfo samplerInfo { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        samplerInfo.magFilter = VK_FILTER_LINEAR;
+        samplerInfo.minFilter = VK_FILTER_LINEAR;
+        samplerInfo.anisotropyEnable = VK_FALSE;
+        samplerInfo.maxAnisotropy = 1.0f;
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE;
+        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.mipLodBias = 0.0f;
+        samplerInfo.minLod = 0.0f;
+        samplerInfo.maxLod = 0.0f;
+        vkCreateSampler(device->getVkDevice(), &samplerInfo, nullptr, &skyPlaneSampler);
 
+        createOutputBuffers();
         createGlobalParamsBuffer();
 
 	    scene->addView(this);
@@ -347,6 +366,7 @@ namespace RT64
         activeInstancesBufferMaterials.destroyResource();
         activeInstancesBufferTransforms.destroyResource();
         shaderBindingTable.destroyResource();
+        vkDestroySampler(device->getVkDevice(), skyPlaneSampler, nullptr);
 
         rtBuilder.destroyTlas();
     }
@@ -363,18 +383,6 @@ namespace RT64
     }
 
     void View::updateGlobalParamsBuffer() {
-        static auto startTime = std::chrono::high_resolution_clock::now();
-
-        auto currentTime = std::chrono::high_resolution_clock::now();
-        float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count();
-
-        #define RADIUS 10.0f
-        #define YOFF 2.0f
-        glm::vec3 eye = glm::vec3(sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS);
-        globalParamsData.view = glm::lookAt(eye, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        globalParamsData.projection = glm::perspective(glm::radians(45.0f), (float)this->scene->getDevice()->getAspectRatio(), 0.1f, 1000.0f);
-        globalParamsData.projection[1][1] *= -1;
-
         // Update with the latest scene description.
         RT64_SCENE_DESC desc = scene->getDescription();
         globalParamsData.ambientBaseColor = ToVector4(desc.ambientBaseColor, 0.0f);
@@ -407,12 +415,12 @@ namespace RT64
         // until the game sends that data in some way in the future.
         const float FocalDistance = (nearDist + farDist) / 2.0f;
         const float AspectRatio = scene->getDevice()->getAspectRatio();
-        const RT64_VECTOR3 Up = { 0.0f, 1.0f, 0.0f };
-        // const RT64_VECTOR3 Pos = getViewPosition();
-        // const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
-        const glm::vec4 PosGLM = glm::vec4{sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS, 1.0f} * globalParamsData.viewI;
-        const RT64_VECTOR3 Pos = {PosGLM.x, PosGLM.y, PosGLM.z};
+        const RT64_VECTOR3 Up = { 0.0f, -1.0f, 0.0f };
+        const RT64_VECTOR3 Pos = getViewPosition();
         const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
+        // const glm::vec4 PosGLM = glm::vec4{sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS, 1.0f} * globalParamsData.viewI;
+        // const RT64_VECTOR3 Pos = {PosGLM.x, PosGLM.y, PosGLM.z};
+        // const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
         RT64_VECTOR3 cameraW = Normalize(Target - Pos) * FocalDistance;
         RT64_VECTOR3 cameraU = Normalize(Cross(cameraW, Up));
         RT64_VECTOR3 cameraV = Normalize(Cross(cameraU, cameraW));
@@ -587,7 +595,7 @@ namespace RT64
 
             // Add the background sampler
             VkDescriptorImageInfo samplerInfo { };
-            samplerInfo.sampler = device->getComposeSampler();
+            samplerInfo.sampler = skyPlaneSampler;
             VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
             samplerWrite.descriptorCount = 1;
             samplerWrite.dstSet = descriptorSet;
@@ -606,13 +614,78 @@ namespace RT64
             descriptorWrites.clear();
         }
 
-        // Update the instance descriptor sets
-        std::unordered_map<Shader*, Shader&> usedShaders;
+        // A function to bind descriptors to the raster descriptor sets
+        auto writeRasterDescriptors = [this, texture_infos](Shader* shader, VkDescriptorSet& descriptorSet, std::vector<VkWriteDescriptorSet>& descriptorWrites) {
+            // Only bind the global params buffer if the rasterizer is capable of 3D transforms
+            if (shader->has3DRaster()) {
+                descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
+            }
+            // First, allocate the shader's descriptor set
+            // shader->allocateRasterDescriptorSet();
+
+            descriptorWrites.push_back(activeInstancesBufferTransforms.generateDescriptorWrite(1, SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
+            descriptorWrites.push_back(activeInstancesBufferMaterials.generateDescriptorWrite(1, SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
+
+            // Add the textures
+            VkWriteDescriptorSet textureWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
+            textureWrite.descriptorCount = texture_infos.size();
+            textureWrite.dstBinding = SRV_INDEX(gTextures) + SRV_SHIFT;
+            textureWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
+            textureWrite.pImageInfo = texture_infos.data();
+            textureWrite.dstSet = descriptorSet;
+            descriptorWrites.push_back(textureWrite);
+
+            // Add the texture sampler
+            VkDescriptorImageInfo samplerInfo { };
+            samplerInfo.sampler = shader->getSampler();
+            VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+            samplerWrite.descriptorCount = 1;
+            samplerWrite.dstSet = descriptorSet;
+            samplerWrite.dstBinding = shader->getSamplerRegisterIndex() + SAMPLER_SHIFT;
+            samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+            samplerWrite.pImageInfo = &samplerInfo;
+            descriptorWrites.push_back(samplerWrite);
+
+            // Update descriptor sets
+            vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            descriptorWrites.clear();
+        };
+
+        // Update the raster instance descriptor sets
+        std::unordered_set<Shader*> usedShaders;
+        // Background instances
+        for (int i = 0; i < rasterBgInstances.size(); i++) {
+            Shader* shader = rasterBgInstances[i].shader;
+            if (usedShaders.contains(shader)) { continue; }
+            writeRasterDescriptors(shader, shader->getRasterGroup().descriptorSet, descriptorWrites);
+            usedShaders.emplace(shader);
+        }
+        usedShaders.clear();
+
+        // Foreground instances
+        for (int i = 0; i < rasterFgInstances.size(); i++) {
+            Shader* shader = rasterFgInstances[i].shader;
+            if (usedShaders.contains(shader)) { continue; }
+            writeRasterDescriptors(shader, shader->getRasterGroup().descriptorSet, descriptorWrites);
+            usedShaders.emplace(shader);
+        }
+        usedShaders.clear();
+
+        // for (int i = 0; i < rasterUiInstances.size(); i++) {
+        //     Shader* shader = rasterUiInstances[i].shader;
+        //     if (usedShaders.contains(shader)) { continue; }
+        //     writeRasterDescriptors(shader, shader->getRasterGroup().descriptorSet, descriptorWrites);
+        //     usedShaders.emplace(shader);
+        // }
+        // usedShaders.clear();
+
+        // And the RT Instances' descriptor sets
         for (int i = 0; i < rtInstances.size(); i++) {
             Shader* shader = rtInstances[i].shader;
             if (usedShaders.contains(shader)) {
                 continue;
             }
+            // shader->allocateRTDescriptorSet();
 
             VkDescriptorSet& descriptorSet = shader->getRTDescriptorSet();
             if (shader->getSurfaceHitGroup().shaderModule != nullptr) {
@@ -636,7 +709,7 @@ namespace RT64
 
             // Add the texture sampler
             VkDescriptorImageInfo samplerInfo { };
-            samplerInfo.sampler = device->getComposeSampler();
+            samplerInfo.sampler = shader->getSampler();
             VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
             samplerWrite.descriptorCount = 1;
             samplerWrite.dstSet = descriptorSet;
@@ -648,8 +721,9 @@ namespace RT64
             // Write to the instances' descriptor sets
             vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
             descriptorWrites.clear();
-            usedShaders.emplace(std::pair<Shader*, Shader&>{shader, *shader});
+            usedShaders.emplace(shader);
         }
+        usedShaders.clear();
 
         // Update the descriptor set for the compose shader
         {
@@ -703,6 +777,7 @@ namespace RT64
 
         usedTextures.clear();
         usedTextures.reserve(SRV_TEXTURES_MAX);
+	    globalParamsData.skyPlaneTexIndex = getTextureIndex(skyPlaneTexture);
 
         if (!scene->getInstances().empty()) {
             // Create the active instance vectors.
@@ -734,7 +809,7 @@ namespace RT64
                 renderInstance.indexCount = usedMesh->getIndexCount();
                 renderInstance.vertexBuffer = &usedMesh->getVertexBuffer().getBuffer();
                 renderInstance.indexBuffer = &usedMesh->getIndexBuffer().getBuffer();
-                renderInstance.flags = (instFlags & RT64_INSTANCE_DISABLE_BACKFACE_CULLING) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT;
+                renderInstance.flags = (instFlags & RT64_INSTANCE_DISABLE_BACKFACE_CULLING) ? VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR : 0;
                 renderInstance.material.diffuseTexIndex = getTextureIndex(instance->getDiffuseTexture());
                 renderInstance.material.normalTexIndex = getTextureIndex(instance->getNormalTexture());
                 renderInstance.material.specularTexIndex = getTextureIndex(instance->getSpecularTexture());
@@ -765,11 +840,11 @@ namespace RT64
 
                 if (usedMesh->getBlasAddress() != (VkDeviceAddress)nullptr) {
                     rtInstances.push_back(renderInstance);
-                }
-                else if (instFlags & RT64_INSTANCE_RASTER_BACKGROUND) {
+                } else if (instFlags & RT64_INSTANCE_RASTER_BACKGROUND) {
                     rasterBgInstances.push_back(renderInstance);
-                }
-                else {
+                } else if (instFlags & RT64_INSTANCE_RASTER_UI) {
+                    rasterUiInstances.push_back(renderInstance);
+                } else {
                     rasterFgInstances.push_back(renderInstance);
                 }
             }
@@ -817,7 +892,7 @@ namespace RT64
             rayInst.transform = nvvk::toTransformMatrixKHR(r.transform);
             rayInst.instanceCustomIndex = id;
             rayInst.accelerationStructureReference = r.instance->getMesh()->getBlasAddress();
-            rayInst.flags = VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+            rayInst.flags = r.flags;
             rayInst.mask = 0xFF;
             rayInst.instanceShaderBindingTableRecordOffset = id * 2;
             tlas.emplace_back(rayInst);
@@ -1031,7 +1106,7 @@ namespace RT64
             // bool jitterActive = rtUpscaleActive && (upscaler != nullptr);
             bool jitterActive = false;
             if (jitterActive) {
-                // const int phaseCount = upscaler->getJitterPhaseCount(rtWidth, lround(globalParamsBufferData.resolution.z));
+                // const int phaseCount = upscaler->getJitterPhaseCount(rtWidth, lround(globalParamsData.resolution.z));
                 // globalParamsData.pixelJitter = HaltonJitter(globalParamsData.frameCount, phaseCount);
             }
             else {
@@ -1054,8 +1129,15 @@ namespace RT64
         beginInfo.pInheritanceInfo = nullptr; // Optional
         VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
+        // Draw the background instances to the screen.
+        RT64_LOG_PRINTF("Drawing background instances");
         resetScissor();
         resetViewport();
+        // drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), true);
+
+        // Draw the background instances to a buffer that can be used by the tracer as an environment map.
+        {
+        }
 
         // Now raytrace!
         {
@@ -1211,8 +1293,7 @@ namespace RT64
         RT64_LOG_PRINTF("Drawing background instances");
         resetScissor();
         resetViewport();
-	    // drawInstances(rtInstances, 0, true);
-	    // drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
+	    drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
 
         vkCmdEndRenderPass(commandBuffer);
         
@@ -1294,7 +1375,7 @@ namespace RT64
     void View::setPerspective(RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist) {
         // Ignore all external calls to set the perspective when control override is active.
         if (perspectiveControlActive) {
-            return;
+            // return;
         }
 
         this->fovRadians = fovRadians;
@@ -1302,10 +1383,22 @@ namespace RT64
         this->farDist = farDist;
 
         globalParamsData.view = {
-            viewMatrix.m[0][0], viewMatrix.m[0][1], viewMatrix.m[0][2], viewMatrix.m[0][3],
-            viewMatrix.m[1][0], viewMatrix.m[1][1], viewMatrix.m[1][2], viewMatrix.m[1][3],
-            viewMatrix.m[2][0], viewMatrix.m[2][1], viewMatrix.m[2][2], viewMatrix.m[2][3],
-            viewMatrix.m[3][0], viewMatrix.m[3][1], viewMatrix.m[3][2], viewMatrix.m[3][3]
+            viewMatrix.m[0][0], 
+           -viewMatrix.m[0][1],
+            viewMatrix.m[0][2], 
+            viewMatrix.m[0][3],
+            viewMatrix.m[1][0], 
+           -viewMatrix.m[1][1], 
+            viewMatrix.m[1][2], 
+            viewMatrix.m[1][3],
+            viewMatrix.m[2][0], 
+           -viewMatrix.m[2][1], 
+            viewMatrix.m[2][2], 
+            viewMatrix.m[2][3],
+            viewMatrix.m[3][0], 
+           -viewMatrix.m[3][1], 
+            viewMatrix.m[3][2], 
+            viewMatrix.m[3][3],
         };
 
         globalParamsData.projection = glm::perspective(fovRadians, (float)this->scene->getDevice()->getAspectRatio(), nearDist, farDist);
@@ -1329,12 +1422,110 @@ namespace RT64
         );
     }
 
+	void View::renderInspector(Inspector* inspector) {
+        if (Im3d::GetDrawListCount() > 0) {
+            VkCommandBuffer commandBuffer = device->getCurrentCommandBuffer();
+            
+        }
+    }
+
     void View::setPerspectiveControlActive(bool v) {
         perspectiveControlActive = v;
     }
 
     void View::setPerspectiveCanReproject(bool v) {
         perspectiveCanReproject = v;
+    }
+
+    float RT64::View::getFOVRadians() const {
+        return fovRadians;
+    }
+
+    float RT64::View::getNearDistance() const {
+        return nearDist;
+    }
+
+    float RT64::View::getFarDistance() const {
+        return farDist;
+    }
+
+    void RT64::View::setDISamples(int v) {
+        if (globalParamsData.diSamples != v) {
+            globalParamsData.diSamples = v;
+        }
+    }
+
+    int RT64::View::getDISamples() const {
+        return globalParamsData.diSamples;
+    }
+
+    void RT64::View::setGISamples(int v) {
+        if (globalParamsData.giSamples != v) {
+            globalParamsData.giSamples = v;
+        }
+    }
+
+    int RT64::View::getGISamples() const {
+        return globalParamsData.giSamples;
+    }
+
+    void RT64::View::setMaxLights(int v) {
+        globalParamsData.maxLights = v;
+    }
+
+    int RT64::View::getMaxLights() const {
+        return globalParamsData.maxLights;
+    }
+
+    void RT64::View::setMotionBlurStrength(float v) {
+        globalParamsData.motionBlurStrength = v;
+    }
+
+    float RT64::View::getMotionBlurStrength() const {
+        return globalParamsData.motionBlurStrength;
+    }
+
+    void RT64::View::setMotionBlurSamples(int v) {
+        globalParamsData.motionBlurSamples = v;
+    }
+
+    int RT64::View::getMotionBlurSamples() const {
+        return globalParamsData.motionBlurSamples;
+    }
+
+    void RT64::View::setVisualizationMode(int v) {
+        globalParamsData.visualizationMode = v;
+    }
+
+    int RT64::View::getVisualizationMode() const {
+        return globalParamsData.visualizationMode;
+    }
+
+    void RT64::View::setResolutionScale(float v) {
+        if (resolutionScale != v) {
+            resolutionScale = v;
+            recreateRTBuffers = true;
+        }
+    }
+
+    float RT64::View::getResolutionScale() const {
+        return resolutionScale;
+    }
+
+    void RT64::View::setMaxReflections(int v) {
+        maxReflections = v;
+    }
+
+    int RT64::View::getMaxReflections() const {
+        return maxReflections;
+    }
+
+    void RT64::View::setDenoiserEnabled(bool v) {
+        denoiserEnabled = v;
+    }
+
+    bool RT64::View::getDenoiserEnabled() const {
+        return denoiserEnabled;
     }
 
 };

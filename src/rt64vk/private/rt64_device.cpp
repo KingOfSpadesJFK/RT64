@@ -25,15 +25,20 @@
 #include "shaders/IndirectRayGen.hlsl.h"
 #include "shaders/ReflectionRayGen.hlsl.h"
 #include "shaders/RefractionRayGen.hlsl.h"
-// TEST SHADER
-#include "shaders/TestRayGen.hlsl.h"
+
+// Vertex shaders
+#include "shaders/FullScreenVS.hlsl.h"
+#include "shaders/HelloTriangleVS.hlsl.h"
+#include "shaders/Im3DVS.hlsl.h"
 
 // Pixel shaders
 #include "shaders/ComposePS.hlsl.h"
 #include "shaders/HelloTrianglePS.hlsl.h"
-// Vertex shaders
-#include "shaders/FullScreenVS.hlsl.h"
-#include "shaders/HelloTriangleVS.hlsl.h"
+#include "shaders/Im3DPS.hlsl.h"
+
+// Geometry shaders
+#include "shaders/Im3DGSLines.hlsl.h"
+#include "shaders/Im3DGSPoints.hlsl.h"
 
 // The blue noise
 #include "res/bluenoise/LDR_64_64_64_RGB1.h"
@@ -75,6 +80,7 @@ namespace RT64
         loadAssets();
 
         initRayTracing();
+        createDescriptorPool();
         createRayTracingPipeline();
 #endif
     }
@@ -103,6 +109,7 @@ namespace RT64
         contextInfo.addDeviceExtension(VK_KHR_RAY_QUERY_EXTENSION_NAME);  // Required by ray tracing pipeline
         contextInfo.addDeviceExtension(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
         contextInfo.addDeviceExtension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
+        contextInfo.addDeviceExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
 
         // Creating Vulkan base application
         vkctx.initInstance(contextInfo);
@@ -113,9 +120,9 @@ namespace RT64
         vkctx.initDevice(compatibleDevices[0], contextInfo);
     }
 
-    // Loads the appropriate assets for rendering, such as 
-    //  descriptor sets for the rasterization pipeline and
-    //  blue noise
+    // Loads the appropriate assets for rendering, such as the 
+    //  the statically loaded shader modules and descriptor set
+    //  layouts and blue noise
     void Device::loadAssets() {
 	    RT64_LOG_PRINTF("Asset loading started");
         std::array<VkDynamicState, 2> dynamicStates = {
@@ -179,14 +186,36 @@ namespace RT64
         pipelineInfo.renderPass = renderPass;
         pipelineInfo.subpass = 0;
 
+        // Can't believe I can do this
+        RT64_LOG_PRINTF("Creating the empty descriptor set layout");
+        {
+            VkDescriptorSetLayoutCreateInfo layoutInfo{};
+            layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            layoutInfo.bindingCount = 0;
+            layoutInfo.flags = 0;
+            VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &emptyDescriptorSetLayout));
+        }
+
+        RT64_LOG_PRINTF("Creating the raygen/miss modules and descriptor set layout"); 
+        {
+            createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "PrimaryRayGen",    VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryRayGenStage,         primaryRayGenModule, nullptr);
+            createShaderModule(DirectRayGen_SPIRV,      sizeof(DirectRayGen_SPIRV),     "DirectRayGen",     VK_SHADER_STAGE_RAYGEN_BIT_KHR, directRayGenStage,          directRayGenModule, nullptr);
+            createShaderModule(IndirectRayGen_SPIRV,    sizeof(IndirectRayGen_SPIRV),   "IndirectRayGen",   VK_SHADER_STAGE_RAYGEN_BIT_KHR, indirectRayGenStage,        indirectRayGenModule, nullptr);
+            createShaderModule(ReflectionRayGen_SPIRV,  sizeof(ReflectionRayGen_SPIRV), "ReflectionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, reflectionRayGenStage,      reflectionRayGenModule, nullptr);
+            createShaderModule(RefractionRayGen_SPIRV,  sizeof(RefractionRayGen_SPIRV), "RefractionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, refractionRayGenStage,      refractionRayGenModule, nullptr);
+            createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "SurfaceMiss",      VK_SHADER_STAGE_MISS_BIT_KHR, surfaceMissStage,             surfaceMissModule, nullptr);
+            createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "ShadowMiss",       VK_SHADER_STAGE_MISS_BIT_KHR, shadowMissStage,              shadowMissModule, nullptr);
+            generateRayGenDescriptorSetLayout();
+        }
+
         RT64_LOG_PRINTF("Creating a generic image sampler for the compose shader");
         {
             VkSamplerCreateInfo samplerInfo{};
             samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
             samplerInfo.magFilter = VK_FILTER_LINEAR;
             samplerInfo.minFilter = VK_FILTER_LINEAR;
-            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
             samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
             samplerInfo.anisotropyEnable = VK_FALSE;
             samplerInfo.maxAnisotropy = 1.0f;
@@ -197,7 +226,7 @@ namespace RT64
             samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
             samplerInfo.mipLodBias = 0.0f;
             samplerInfo.minLod = 0.0f;
-            samplerInfo.maxLod = 0.0f;
+            samplerInfo.maxLod = std::numeric_limits<float>::max();
             vkCreateSampler(vkDevice, &samplerInfo, nullptr, &composeSampler);
         }
 
@@ -215,8 +244,7 @@ namespace RT64
                 {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
                 {0 + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
             };
-
-            allocateDescriptorSet(bindings, flags, rtComposeDescriptorSetLayout, rtComposeDescriptorPool, rtComposeDescriptorSet);
+            generateDescriptorSetLayout(bindings, flags, rtComposeDescriptorSetLayout);
         }
 
         RT64_LOG_PRINTF("Creating the composition pipeline");
@@ -245,6 +273,84 @@ namespace RT64
             VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &rtComposePipeline));
         }
 
+        RT64_LOG_PRINTF("Creating the Im3d descriptor set");
+        {
+		    VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+            VkShaderStageFlags stages = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_GEOMETRY_BIT | VK_SHADER_STAGE_FRAGMENT_BIT;
+            std::vector<VkDescriptorSetLayoutBinding> bindings {
+                {UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, stages, nullptr},
+                {UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, stages, nullptr},
+                {UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, stages, nullptr},
+                {UAV_INDEX(gHitSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, stages, nullptr},
+                {UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, stages, nullptr},
+                {CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, stages, nullptr},
+            };
+            generateDescriptorSetLayout(bindings, flags, im3dDescriptorSetLayout);
+        }
+
+        RT64_LOG_PRINTF("Creating the Im3d pipeline");
+        {
+            // Create the shader modules and shader stages
+            std::vector<VkPipelineShaderStageCreateInfo> im3dStages;
+            createShaderModule(Im3DVS_SPIRV, sizeof(Im3DVS_SPIRV), VS_ENTRY, VK_SHADER_STAGE_VERTEX_BIT, im3dVSStage, im3dVSModule, &im3dStages);
+            createShaderModule(Im3DPS_SPIRV, sizeof(Im3DPS_SPIRV), PS_ENTRY, VK_SHADER_STAGE_FRAGMENT_BIT, im3dPSStage, im3dPSModule, &im3dStages);
+
+            // Define the vertex layout.
+            VkVertexInputBindingDescription vertexBind{};
+            vertexBind.binding = 0;
+            vertexBind.stride = sizeof(float) * 8;
+            vertexBind.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+            // Create the attributes for the vertex inputs
+            std::vector<VkVertexInputAttributeDescription> attributes;
+    		attributes.push_back({0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0});
+	    	attributes.push_back({1, 0, VK_FORMAT_R8G8B8A8_UNORM, sizeof(float)});
+
+            // Bind the vertex inputs
+            VkPipelineVertexInputStateCreateInfo vertexInputInfo{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+            vertexInputInfo.vertexBindingDescriptionCount = 1;
+            vertexInputInfo.pVertexBindingDescriptions = &vertexBind;
+            vertexInputInfo.vertexAttributeDescriptionCount = attributes.size();
+            vertexInputInfo.pVertexAttributeDescriptions = attributes.data();
+
+            // Just a function for pipeline (layout) creation
+            auto createPipeline = [this, &im3dStages, &vertexInputInfo]
+            (VkGraphicsPipelineCreateInfo pipelineInfo, VkDescriptorSetLayout& descLayout, VkPipelineLayout& pipelineLayout, VkPipeline& pipeline) {
+                // Create the pipeline layout
+                VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+                pipelineLayoutInfo.setLayoutCount = 1;
+                pipelineLayoutInfo.pSetLayouts = &im3dDescriptorSetLayout;
+                VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout));
+
+                // Create the pipeline
+                pipelineInfo.pVertexInputState = &vertexInputInfo;
+                pipelineInfo.stageCount = im3dStages.size();
+                pipelineInfo.pStages = im3dStages.data();
+                pipelineInfo.layout = pipelineLayout;
+                VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
+                
+            };
+
+            createPipeline(pipelineInfo, im3dDescriptorSetLayout, im3dPipelineLayout, im3dPipeline);
+            im3dStages.pop_back();
+
+            // Create the shader module for the geo points shader
+            createShaderModule(Im3DGSPoints_SPIRV, sizeof(Im3DGSPoints_SPIRV), GS_ENTRY, VK_SHADER_STAGE_GEOMETRY_BIT, im3dGSPointsStage, im3dGSPointsModule, &im3dStages);
+            im3dStages.push_back(im3dPSStage);
+            // Create the pipeline (layout) for the points shader
+            inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+            createPipeline(pipelineInfo, im3dDescriptorSetLayout, im3dPointsPipelineLayout, im3dPointsPipeline);
+            im3dStages.pop_back();
+            im3dStages.pop_back();
+
+            // Create the shader module for the geo lines shader
+            createShaderModule(Im3DGSLines_SPIRV, sizeof(Im3DGSLines_SPIRV), GS_ENTRY, VK_SHADER_STAGE_GEOMETRY_BIT, im3dGSLinesStage, im3dGSLinesModule, &im3dStages);
+            im3dStages.push_back(im3dPSStage);
+            // Create the pipeline (layout) for the lines shader
+            inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
+            createPipeline(pipelineInfo, im3dDescriptorSetLayout, im3dLinesPipelineLayout, im3dLinesPipeline);
+            im3dStages.clear();
+        }
+
         loadBlueNoise();
 
     }
@@ -258,25 +364,14 @@ namespace RT64
 
 	    RT64_LOG_PRINTF("Loading the ray generation modules...");
 
-        // Create the main shaders
-        if (!mainRtShadersCreated) {
-            createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "PrimaryRayGen",    VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryRayGenStage,         primaryRayGenModule, &shaderStages);
-            createShaderModule(DirectRayGen_SPIRV,      sizeof(DirectRayGen_SPIRV),     "DirectRayGen",     VK_SHADER_STAGE_RAYGEN_BIT_KHR, directRayGenStage,          directRayGenModule, &shaderStages);
-            createShaderModule(IndirectRayGen_SPIRV,    sizeof(IndirectRayGen_SPIRV),   "IndirectRayGen",   VK_SHADER_STAGE_RAYGEN_BIT_KHR, indirectRayGenStage,        indirectRayGenModule, &shaderStages);
-            createShaderModule(ReflectionRayGen_SPIRV,  sizeof(ReflectionRayGen_SPIRV), "ReflectionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, reflectionRayGenStage,      reflectionRayGenModule, &shaderStages);
-            createShaderModule(RefractionRayGen_SPIRV,  sizeof(RefractionRayGen_SPIRV), "RefractionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, refractionRayGenStage,      refractionRayGenModule, &shaderStages);
-            createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "SurfaceMiss",      VK_SHADER_STAGE_MISS_BIT_KHR, surfaceMissStage,             surfaceMissModule, &shaderStages);
-            createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "ShadowMiss",       VK_SHADER_STAGE_MISS_BIT_KHR, shadowMissStage,              shadowMissModule, &shaderStages);
-        } else {
-            // Push the main shaders into the shader stages
-            shaderStages.push_back(primaryRayGenStage);
-            shaderStages.push_back(directRayGenStage);
-            shaderStages.push_back(indirectRayGenStage);
-            shaderStages.push_back(reflectionRayGenStage);
-            shaderStages.push_back(refractionRayGenStage);
-            shaderStages.push_back(surfaceMissStage);
-            shaderStages.push_back(shadowMissStage);
-        }
+        // Push the main shaders into the shader stages
+        shaderStages.push_back(primaryRayGenStage);
+        shaderStages.push_back(directRayGenStage);
+        shaderStages.push_back(indirectRayGenStage);
+        shaderStages.push_back(reflectionRayGenStage);
+        shaderStages.push_back(refractionRayGenStage);
+        shaderStages.push_back(surfaceMissStage);
+        shaderStages.push_back(shadowMissStage);
 
 	    RT64_LOG_PRINTF("Loading the hit modules...");
         // Add the generated hit shaders to the shaderStages vector
@@ -324,23 +419,20 @@ namespace RT64
             rtShaderGroups.push_back(group);
         }
         
-	    RT64_LOG_PRINTF("Creating the RT descriptor set layouts and pools...");
-        // A vector for the descriptor set layouts
-        if (!mainRtShadersCreated) {
-            // Don't create the descriptor layout and pool if this already happend
-            generateRayTracingDescriptorSetLayout();
-            mainRtShadersCreated = true;
-        }
-        
+	    RT64_LOG_PRINTF("Gathering the descriptor set layouts...");        
         // Push the main RT descriptor set layout into the layouts vector
         rtDescriptorSetLayouts.clear();
         rtDescriptorSetLayouts.push_back(raygenDescriptorSetLayout);
-        for (Shader* s : shaders) {
-            if (s->hasHitGroups()) {
+        for (int i = 0; i < shaders.size(); i++) {
+            Shader* s = shaders[i];
+            if (s != nullptr && s->hasHitGroups()) {
                 rtDescriptorSetLayouts.push_back(s->getRTDescriptorSetLayout());
+            } else {
+                // Push the empty descriptor set 
+                rtDescriptorSetLayouts.push_back(emptyDescriptorSetLayout);
             }
         }
-
+        
 	    RT64_LOG_PRINTF("Creating the RT pipeline...");
         // Create the pipeline layout create info
         VkPipelineLayoutCreateInfo layoutInfo {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
@@ -373,7 +465,7 @@ namespace RT64
 	    RT64_LOG_PRINTF("Raytracing pipeline created!");
     }
 
-    void Device::generateRayTracingDescriptorSetLayout() {
+    void Device::generateRayGenDescriptorSetLayout() {
 		VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
         VkShaderStageFlags defaultStageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
@@ -418,7 +510,36 @@ namespace RT64
             {1 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr}
         };
 
-		allocateDescriptorSet(bindings, flags, raygenDescriptorSetLayout, raygenDescriptorPool, raygenDescriptorSet);
+		generateDescriptorSetLayout(bindings, flags, raygenDescriptorSetLayout);
+    }
+
+    // Creates the descriptor pool and allocates the descriptor sets to the pool
+    void Device::createDescriptorPool() {
+	    RT64_LOG_PRINTF("Creating the descriptor pool...");
+        VkDescriptorPoolCreateInfo poolInfo{};
+        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        poolInfo.poolSizeCount = descriptorPoolBindings.size();
+        poolInfo.pPoolSizes = descriptorPoolBindings.data();
+		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+        poolInfo.maxSets = shaders.size() * 3 + 5;
+		VK_CHECK(vkCreateDescriptorPool(vkDevice, &poolInfo, nullptr, &descriptorPool));
+
+	    RT64_LOG_PRINTF("Allocating the descriptor sets to the pool...");
+        allocateDescriptorSet(raygenDescriptorSetLayout, raygenDescriptorSet);
+        allocateDescriptorSet(rtComposeDescriptorSetLayout, rtComposeDescriptorSet);
+        allocateDescriptorSet(im3dDescriptorSetLayout, im3dDescriptorSet);
+        
+        // Push the main RT descriptor set layout into the layouts vector
+        rtDescriptorSetLayouts.clear();
+        rtDescriptorSetLayouts.push_back(raygenDescriptorSetLayout);
+        for (Shader* s : shaders) {
+            if (s->hasRasterGroup()) {
+                s->allocateRasterDescriptorSet();
+            }
+            if (s->hasHitGroups()) {
+                s->allocateRTDescriptorSet();
+            }
+        }
     }
 
     /*
@@ -455,6 +576,8 @@ namespace RT64
         RT64_LOG_PRINTF("Device drawing started");
 
         if (rtStateDirty) {
+            vkDestroyDescriptorPool(vkDevice, descriptorPool, nullptr);
+            createDescriptorPool();
             vkDestroyPipeline(vkDevice, rtPipeline, nullptr);
             vkDestroyPipelineLayout(vkDevice, rtPipelineLayout, nullptr);
             createRayTracingPipeline();
@@ -1230,24 +1353,35 @@ namespace RT64
         vkDestroyShaderModule(vkDevice, shadowMissModule, nullptr);
         vkDestroyShaderModule(vkDevice, fullscreenVSModule, nullptr);
         vkDestroyShaderModule(vkDevice, composePSModule, nullptr);
+        vkDestroyShaderModule(vkDevice, im3dVSModule, nullptr);
+        vkDestroyShaderModule(vkDevice, im3dPSModule, nullptr);
+        vkDestroyShaderModule(vkDevice, im3dGSPointsModule, nullptr);
+        vkDestroyShaderModule(vkDevice, im3dGSLinesModule, nullptr);
         vkDestroySampler(vkDevice, composeSampler, nullptr);
 
-        // Destroy RT pipeline and descriptor set/pool
+        // Destroy the descriptor pool
+        vkDestroyDescriptorPool(vkDevice, descriptorPool, nullptr);
+        // Destroy RT pipeline and descriptor set
         vkDestroyPipeline(vkDevice, rtPipeline, nullptr);
         vkDestroyPipelineLayout(vkDevice, rtPipelineLayout, nullptr);
-        vkDestroyDescriptorPool(vkDevice, raygenDescriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(vkDevice, raygenDescriptorSetLayout, nullptr);
-        // Destroy compose pipeline and descriptor set/pool
+        // Destroy compose pipeline and descriptor set
         vkDestroyPipeline(vkDevice, rtComposePipeline, nullptr);
         vkDestroyPipelineLayout(vkDevice, rtComposePipelineLayout, nullptr);
-        vkDestroyDescriptorPool(vkDevice, rtComposeDescriptorPool, nullptr);
         vkDestroyDescriptorSetLayout(vkDevice, rtComposeDescriptorSetLayout, nullptr);
+        // Destroy im3d pipeline and descriptor set
+        vkDestroyPipeline(vkDevice, im3dPipeline, nullptr);
+        vkDestroyPipeline(vkDevice, im3dLinesPipeline, nullptr);
+        vkDestroyPipeline(vkDevice, im3dPointsPipeline, nullptr);
+        vkDestroyPipelineLayout(vkDevice, im3dPipelineLayout, nullptr);
+        vkDestroyPipelineLayout(vkDevice, im3dLinesPipelineLayout, nullptr);
+        vkDestroyPipelineLayout(vkDevice, im3dPointsPipelineLayout, nullptr);
+        vkDestroyDescriptorSetLayout(vkDevice, im3dDescriptorSetLayout, nullptr);
 #endif
         if (enableValidationLayers) {
             DestroyDebugUtilsMessengerEXT(vkInstance, debugMessenger, nullptr);
         }
-        vkDestroyDevice(vkDevice, nullptr);
-        vkDestroyInstance(vkInstance, nullptr);
+        vkctx.deinit();
         // Destroy the window
         glfwDestroyWindow(window);
         glfwTerminate();
@@ -1259,7 +1393,10 @@ namespace RT64
 #ifndef RT64_MINIMAL
 
     /********************** Getters **********************/
-
+    // Returns GLFW Window
+    GLFWwindow* Device::getGlfwWindow() const { return window; }
+    // Returns Vulkan instance
+    VkInstance& Device::getVkInstance() { return vkInstance; }
     // Returns Vulkan device
     VkDevice& Device::getVkDevice() { return vkDevice; }
     // Returns physical device
@@ -1343,6 +1480,25 @@ namespace RT64
         textures.erase(std::remove(textures.begin(), textures.end(), texture), textures.end());
     }
 
+    void Device::addInspector(Inspector* inspector) {
+        assert(inspector != nullptr);
+        inspectors.push_back(inspector);
+    }
+
+    void Device::removeInspector(Inspector* inspector) {
+        assert(inspector != nullptr);
+        inspectors.erase(std::remove(inspectors.begin(), inspectors.end(), inspector), inspectors.end());
+    }
+
+    ImGui_ImplVulkan_InitInfo Device::generateImguiInitInfo() {
+        ImGui_ImplVulkan_InitInfo info {};
+        info.Device = vkDevice;
+        info.PhysicalDevice = physicalDevice;
+        info.Queue = vkctx.m_queueGCT;
+        info.QueueFamily = vkctx.m_queueGCT.familyIndex;
+        return info;
+    }
+
     // Adds a scene to the device
     void Device::addShader(Shader* shader) {
         assert(shader != nullptr);
@@ -1397,6 +1553,22 @@ namespace RT64
         }
     }
 
+    uint32_t Device::getFirstAvailableHitShaderID() const {
+        uint32_t id = 0;
+        for (int i = 0; i < shaders.size(); i++) {
+            if (shaders[i] == nullptr) {
+                break;
+            } else {
+                if (shaders[i]->hasHitGroups()) {
+                    id += shaders[i]->hitGroupCount();
+                } else {
+                    break;
+                }
+            }
+        }
+        return id;
+    }
+
     uint32_t Device::getFirstAvailableRasterShaderID() const {
         uint32_t id = 0;
         for (int i = 0; i < shaders.size(); i++) {
@@ -1427,22 +1599,6 @@ namespace RT64
             }
         }
         return index;
-    }
-
-    uint32_t Device::getFirstAvailableHitShaderID() const {
-        uint32_t id = 0;
-        for (int i = 0; i < shaders.size(); i++) {
-            if (shaders[i] == nullptr) {
-                break;
-            } else {
-                if (shaders[i]->hasHitGroups()) {
-                    id += shaders[i]->hitGroupCount();
-                } else {
-                    break;
-                }
-            }
-        }
-        return id;
     }
 
     void Device::addDepthImageView(VkImageView* depthImageView) {
@@ -1806,12 +1962,13 @@ namespace RT64
         vkFreeCommandBuffers(vkDevice, commandPool, 1, commandBuffer);
     }
 
-	void Device::allocateDescriptorSet(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout,  VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet) {
-		std::vector<VkDescriptorPoolSize> poolSizes{};
-		poolSizes.resize(bindings.size());
+    // Generates a descriptor set layout and pushes its bindings to the pool 
+    void Device::generateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout) {
 		for (int i = 0; i < bindings.size(); i++) {
-			poolSizes[i].type = bindings[i].descriptorType;
-			poolSizes[i].descriptorCount = bindings[i].descriptorCount;
+            VkDescriptorPoolSize poolSize;
+			poolSize.type = bindings[i].descriptorType;
+			poolSize.descriptorCount = bindings[i].descriptorCount;
+            descriptorPoolBindings.push_back(poolSize);
 		}
 
         std::vector<VkDescriptorBindingFlags> vectorOfFlags(bindings.size(), flags);
@@ -1826,20 +1983,15 @@ namespace RT64
 		layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
 		layoutInfo.pNext = &flagsInfo;
         VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &descriptorSetLayout));
+    }
 
-        VkDescriptorPoolCreateInfo poolInfo{};
-        poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = poolSizes.size();
-        poolInfo.pPoolSizes = poolSizes.data();
-		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
-        poolInfo.maxSets = 1;
-		VK_CHECK(vkCreateDescriptorPool(vkDevice, &poolInfo, nullptr, &descriptorPool));
-
+    // Allocates the descriptor set layout and descriptor set to the current descriptor pool
+	void Device::allocateDescriptorSet(VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorSet& descriptorSet) {
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        allocInfo.descriptorPool = descriptorPool;
         allocInfo.descriptorSetCount = 1;
         allocInfo.pSetLayouts = &descriptorSetLayout;
+        allocInfo.descriptorPool = descriptorPool;
         VK_CHECK(vkAllocateDescriptorSets(vkDevice, &allocInfo, &descriptorSet));
 	}
     #endif

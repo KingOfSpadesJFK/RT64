@@ -10,6 +10,16 @@
 
 #define WINDOW_TITLE "RT64 Sample"
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+#include <glm/ext.hpp>
+#include <chrono>
+#include <unordered_map>
+
+#define TINYGLTF_IMPLEMENTATION
+#define STB_IMAGE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+// #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
+#include "contrib/tinygltf/tiny_gltf.h"
 
 #ifndef _WIN32
 #define _countof(array) (sizeof(array) / sizeof(array[0]))
@@ -42,8 +52,8 @@ static void errorMessage(void* hWnd,const char *message) {
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "contrib/stb_image.h"
+// #define STB_IMAGE_IMPLEMENTATION
+// #include "contrib/stb_image.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "contrib/tiny_obj_loader.h"
@@ -54,12 +64,6 @@ typedef struct {
 	RT64_VECTOR2 uv;
 	RT64_VECTOR4 input1;
 } VERTEX;
-
-typedef struct {
-	RT64_VECTOR4 position;
-	RT64_VECTOR3 normal;
-	RT64_VECTOR2 uv;
-} TEST_VERTEX;
 
 struct {
 	RT64_LIBRARY lib;
@@ -158,6 +162,93 @@ struct {
 // 	return 0;
 // }
 
+void toggleInspector() {
+	
+}
+
+// Process drawing 
+void draw(GLFWwindow* window ) {
+	int focused = glfwGetWindowAttrib(window, GLFW_FOCUSED);
+	// if (!focused) {
+	// 	return;
+	// }
+
+    static auto startTime = std::chrono::high_resolution_clock::now();
+    auto currentTime = std::chrono::high_resolution_clock::now();
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count() / 4.0f;
+
+	// Code to make the view spin around
+    #define RADIUS 2.0f
+    #define YOFF 5.0f
+	glm::vec3 eye = glm::vec3(sinf32(time) * glm::radians(90.0f) * 6.50 - 1.0, YOFF, cosf32(time) * glm::radians(90.0f) * 1.750 - 1.6250);
+	glm::mat4 v = glm::lookAt(eye, glm::vec3(0.0f, cosf32(time / 2.0f) * glm::radians(90.0f) * -2.00 + 3.0, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	RT64.viewMatrix.m[0][0] =  v[0][0];
+	RT64.viewMatrix.m[1][0] =  v[1][0];
+	RT64.viewMatrix.m[2][0] =  v[2][0];
+	RT64.viewMatrix.m[3][0] =  v[3][0];
+	RT64.viewMatrix.m[0][1] =  v[0][1];
+	RT64.viewMatrix.m[1][1] =  v[1][1];
+	RT64.viewMatrix.m[2][1] =  v[2][1];
+	RT64.viewMatrix.m[3][1] =  v[3][1];
+	RT64.viewMatrix.m[0][2] =  v[0][2];
+	RT64.viewMatrix.m[1][2] =  v[1][2];
+	RT64.viewMatrix.m[2][2] =  v[2][2];
+	RT64.viewMatrix.m[3][2] =  v[3][2];
+	RT64.viewMatrix.m[0][3] =  v[0][3];
+	RT64.viewMatrix.m[1][3] =  v[1][3];
+	RT64.viewMatrix.m[2][3] =  v[2][3];
+	RT64.viewMatrix.m[3][3] =  v[3][3];
+	RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 1000.0f, true);
+
+	// Day-night cycle
+	float daylightTime = time / 10.0f;
+	float daylightSin = sinf32(daylightTime) * glm::radians(90.0f);
+	float daylightSinM = -sinf32(daylightTime) * glm::radians(90.0f);
+	float daylightCos = cosf32(daylightTime) * glm::radians(90.0f);
+	float daylightCosM = -cosf32(daylightTime) * glm::radians(90.0f);
+	RT64_VECTOR3 sunColor = {3.5f, 2.0f, 1.875f};
+	RT64_VECTOR3 moonColor = {0.0125f, 0.05f, 0.075f};
+	RT64.lights[0].position = { daylightSin * 1500000.0f, daylightSin * 3000000.0f, daylightCos * 3000000.0f };
+	RT64.lights[1].position = { daylightSinM * 15000.0f, daylightSinM * 30000.0f, daylightCosM * 30000.0f };
+	RT64.lights[0].diffuseColor = { 
+		glm::clamp(sunColor.x * daylightSin * 1.0f - 0.0f, 0.0f, sunColor.x),
+		glm::clamp(sunColor.y * daylightSin * 1.5f - 0.25f, 0.0f, sunColor.y),
+		glm::clamp(sunColor.z * daylightSin * 2.5f - 0.75f, 0.0f, sunColor.z),
+	};
+	RT64.lights[1].diffuseColor = { 
+		glm::clamp(moonColor.x * daylightSinM * 1.0f, 0.0f, moonColor.x),
+		glm::clamp(moonColor.y * daylightSinM * 1.0f, 0.0f, moonColor.y),
+		glm::clamp(moonColor.z * daylightSinM * 1.0f, 0.0f, moonColor.z),
+	};
+	RT64.lights[0].specularColor = RT64.lights[0].diffuseColor;
+	RT64.lights[1].specularColor = RT64.lights[1].diffuseColor;
+	float daylight = glm::clamp(daylightSin, 0.f, 1.f);
+	RT64.sceneDesc.skyDiffuseMultiplier = { 
+		0.015f + daylight * 0.985f,
+		0.025f + daylight * 0.975f,
+		0.05f + daylight * 0.95f,
+	};
+	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
+	
+	RT64.frameMaterial = RT64.baseMaterial;
+	RT64_ApplyMaterialAttributes(&RT64.frameMaterial, &RT64.materialMods);
+	RT64_INSTANCE_DESC instDesc;
+	instDesc.scissorRect = { 0, 0, 0, 0 };
+	instDesc.viewportRect = { 0, 0, 0, 0 };
+	instDesc.mesh = RT64.mesh;
+	instDesc.transform = RT64.transform;
+	instDesc.previousTransform = RT64.transform;
+	instDesc.diffuseTexture = RT64.textureDif;
+	instDesc.normalTexture = RT64.textureNrm;
+	instDesc.specularTexture = RT64.textureSpc;
+	instDesc.material = RT64.frameMaterial;
+	instDesc.shader = RT64.shader;
+	instDesc.flags = 0;
+	// RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
+	RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
+	RT64.lib.DrawDevice(RT64.device, 1, time);
+}
+
 bool createRT64(GLFWwindow* glfwWindow) {
 	// Setup library.
 	RT64.lib = RT64_LoadLibrary();
@@ -220,7 +311,7 @@ RT64_TEXTURE* loadTextureDDS(const char* path, bool normal) {
 void setupRT64Scene() {
 	// Setup scene.
 	RT64.scene = RT64.lib.CreateScene(RT64.device);
-	RT64.sceneDesc.ambientBaseColor = { 0.007f, 0.007f, 0.007f };
+	RT64.sceneDesc.ambientBaseColor = { 0.0125f, 0.0125f, 0.0125f };
 	RT64.sceneDesc.ambientNoGIColor = { 0.0f, 0.0f, 0.0f };
 	RT64.sceneDesc.eyeLightDiffuseColor = { 0.00f, 0.00f, 0.00f };
 	RT64.sceneDesc.eyeLightSpecularColor = { 0.00f, 0.00f, 0.00f };
@@ -228,7 +319,7 @@ void setupRT64Scene() {
 	RT64.sceneDesc.skyHSLModifier = { 0.0f, 0.0f, 0.0f };
 	RT64.sceneDesc.skyYawOffset = 0.0f;
 	RT64.sceneDesc.giDiffuseStrength = 1.0f;
-	RT64.sceneDesc.giSkyStrength = 0.35f;
+	RT64.sceneDesc.giSkyStrength = 1.0f;
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
 	// Setup shader.
@@ -236,14 +327,16 @@ void setupRT64Scene() {
 	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 
 	// Setup lights.
-	RT64.lights[0].position = { 15000.0f, 30000.0f, 15000.0f };
+	RT64.lights[0].position = { 0.0f, 0.0f, 0.0f };
 	RT64.lights[0].attenuationRadius = 1e9;
-	RT64.lights[0].pointRadius = 5000.0f;
+	RT64.lights[0].pointRadius = 10000.0f;
 	RT64.lights[0].diffuseColor = { 0.8f, 0.75f, 0.65f };
 	RT64.lights[0].specularColor = { 0.8f, 0.75f, 0.65f };
 	RT64.lights[0].shadowOffset = 0.0f;
 	RT64.lights[0].attenuationExponent = 1.0f;
-	RT64.lightCount = 1;
+	RT64.lights[1] = RT64.lights[0];
+	RT64.lights[1].pointRadius = 1000.0f;
+	RT64.lightCount = 2;
 
 	for (int i = 0; i < _countof(RT64.lights); i++) {
 		RT64.lights[i].groupBits = RT64_LIGHT_GROUP_DEFAULT;
@@ -254,11 +347,11 @@ void setupRT64Scene() {
 
 	// Load textures.
 	// RT64.textureDif = loadTextureDDS("res/grass_dif.dds");
-	RT64.textureDif = loadTexturePNG("res/grass_dif.png");
-	RT64.textureNrm = loadTexturePNG("res/grass_nrm.png");
-	RT64.textureSpc = loadTexturePNG("res/grass_spc.png");
+	RT64.textureDif = loadTexturePNG("res/Marble012_1K_Color.png");
+	RT64.textureNrm = loadTexturePNG("res/Marble012_1K_NormalGL.png");
+	RT64.textureSpc = nullptr /* loadTexturePNG("res/grass_spc.png") */;
 	RT64_TEXTURE *textureSky = loadTexturePNG("res/clouds.png");
-	// RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
+	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
 	// Make initial transform with a 0.1f scale.
 	float scale = 0.30f;
@@ -314,11 +407,11 @@ void setupRT64Scene() {
 	RT64.baseMaterial.ignoreNormalFactor = 0.0f;
 	RT64.baseMaterial.uvDetailScale = 1.0f;
 	RT64.baseMaterial.reflectionFactor = 0.0f;
-	RT64.baseMaterial.reflectionFresnelFactor = 1.0f;
+	RT64.baseMaterial.reflectionFresnelFactor = 0.5f;
 	RT64.baseMaterial.reflectionShineFactor = 0.0f;
 	RT64.baseMaterial.refractionFactor = 0.0f;
-	RT64.baseMaterial.specularColor = { 1.0f, 1.0f, 1.0f };
-	RT64.baseMaterial.specularExponent = 1.0f;
+	RT64.baseMaterial.specularColor = { 10.0f, 10.0f, 10.0f };
+	RT64.baseMaterial.specularExponent = 5.0f;
 	RT64.baseMaterial.solidAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.shadowAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.diffuseColorMix = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -329,21 +422,22 @@ void setupRT64Scene() {
 	RT64.baseMaterial.fogOffset = 0.0f;
 	RT64.baseMaterial.fogEnabled = 0;
 	
+	// Vertices for the UI instance
 	VERTEX vertices[3];
-	vertices[0].position = { -1.0f, 0.1f, 0.0f, 1.0f } ;
-	vertices[0].normal = { 0.0f, 1.0f, 0.0f };
-	vertices[0].uv = { 0.0f, 0.0f };
-	vertices[0].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
+	vertices[2].position = { -1.0f, -0.7f, 0.0f, 1.0f } ;
+	vertices[2].normal = { 0.0f, 1.0f, 0.0f };
+	vertices[2].uv = { 0.0f, 0.0f };
+	vertices[2].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-	vertices[1].position = { -0.5f, 0.1f, 0.0f, 1.0f };
+	vertices[1].position = { -0.5f, -0.7f, 0.0f, 1.0f };
 	vertices[1].normal = { 0.0f, 1.0f, 0.0f };
 	vertices[1].uv = { 1.0f, 0.0f };
 	vertices[1].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-	vertices[2].position = { -0.75f, 0.3f, 0.0f, 1.0f };
-	vertices[2].normal = { 0.0f, 1.0f, 0.0f };
-	vertices[2].uv = { 0.0f, 1.0f };
-	vertices[2].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
+	vertices[0].position = { -0.75f, -0.9f, 0.0f, 1.0f };
+	vertices[0].normal = { 0.0f, 1.0f, 0.0f };
+	vertices[0].uv = { 0.0f, 1.0f };
+	vertices[0].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 	
 	unsigned int indices[] = { 0, 1, 2 };
 	RT64_TEXTURE* altTexture = loadTexturePNG("res/tiles_dif.png");
@@ -378,12 +472,12 @@ void setupRT64Scene() {
 	RT64.lib.SetInstanceDescription(instanceB, instDesc);
 
 	// Create RT Instance.
-	RT64.instance = RT64.lib.CreateInstance(RT64.scene);
+	// RT64.instance = RT64.lib.CreateInstance(RT64.scene);
 	instDesc.mesh = RT64.mesh;
 	instDesc.diffuseTexture = RT64.textureDif;
 	instDesc.normalTexture = RT64.textureNrm;
 	instDesc.specularTexture = RT64.textureSpc;
-	RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
+	// RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
 
 	// Create HUD A Instance.
 	RT64_INSTANCE* instanceA = RT64.lib.CreateInstance(RT64.scene);
@@ -419,7 +513,9 @@ void setupRT64Scene() {
 
 	RT64_MESH* floorMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED);
 	RT64.lib.SetMesh(floorMesh, floorVertices, _countof(floorVertices), sizeof(VERTEX), floorIndices, _countof(floorIndices));
-	RT64_INSTANCE *floorInstance = RT64.lib.CreateInstance(RT64.scene);
+	RT64_INSTANCE* floorInstance = RT64.lib.CreateInstance(RT64.scene);
+	RT64_MATERIAL floorMat = RT64.baseMaterial;
+	floorMat.reflectionFactor = 0.0f;
 	instDesc.mesh = floorMesh;
 	instDesc.transform = floorTransform;
 	instDesc.previousTransform = floorTransform;
@@ -427,6 +523,7 @@ void setupRT64Scene() {
 	instDesc.normalTexture = normalTexture;
 	instDesc.specularTexture = specularTexture;
 	instDesc.shader = RT64.shader;
+	instDesc.material = floorMat;
 	instDesc.flags = 0;
 	RT64.lib.SetInstanceDescription(floorInstance, instDesc);
 }
@@ -460,6 +557,204 @@ void destroyRT64() {
 						- Materials
 */
 
+std::vector<RT64_INSTANCE*> gltfInstances;
+
+template <typename T>
+const T* getGlTFData(tinygltf::Model& model, tinygltf::Primitive& primitive, std::string name) {
+	const tinygltf::Accessor& accessor = model.accessors[primitive.attributes[name]];
+	const tinygltf::BufferView& bufferView = model.bufferViews[accessor.bufferView];
+	const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
+	const T* ret = reinterpret_cast<const T*>(&buffer.data[bufferView.byteOffset + accessor.byteOffset]);
+	return ret;
+}
+
+template <typename T>
+const T* getGlTFData(tinygltf::Model& model, int i) {
+	const tinygltf::Accessor& accessor = model.accessors[i];
+	const tinygltf::BufferView& bufferView = model.bufferViews[accessor.bufferView];
+	const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
+	const T* ret = reinterpret_cast<const T*>(&buffer.data[bufferView.byteOffset + accessor.byteOffset]);
+	return ret;
+}
+
+unsigned int getGlTFAccessorCount(tinygltf::Model& model, tinygltf::Primitive& primitive, std::string name) {
+	const tinygltf::Accessor& accessor = model.accessors[primitive.attributes[name]];
+	return accessor.count;
+}
+
+unsigned int getGlTFAccessorCount(tinygltf::Model& model, int i) {
+	const tinygltf::Accessor& accessor = model.accessors[i];
+	return accessor.count;
+}
+
+void setupGlTFScene() {
+	std::string err;
+	std::string warn;
+	tinygltf::TinyGLTF loader;
+	tinygltf::Model sponza;
+	loader.LoadASCIIFromFile(&sponza, &err, &warn, "res/Sponza/glTF/Sponza.gltf");
+	
+	std::vector<RT64_MESH*> rt64meshes;
+
+	for (int i = 0; i < sponza.meshes.size(); i++) {
+		int materialCount = sponza.materials.size();
+		if (materialCount == 0) {
+			materialCount++;
+		}
+		std::vector<std::vector<VERTEX>> verticesByMaterial;
+		std::vector<std::vector<unsigned int>> indicesByMaterial;
+		std::vector<int> maxIndex(materialCount, 0);
+		verticesByMaterial.resize(materialCount);
+		indicesByMaterial.resize(materialCount);
+		maxIndex.resize(materialCount);
+		std::vector<unsigned int> indices;
+		int index = 0;
+		for (tinygltf::Primitive& primitive : sponza.meshes[i].primitives) {
+			const float* positions = getGlTFData<float>(sponza, primitive, "POSITION");
+			const float* uvCoords = getGlTFData<float>(sponza, primitive, "NORMAL");
+			const float* normals = getGlTFData<float>(sponza, primitive, "TEXCOORD_0");
+			const unsigned int* indices = getGlTFData<unsigned int>(sponza, primitive.indices);
+			int material = primitive.material >= 0 ? primitive.material : 0;
+			for (size_t k = 0; k < getGlTFAccessorCount(sponza, primitive, "POSITION"); ++k) {
+				VERTEX vert1 {
+					{ positions[k * 3 + 0], positions[k * 3 + 1], positions[k * 3 + 2], 1.0f },
+					{ normals  [k * 3 + 0], normals  [k * 3 + 1], normals  [k * 3 + 2] },
+					{ uvCoords [k * 2 + 0], uvCoords [k * 2 + 1] },
+					{ 1.0f, 1.0f, 1.0f, 1.0f }
+				};
+				// VERTEX vert2 {
+				// 	{ positions[k * 3 + 3], positions[k * 3 + 4], positions[k * 3 + 5], 1.0f },
+				// 	{ normals  [k * 3 + 3], normals  [k * 3 + 4], normals  [k * 3 + 5] },
+				// 	{ uvCoords [k * 2 + 2], uvCoords [k * 2 + 3] },
+				// 	{ 1.0f, 1.0f, 1.0f, 1.0f }
+				// };
+				// VERTEX vert3 {
+				// 	{ positions[k * 3 + 6], positions[k * 3 + 7], positions[k * 3 + 8], 1.0f },
+				// 	{ normals  [k * 3 + 6], normals  [k * 3 + 7], normals  [k * 3 + 8] },
+				// 	{ uvCoords [k * 2 + 4], uvCoords [k * 2 + 5] },
+				// 	{ 1.0f, 1.0f, 1.0f, 1.0f }
+				// };
+				verticesByMaterial[material].push_back(vert1);
+				// verticesByMaterial[material].push_back(vert2);
+				// verticesByMaterial[material].push_back(vert3);
+				maxIndex[material] += 3;
+				// std::cout << "{" << positions[k * 3 + 0] << ", " << positions[k * 3 + 1] << ", " << positions[k * 3 + 2] << "}\n";
+				// std::cout << "{" << positions[k * 3 + 3] << ", " << positions[k * 3 + 4] << ", " << positions[k * 3 + 5] << "}\n";
+				// std::cout << "{" << positions[k * 3 + 6] << ", " << positions[k * 3 + 7] << ", " << positions[k * 3 + 8] << "}\n";
+			}
+			for (size_t k = 0; k < getGlTFAccessorCount(sponza, primitive.indices) / 3; ++k) {
+				indicesByMaterial[material].push_back(k);
+			}
+		}
+
+		for (int j = 0; j < materialCount; j++) {
+			rt64meshes.push_back(RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT));
+			gltfInstances.push_back(RT64.lib.CreateInstance(RT64.scene));
+			RT64.lib.SetMesh(rt64meshes[j], verticesByMaterial[j].data(), verticesByMaterial[j].size(), sizeof(VERTEX), indicesByMaterial[j].data(), indicesByMaterial[j].size());
+			RT64_INSTANCE_DESC instDesc;
+			RT64_MATRIX4 sceneTransform {};
+			RT64_MATERIAL mat = RT64.baseMaterial;
+			sceneTransform.m[0][0] = 0.0075f;
+			sceneTransform.m[1][1] = 0.0075f;
+			sceneTransform.m[2][2] = 0.0075f;
+			sceneTransform.m[3][0] = 0.00f;
+			sceneTransform.m[3][1] = 0.00f;
+			sceneTransform.m[3][2] = 0.00f;
+			sceneTransform.m[3][3] = 1.00f;
+			instDesc.scissorRect = { 0, 0, 0, 0 };
+			instDesc.viewportRect = { 0, 0, 0, 0 };
+			instDesc.mesh = rt64meshes[j];
+			instDesc.transform = sceneTransform;
+			instDesc.previousTransform = sceneTransform;
+			instDesc.diffuseTexture = RT64.textureDif;
+			instDesc.normalTexture = RT64.textureNrm;
+			instDesc.specularTexture = RT64.textureSpc;
+			instDesc.material = mat;
+			instDesc.shader = RT64.shader;
+			instDesc.flags = 0;
+			RT64.lib.SetInstanceDescription(gltfInstances[j], instDesc);
+		}
+	}
+}
+
+void setupSponza()
+{
+	tinyobj::attrib_t attrib;
+	std::vector<tinyobj::shape_t> shapes;
+	std::vector<tinyobj::material_t> materials;
+	std::string warn;
+	std::string err;
+	bool loaded = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, "res/Sponza/obj/sponza.obj", "res/Sponza/obj/", true);
+	assert(loaded);
+	std::cout << warn;
+	const int matCount = materials.size();
+
+	std::vector<VERTEX> objVertices[matCount];
+	std::vector<unsigned int> objIndices[matCount];
+	for (size_t i = 0; i < shapes.size(); i++) {
+		size_t index_offset = 0;
+		for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
+			size_t fnum = shapes[i].mesh.num_face_vertices[f];
+			int matIndex = shapes[i].mesh.material_ids[f];
+			for (size_t v = 0; v < fnum; v++) {
+				tinyobj::index_t idx = shapes[i].mesh.indices[index_offset + v];
+				VERTEX vertex;
+				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2], 1.0f };
+				vertex.normal = { attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2] };
+				vertex.uv = { attrib.texcoords[2 * idx.texcoord_index + 0], attrib.texcoords[2 * idx.texcoord_index + 1] };
+				vertex.input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
+
+				objIndices[matIndex].push_back((unsigned int)(objVertices[matIndex].size()));
+				objVertices[matIndex].push_back(vertex);
+			}
+
+			index_offset += fnum;
+		}
+	}
+
+	for (int i = 0; i < matCount; i++) {
+		// Create mesh
+		RT64_MESH* mesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT);
+		RT64.lib.SetMesh(mesh, objVertices[i].data(), (int)(objVertices[i].size()), sizeof(VERTEX), objIndices[i].data(), (int)(objIndices[i].size()));
+
+		// Load textures
+		std::string diffPath = "res/Sponza/obj/";
+		std::string normPath = "res/Sponza/obj/";
+		std::string specPath = "res/Sponza/obj/";
+		RT64_TEXTURE* diffTex = materials[i].diffuse_texname.empty() ? RT64.textureDif : loadTexturePNG(diffPath.append(materials[i].diffuse_texname.c_str()).c_str());
+		RT64_TEXTURE* normalTex = materials[i].bump_texname.empty() ? RT64.textureNrm : loadTexturePNG(normPath.append(materials[i].bump_texname.c_str()).c_str());
+		RT64_TEXTURE* specTex = materials[i].specular_highlight_texname.empty() ? RT64.textureSpc : loadTexturePNG(specPath.append(materials[i].specular_highlight_texname.c_str()).c_str());
+
+		// Create instance
+		RT64_INSTANCE_DESC instDesc;
+		RT64_INSTANCE* instance = RT64.lib.CreateInstance(RT64.scene);
+		RT64_MATRIX4 sceneTransform {};
+		RT64_MATERIAL mat = RT64.baseMaterial;
+		mat.reflectionFactor = 0.0f;
+		const float sceneScale = 1.0f;
+		sceneTransform.m[0][0] = sceneScale;
+		sceneTransform.m[1][1] = sceneScale;
+		sceneTransform.m[2][2] = sceneScale;
+		sceneTransform.m[3][0] = 0.00f;
+		sceneTransform.m[3][1] = 0.00f;
+		sceneTransform.m[3][2] = 0.00f;
+		sceneTransform.m[3][3] = 1.00f;
+		instDesc.scissorRect = { 0, 0, 0, 0 };
+		instDesc.viewportRect = { 0, 0, 0, 0 };
+		instDesc.mesh = mesh;
+		instDesc.transform = sceneTransform;
+		instDesc.previousTransform = sceneTransform;
+		instDesc.diffuseTexture = diffTex;
+		instDesc.normalTexture = normalTex;
+		instDesc.specularTexture = specTex;
+		instDesc.material = mat;
+		instDesc.shader = RT64.shader;
+		instDesc.flags = 0;
+		RT64.lib.SetInstanceDescription(instance, instDesc);
+	}
+
+}
+
 int main(int argc, char *argv[]) {
 	// Show a basic message to the user so they know what the sample is meant to do.
 	// infoMessage(NULL, 
@@ -472,8 +767,8 @@ int main(int argc, char *argv[]) {
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	// Create window.
-	const int Width = 1280;
-	const int Height = 720;
+	const int Width = 850;
+	const int Height = 480;
     GLFWwindow* window = glfwCreateWindow(Width, Height, "RT64VK Sample", nullptr, nullptr);
 
 	// Create RT64.
@@ -492,34 +787,13 @@ int main(int argc, char *argv[]) {
 
 	// Setup scene in RT64.
 	setupRT64Scene();
+	setupSponza();
 
 	// GLFW Window loop.
 	while (!glfwWindowShouldClose(window)) {
 		// Process any poll evenets.
         glfwPollEvents();
-		// Remove when done
-		RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 1000.0f, true);
-		
-		RT64.frameMaterial = RT64.baseMaterial;
-		RT64_ApplyMaterialAttributes(&RT64.frameMaterial, &RT64.materialMods);
-
-		RT64_INSTANCE_DESC instDesc;
-		instDesc.scissorRect = { 0, 0, 0, 0 };
-		instDesc.viewportRect = { 0, 0, 0, 0 };
-		instDesc.mesh = RT64.mesh;
-		instDesc.transform = RT64.transform;
-		instDesc.previousTransform = RT64.transform;
-		instDesc.diffuseTexture = RT64.textureDif;
-		instDesc.normalTexture = RT64.textureNrm;
-		instDesc.specularTexture = RT64.textureSpc;
-		instDesc.material = RT64.frameMaterial;
-		instDesc.shader = RT64.shader;
-		instDesc.flags = 0;
-		
-		RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
-		RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
-
-		RT64.lib.DrawDevice(RT64.device, 1, 1000.0 / 60.0);
+		draw(window);
 	}
 
 	destroyRT64();

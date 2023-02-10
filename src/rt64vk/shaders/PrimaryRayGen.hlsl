@@ -45,6 +45,7 @@ void PrimaryRayGen() {
 
 	// Sample the background.
 	float2 screenUV = (float2(launchIndex) + pixelJitter) / float2(launchDims);
+	screenUV.y = 1.0 - screenUV.y;
 	float3 bgColor = SampleBackground2D(screenUV);
 	float4 skyColor = SampleSky2D(screenUV);
 	float3 bgPosition = rayOrigin + rayDirection * RAY_MAX_DISTANCE;
@@ -77,14 +78,13 @@ void PrimaryRayGen() {
 	float3 resTransparent = float3(0.0f, 0.0f, 0.0f);
 	float3 resTransparentLight = float3(0.0f, 0.0f, 0.0f);
 	bool resTransparentLightComputed = false;
-	float4 resColor = float4(0.25, 0.4, 0.6, 1);
+	float4 resColor = float4(0, 0, 0, 1);
 	float2 resFlow = (curBgPos - prevBgPos) * resolution.xy;
 	float resReactiveMask = 0.0f;
 	float resLockMask = 0.0f;
 	float resDepth = 1.0f;
 	int resInstanceId = -1;
 	for (uint hit = 0; hit < payload.nhits; hit++) {
-		resColor = float4(0, 0, 0, 1);
 		uint hitBufferIndex = getHitBufferIndex(hit, launchIndex, launchDims);
 		float4 hitColor = gHitColor[hitBufferIndex];
 		float alphaContrib = (resColor.a * hitColor.a);

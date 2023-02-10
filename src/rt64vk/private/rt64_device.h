@@ -22,6 +22,8 @@
 #include <nvvk/raytraceKHR_vk.hpp>
 #include <nvvk/resourceallocator_vk.hpp>
 #include <unordered_map>
+#include <imgui/backends/imgui_impl_vulkan.h>
+#include <imgui/backends/imgui_impl_glfw.h>
 
 #ifdef _WIN32
     #define VK_USE_PLATFORM_WIN32_KHR
@@ -33,6 +35,8 @@
 
 #define PS_ENTRY    "PSMain"
 #define VS_ENTRY    "VSMain"
+#define GS_ENTRY    "GSMain"
+#define CS_ENTRY    "mainCS"
 
 namespace RT64
 {
@@ -42,10 +46,6 @@ namespace RT64
 	class Texture;
 	class Inspector;
 	class Mipmaps;
-
-    struct DescriptorInfo {
-
-    };
 
     struct QueueFamilyIndices {
         std::optional<uint32_t> graphicsFamily;
@@ -109,6 +109,7 @@ namespace RT64
             void createCommandBuffers();
             void createSyncObjects();
             void createRayTracingPipeline();
+            void createDescriptorPool();
             void loadAssets();
 
             void initRayTracing();
@@ -118,7 +119,7 @@ namespace RT64
             void updateViewport();
             void updateScenes();
             void resizeScenes();
-            void generateRayTracingDescriptorSetLayout();
+            void generateRayGenDescriptorSetLayout();
             void loadBlueNoise();
 
             GLFWwindow* window;
@@ -152,22 +153,14 @@ namespace RT64
             std::vector<VkImageView*> depthViews;
 
             bool rtStateDirty = false;
-            bool mainRtShadersCreated = false;
             VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
             nvvk::RaytracingBuilderKHR rtBlasBuilder;
             nvvk::ResourceAllocatorDma rtAllocator;
-            VkPipelineLayout rtPipelineLayout;
-            VkPipeline rtPipeline;
-            VkDescriptorSetLayout raygenDescriptorSetLayout;
             std::vector<VkDescriptorSetLayout> rtDescriptorSetLayouts;
             std::vector<VkDescriptorSet> rtDescriptorSets;
-            VkDescriptorPool raygenDescriptorPool;
-            VkDescriptorSet raygenDescriptorSet;
-            VkPipelineLayout rtComposePipelineLayout;
-            VkPipeline rtComposePipeline;
-            VkDescriptorSetLayout rtComposeDescriptorSetLayout;
-            VkDescriptorPool rtComposeDescriptorPool;
-            VkDescriptorSet rtComposeDescriptorSet;
+
+            std::vector<VkDescriptorPoolSize> descriptorPoolBindings;
+            VkDescriptorPool descriptorPool;
 
             uint32_t currentFrame = 0;
             uint32_t framebufferIndex = 0;
@@ -193,6 +186,10 @@ namespace RT64
             VkShaderModule shadowMissModule;
             VkShaderModule composePSModule;
             VkShaderModule fullscreenVSModule;
+            VkShaderModule im3dVSModule;
+            VkShaderModule im3dPSModule;
+            VkShaderModule im3dGSPointsModule;
+            VkShaderModule im3dGSLinesModule;
             // And their shader stage infos
             VkPipelineShaderStageCreateInfo primaryRayGenStage      {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo directRayGenStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
@@ -203,17 +200,29 @@ namespace RT64
             VkPipelineShaderStageCreateInfo shadowMissStage         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo composePSStage          {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo fullscreenVSStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo im3dVSStage             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo im3dPSStage             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo im3dGSPointsStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo im3dGSLinesStage        {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             // And pipelines
-            VkPipelineLayout primaryPipelineLayout;
-            VkPipelineLayout directPipelineLayout;
-            VkPipelineLayout indirectPipelineLayout;
-            VkPipelineLayout reflectionPipelineLayout;
-            VkPipelineLayout refractionPipelineLayout;
-            VkPipeline primaryPipeline;
-            VkPipeline directPipeline;
-            VkPipeline indirectPipeline;
-            VkPipeline reflectionPipeline;
-            VkPipeline refractionPipeline;
+            VkPipelineLayout        rtPipelineLayout;
+            VkPipeline              rtPipeline;
+            VkPipelineLayout        rtComposePipelineLayout;
+            VkPipeline              rtComposePipeline;
+            VkPipelineLayout        im3dPipelineLayout;
+            VkPipeline              im3dPipeline;
+            VkPipelineLayout        im3dPointsPipelineLayout;
+            VkPipeline              im3dPointsPipeline;
+            VkPipelineLayout        im3dLinesPipelineLayout;
+            VkPipeline              im3dLinesPipeline;
+            // Did I mention the descriptors?
+            VkDescriptorSetLayout   raygenDescriptorSetLayout;
+            VkDescriptorSet         raygenDescriptorSet;
+            VkDescriptorSetLayout   rtComposeDescriptorSetLayout;
+            VkDescriptorSet         rtComposeDescriptorSet;
+            VkDescriptorSetLayout   im3dDescriptorSetLayout;
+            VkDescriptorSet         im3dDescriptorSet;
+            VkDescriptorSetLayout   emptyDescriptorSetLayout;
 #endif
 
             const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
@@ -241,6 +250,8 @@ namespace RT64
 #ifndef RT64_MINIMAL
 
             /********************** Getters **********************/
+            GLFWwindow* getGlfwWindow() const;
+		    VkInstance& getVkInstance();
 		    VkDevice& getVkDevice();
 		    VkPhysicalDevice& getPhysicalDevice();
 		    nvvk::ResourceAllocator& getRTAllocator();
@@ -277,11 +288,9 @@ namespace RT64
             VkPipelineShaderStageCreateInfo getReflectionShaderStage() const;
             VkPipelineShaderStageCreateInfo getRefractionShaderStage() const;
 
-
             VkCommandBuffer* beginSingleTimeCommands();
             VkCommandBuffer* beginSingleTimeCommands(VkCommandBuffer* commandBuffer);
-            void endSingleTimeCommands(VkCommandBuffer* commandBuffer);
-
+            void endSingleTimeCommands(VkCommandBuffer* commandBuffer);\
             void createFramebuffers();
 
             VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedBuffer* alre);
@@ -305,11 +314,16 @@ namespace RT64
 		    void removeTexture(Texture* texture);
             void addShader(Shader* shader);
             void removeShader(Shader* shader);
+            void addInspector(Inspector* inspector);
+            void removeInspector(Inspector* inspector);
+            ImGui_ImplVulkan_InitInfo generateImguiInitInfo();
             void addDepthImageView(VkImageView* depthImageView);
             void removeDepthImageView(VkImageView* depthImageView);
             void createShaderModule(const void* code, size_t size, const char* entryName, VkShaderStageFlagBits stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, VkShaderModule& shader, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
             void initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder);
-            void allocateDescriptorSet(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorPool& descriptorPool, VkDescriptorSet& descriptorSet);
+            void generateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout);
+            void addToDescriptorPool(std::vector<VkDescriptorSetLayoutBinding>& bindings);
+            void allocateDescriptorSet(VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorSet& descriptorSet);
             uint32_t getFirstAvailableHitDescriptorSetIndex() const;
             uint32_t getFirstAvailableHitShaderID() const;
             uint32_t getFirstAvailableRasterShaderID() const;

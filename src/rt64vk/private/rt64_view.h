@@ -105,7 +105,8 @@ namespace RT64
             VkDeviceSize activeInstancesBufferMaterialsSize = 0;
             AllocatedImage depthImage;
             VkImageView depthImageView;
-            Texture* skyPlaneTexture;
+            Texture* skyPlaneTexture = nullptr;
+            VkSampler skyPlaneSampler;
             std::vector<RenderInstance> rasterBgInstances;
             std::vector<RenderInstance> rasterFgInstances;
             std::vector<RenderInstance> rasterUiInstances;
@@ -121,6 +122,8 @@ namespace RT64
             bool rtEnabled = true;
             bool rtSwap = false;
             bool rtSkipReprojection = false;
+            bool recreateRTBuffers = false;
+            bool denoiserEnabled = false;
 
             nvvk::RaytracingBuilderKHR rtBuilder;
             AllocatedBuffer shaderBindingTable;
@@ -164,7 +167,6 @@ namespace RT64
             AllocatedBuffer rtHitInstanceId;
             AllocatedImage rtOutputUpscaled;
 
-
             void createOutputBuffers();
             void destroyOutputBuffers();
 
@@ -194,8 +196,30 @@ namespace RT64
             void setPerspectiveCanReproject(bool v);
             VkImageView& getDepthImageView();
             AllocatedBuffer& getGlobalParamsBuffer();
-            void setSkyPlaneTexture(Texture *texture);
+		    void renderInspector(Inspector* inspector);
+            void setSkyPlaneTexture(Texture* texture);
             int getWidth() const;
             int getHeight() const;
+            float getFOVRadians() const;
+            float getNearDistance() const;
+            float getFarDistance() const;
+            void setDISamples(int v);
+            int getDISamples() const;
+            void setGISamples(int v);
+            int getGISamples() const;
+            void setMaxLights(int v);
+            int getMaxLights() const;
+            void setMotionBlurStrength(float v);
+            float getMotionBlurStrength() const;
+            void setMotionBlurSamples(int v);
+            int getMotionBlurSamples() const;
+            void setVisualizationMode(int v);
+            int getVisualizationMode() const;
+            void setResolutionScale(float v);
+            float getResolutionScale() const;
+            void setMaxReflections(int v);
+            int getMaxReflections() const;
+            void setDenoiserEnabled(bool v);
+            bool getDenoiserEnabled() const;
 	};
 };
