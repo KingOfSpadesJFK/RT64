@@ -117,13 +117,20 @@ add_library(rt64vk SHARED
     ${LIBRT64VK_DIR}/private/rt64_texture.cpp
     ${LIBRT64VK_DIR}/private/rt64_shader.cpp
     ${LIBRT64VK_DIR}/private/rt64_instance.cpp
-    # ${LIBRT64VK_DIR}/private/rt64_inspector.cpp
+    ${LIBRT64VK_DIR}/private/rt64_inspector.cpp
     ${NVPRO_DIR}/nvp/perproject_globals.cpp
     ${SHADER_HEADERS}
     ${NVVK_SOURCE}
     ${NVH_SOURCE}
     ${NVMATH_SOURCE}
     ${IM3D_DIR}/im3d.cpp
+    ${IMGUI_DIR}/imgui.cpp
+    ${IMGUI_DIR}/imgui_demo.cpp
+    ${IMGUI_DIR}/imgui_draw.cpp
+    ${IMGUI_DIR}/imgui_tables.cpp
+    ${IMGUI_DIR}/imgui_widgets.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
+    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
 )
 target_include_directories(rt64vk PRIVATE 
     ${LIBRT64VK_DIR}

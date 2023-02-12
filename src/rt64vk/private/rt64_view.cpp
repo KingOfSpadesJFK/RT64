@@ -38,6 +38,24 @@ namespace RT64
         globalParamsData.motionBlurSamples = 32;
         globalParamsData.visualizationMode = 0;
         globalParamsData.frameCount = 0;
+        rtSwap = false;
+        rtWidth = 0;
+        rtHeight = 0;
+        maxReflections = 2;
+        // rtUpscaleActive = false;
+        // rtRecreateBuffers = false;
+        rtSkipReprojection = false;
+        resolutionScale = 1.0f;
+        denoiserEnabled = false;
+        // rtUpscaleMode = UpscaleMode::Bilinear;
+        perspectiveControlActive = false;
+        perspectiveCanReproject = true;
+        im3dVertexCount = 0;
+        rtFirstInstanceIdRowWidth = 0;
+        rtFirstInstanceIdReadbackUpdated = false;
+        skyPlaneTexture = nullptr;
+        scissorApplied = false;
+        viewportApplied = false;
         device->initRTBuilder(rtBuilder);
 
         // Create the sky plane sampler
@@ -427,12 +445,9 @@ namespace RT64
         // until the game sends that data in some way in the future.
         const float FocalDistance = (nearDist + farDist) / 2.0f;
         const float AspectRatio = scene->getDevice()->getAspectRatio();
-        const RT64_VECTOR3 Up = { 0.0f, -1.0f, 0.0f };
+        const RT64_VECTOR3 Up = { 0.0f, 1.0f, 0.0f };
         const RT64_VECTOR3 Pos = getViewPosition();
         const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
-        // const glm::vec4 PosGLM = glm::vec4{sinf32(time) * glm::radians(90.0f) * RADIUS, YOFF, cosf32(time) * glm::radians(90.0f) * RADIUS, 1.0f} * globalParamsData.viewI;
-        // const RT64_VECTOR3 Pos = {PosGLM.x, PosGLM.y, PosGLM.z};
-        // const RT64_VECTOR3 Target = Pos + getViewDirection() * FocalDistance;
         RT64_VECTOR3 cameraW = Normalize(Target - Pos) * FocalDistance;
         RT64_VECTOR3 cameraU = Normalize(Cross(cameraW, Up));
         RT64_VECTOR3 cameraV = Normalize(Cross(cameraU, cameraW));
@@ -443,6 +458,18 @@ namespace RT64
         globalParamsData.cameraU = ToVector4(cameraU, 0.0f);
         globalParamsData.cameraV = ToVector4(cameraV, 0.0f);
         globalParamsData.cameraW = ToVector4(cameraW, 0.0f);
+
+	// Enable light reprojection if denoising is enabled.
+#ifdef DI_REPROJECTION_SUPPORT
+	    globalParamsData.diReproject = !rtSkipReprojection && denoiserEnabled && (globalParamsBufferData.diSamples > 0) ? 1 : 0;
+#else
+	    globalParamsData.diReproject = 0;
+#endif
+        globalParamsData.giReproject = !rtSkipReprojection && denoiserEnabled && (globalParamsData.giSamples > 0) ? 1 : 0;
+        // globalParamsData.binaryLockMask = (rtUpscaleMode != UpscaleMode::FSR);
+
+        // Use the total frame count as the random seed.
+        globalParamsData.randomSeed = globalParamsData.frameCount;
 
         globalParamsBuffer.setData(&globalParamsData, sizeof(globalParamsData));
     }
@@ -771,6 +798,12 @@ namespace RT64
     void View::update() 
     {
 	    RT64_LOG_PRINTF("Started view update");
+
+        // Recreate buffers if necessary for next frame.
+        if (recreateRTBuffers) {
+            createOutputBuffers();
+            recreateRTBuffers = false;
+        }
 
         auto getTextureIndex = [this](Texture *texture) {
             if (texture == nullptr) {
@@ -1246,12 +1279,13 @@ namespace RT64
                     &commandBuffer);
             
                 VkDeviceSize offsets[] = {0};
-                RaygenPushConstant pushConst = { 1.0f };
+                RaygenPushConstant pushConst = { 1.0f, 1.0f };
                 for (int i = 0; i < globalParamsData.giBounces; i++) {
                     RT64_LOG_PRINTF("Dispatching indirect light rays batch #" + (i+1));
                     vkCmdPushConstants(commandBuffer, device->getRTPipelineLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(RaygenPushConstant), &pushConst);
                     vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
-                    pushConst.indirectDropoff *= 2.0f;
+                    pushConst.bounceDivisor *= 16.0f;
+                    pushConst.currentBounce += 1.0f;
 
                     if (i < globalParamsData.giBounces - 1) {
                         // This is meant to just make the gpu wait until it's done with the prior indirect lighting
@@ -1436,8 +1470,6 @@ namespace RT64
             VK_ACCESS_NONE, 
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
             &commandBuffer);
-            
-        VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
         rtSwap = !rtSwap;
         rtSkipReprojection = false;
@@ -1453,6 +1485,15 @@ namespace RT64
         skyPlaneTexture = texture;
     }
 
+    RT64_VECTOR3 View::getRayDirectionAt(int px, int py) {
+        float x = ((px + 0.5f) / getWidth()) * 2.0f - 1.0f;
+        float y = ((py + 0.5f) / getHeight()) * 2.0f - 1.0f;
+        glm::vec4 target = globalParamsData.projectionI * glm::vec4{x, -y, 1.0f, 1.0f};
+        glm::vec4 rayDirection = globalParamsData.viewI * glm::vec4{target.x, target.y, target.z, 0.0f};
+        rayDirection = glm::normalize(rayDirection);
+        return { rayDirection.x, rayDirection.y, rayDirection.z };
+    }
+
     void View::resize() {
         createOutputBuffers();
     }
@@ -1466,12 +1507,12 @@ namespace RT64
     }
 
     RT64_VECTOR3 View::getViewPosition() {
-        glm::vec4 pos = glm::vec4{0.0f, 0.0f, 0.0f, 1.0f} * globalParamsData.viewI;
+        glm::vec4 pos = globalParamsData.viewI * glm::vec4{0.0f, 0.0f, 0.0f, 1.0f};
         return { pos.x, pos.y, pos.z };
     }
 
     RT64_VECTOR3 View::getViewDirection() {
-        glm::vec4 xdir = glm::vec4{0.0f, 0.0f, 1.0f, 0.0f} * globalParamsData.viewI;
+        glm::vec4 xdir = globalParamsData.viewI * glm::vec4{0.0f, 0.0f, 1.0f, 0.0f};
         RT64_VECTOR3 dir = { xdir.x, xdir.y, xdir.z };
         float length = Length(dir);
         return dir / length;
@@ -1480,7 +1521,7 @@ namespace RT64
     void View::setPerspective(RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist) {
         // Ignore all external calls to set the perspective when control override is active.
         if (perspectiveControlActive) {
-            // return;
+            return;
         }
 
         this->fovRadians = fovRadians;
@@ -1510,27 +1551,56 @@ namespace RT64
     }
 
     void View::movePerspective(RT64_VECTOR3 localMovement) {
-        glm::vec4 offset = glm::vec4{localMovement.x, localMovement.y, localMovement.z, 0.0f} * globalParamsData.viewI;
-        glm::vec4 det;
-        globalParamsData.view = (glm::inverse(glm::translate(glm::mat4(), glm::vec3{offset.x, offset.y, offset.z})) * globalParamsData.view);
+        glm::vec4 offset = globalParamsData.viewI * glm::vec4{localMovement.x, localMovement.y, localMovement.z, 0.0f};
+        globalParamsData.view = (globalParamsData.view * glm::inverse(glm::translate(glm::mat4(1.0f), glm::vec3{offset.x, offset.y, offset.z})));
     }
 
     void View::rotatePerspective(float localYaw, float localPitch, float localRoll) {
-        glm::vec4 viewPos = (glm::vec4{0.0f, 0.0f, 0.0f, 1.0f} * globalParamsData.viewI);
+        glm::vec4 viewPos = (globalParamsData.viewI * glm::vec4{0.0f, 0.0f, 0.0f, 1.0f});
         glm::vec4 viewFocus = {0.0f, 0.0f, -farDist, 1.0f};
-        viewFocus = (viewFocus * glm::yawPitchRoll(localYaw, localPitch, localRoll));
-        viewFocus = (viewFocus * globalParamsData.viewI);
+        glm::mat4 euler = glm::eulerAngleXY(localPitch, localYaw);
+        viewFocus = (euler * viewFocus);
+        viewFocus = (globalParamsData.viewI * viewFocus);
         globalParamsData.view = glm::lookAt(
             glm::vec3{viewPos.x, viewPos.y, viewPos.z}, 
             glm::vec3{viewFocus.x, viewFocus.y, viewFocus.z}, 
             glm::vec3{0.0f, 1.0f, 0.0f}
         );
+        globalParamsData.view[0][1] *= -1;
+        globalParamsData.view[1][1] *= -1;
+        globalParamsData.view[2][1] *= -1;
+        globalParamsData.view[3][1] *= -1;
     }
 
 	void View::renderInspector(Inspector* inspector) {
         if (Im3d::GetDrawListCount() > 0) {
             VkCommandBuffer commandBuffer = device->getCurrentCommandBuffer();
-            
+            auto viewport = device->getViewport();
+            auto scissors = device->getScissors();
+            vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+            vkCmdSetScissor(commandBuffer, 0, 1, &scissors);
+
+            unsigned int totalVertexCount = 0;
+            for (Im3d::U32 i = 0, n = Im3d::GetDrawListCount(); i < n; ++i) {
+                auto &drawList = Im3d::GetDrawLists()[i];
+                totalVertexCount += drawList.m_vertexCount;
+            }
+
+            if (totalVertexCount > 0) {
+			    // Destroy the previous vertex buffer if it should be bigger.
+                if (!im3dVertexBuffer.isNull() && (totalVertexCount > im3dVertexCount)) {
+                    im3dVertexBuffer.destroyResource();
+                }
+
+                // Create the vertex buffer if it's empty.
+                const unsigned int vertexBufferSize = totalVertexCount * sizeof(Im3d::VertexData);
+                if (im3dVertexBuffer.isNull()) {
+                }
+            }
+
+			// Copy im3d draw lists to vertex buffer.
+
+            // Draw the im3d stuff
         }
     }
 

@@ -29,7 +29,8 @@ float3 getCosHemisphereSampleBlueNoise(uint2 pixelPos, uint frameCount, float3 h
 }
 
 struct PushConstant { 
-	float indirectDropoff;
+    float bounceDivisor;
+    float currentBounce;
 };
 
 [[vk::push_constant]] PushConstant pc;
@@ -38,6 +39,9 @@ struct PushConstant {
 void IndirectRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	int instanceId = gInstanceId[launchIndex];
+	if ((instanceId < 0)) {
+		return;			// Skip if the instance ID is invalid
+	}
 	uint2 launchDims = DispatchRaysDimensions().xy;
 	float3 rayOrigin = gShadingPosition[launchIndex].xyz;
 	float3 shadingNormal = gShadingNormal[launchIndex].xyz;
@@ -56,14 +60,8 @@ void IndirectRayGen() {
 		float weightDepth = abs(depth - prevDepth) / 0.01f;
 		float weightNormal = pow(max(0.0f, dot(prevNormal, shadingNormal)), WeightNormalExponent);
 		float historyWeight = exp(-weightDepth) * weightNormal;
-		newIndirect = prevIndirectAccum.rgb / giBounces;
+		newIndirect = prevIndirectAccum.rgb;
 		historyLength = prevIndirectAccum.a * historyWeight;
-	}
-
-	// Skip if the instance ID is invalid
-	if ((instanceId < 0)) {
-		gIndirectLightAccum[launchIndex] += float4(newIndirect / pc.indirectDropoff, historyLength);
-		return;
 	}
 
 	float3 hitPosition = rayOrigin;
@@ -158,5 +156,5 @@ void IndirectRayGen() {
 		gInstanceId[launchIndex] = hitInstanceId;
 	}
 
-	gIndirectLightAccum[launchIndex] += float4(newIndirect / pc.indirectDropoff, historyLength);
+	gIndirectLightAccum[launchIndex] += float4(newIndirect / pc.bounceDivisor, historyLength);
 }

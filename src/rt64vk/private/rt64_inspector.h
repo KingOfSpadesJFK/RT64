@@ -6,6 +6,8 @@
 
 #include "rt64_common.h"
 
+bool ImGui_ImplVulkan_CreateDeviceObjects();
+
 namespace RT64 {
 	class Device;
 	class Scene;
@@ -24,24 +26,30 @@ namespace RT64 {
             int *lightCount;
             int maxLightCount;
             bool cameraControl;
+            bool invertCameraX;
+            bool invertCameraY;
             float cameraPanX;
             float cameraPanY;
+            float cameraPanSpeed = 1.0f;
             int prevCursorX, prevCursorY;
             std::string dumpPath;
             int dumpFrameCount;
             std::vector<std::string> printMessages;
+            bool initialized = false;
 
-            void setupWithView(View *view, int cursorX, int cursorY);
+            void setupWithView(View *view, long cursorX, long cursorY);
             void renderViewParams(View *view);
             void renderSceneInspector();
             void renderMaterialInspector();
             void renderLightInspector();
             void renderPrint();
-            void renderCameraControl(View *view, int cursorX, int cursorY);
+            void renderCameraControl(View *view, long cursorX, long cursorY);
         public:
-            Inspector(Device* device);
+            Inspector();
+            bool init(Device* device);
             ~Inspector();
-            void render(View *activeView, int cursorX, int cursorY);
+            void destroy();
+            void render(View *activeView, long cursorX, long cursorY);
             void resize();
             void setSceneDescription(RT64_SCENE_DESC *sceneDesc);
             void setMaterial(RT64_MATERIAL *material, const std::string& materialName);

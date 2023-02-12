@@ -582,6 +582,7 @@ namespace RT64
 #ifndef RT64_MINIMAL
     void Device::draw(int vsyncInterval, double delta) {
         RT64_LOG_PRINTF("Device drawing started");
+        inspector.init(this);
 
         if (rtStateDirty) {
             vkDestroyDescriptorPool(vkDevice, descriptorPool, nullptr);
@@ -614,9 +615,20 @@ namespace RT64
         vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 
         // Draw the scenes!
+        View* activeView = nullptr;
         for (Scene* s : scenes) {
             s->render(delta);
         }
+
+        double mouseX, mouseY;
+        activeView = scenes[0]->getViews()[0];
+        glfwGetCursorPos(window, &mouseX, &mouseY);
+        if (inspector.init(this) && showInspector) {
+            inspector.render(activeView, mouseX, mouseY);
+        }
+
+        // End the command buffer
+        VK_CHECK(vkEndCommandBuffer(commandBuffers[currentFrame]));
 
         VkSubmitInfo submitInfo{};
         submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -912,6 +924,9 @@ namespace RT64
         createImageViews();
         resizeScenes();
         createFramebuffers();
+        if (inspector.init(this) && showInspector) {
+            inspector.resize();
+        }
     }
 
     void Device::updateScenes() {
@@ -1347,6 +1362,9 @@ namespace RT64
         for (Shader* sh : shadersCopy) {
             delete sh;
         }
+
+        // Destroy the inspector
+        inspector.destroy();
         
         rtAllocator.deinit();
 		vmaDestroyAllocator(allocator);
@@ -1440,6 +1458,7 @@ namespace RT64
     uint32_t Device::getHitShaderCount() const { return hitShaderCount; }
     uint32_t Device::getRasterShaderCount() const { return rasterShaderCount; }
     VkFence& Device::getCurrentFence() { return inFlightFences[currentFrame]; }
+    Inspector& Device::getInspector() { return inspector; }
 
     // Shader getters
     VkPipelineShaderStageCreateInfo Device::getPrimaryShaderStage() const { return primaryRayGenStage; }
@@ -1451,6 +1470,8 @@ namespace RT64
     void Device::initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder) {
         rtBuilder.setup(vkDevice, &rtAllocator, vkctx.m_queueC);
     }
+
+    void Device::setInspectorVisibility(bool v) { showInspector = v; }
 
     // Adds a scene to the device
     void Device::addScene(Scene* scene) {
@@ -1488,22 +1509,15 @@ namespace RT64
         textures.erase(std::remove(textures.begin(), textures.end(), texture), textures.end());
     }
 
-    void Device::addInspector(Inspector* inspector) {
-        assert(inspector != nullptr);
-        inspectors.push_back(inspector);
-    }
-
-    void Device::removeInspector(Inspector* inspector) {
-        assert(inspector != nullptr);
-        inspectors.erase(std::remove(inspectors.begin(), inspectors.end(), inspector), inspectors.end());
-    }
-
     ImGui_ImplVulkan_InitInfo Device::generateImguiInitInfo() {
         ImGui_ImplVulkan_InitInfo info {};
+        info.Instance = vkInstance;
         info.Device = vkDevice;
         info.PhysicalDevice = physicalDevice;
         info.Queue = vkctx.m_queueGCT;
         info.QueueFamily = vkctx.m_queueGCT.familyIndex;
+        info.MinImageCount = MAX_FRAMES_IN_FLIGHT;
+        info.ImageCount = MAX_FRAMES_IN_FLIGHT;
         return info;
     }
 
@@ -2033,6 +2047,48 @@ DLEXPORT void RT64_DrawDevice(RT64_DEVICE* devicePtr, int vsyncInterval, double 
 		device->draw(vsyncInterval, delta);
 	}
 	RT64_CATCH_EXCEPTION();
+}
+
+DLEXPORT void RT64_SetSceneInspector(RT64_DEVICE* devicePtr, RT64_SCENE_DESC* sceneDesc) {
+    assert(devicePtr != nullptr);
+	RT64::Device* device = (RT64::Device*)(devicePtr);
+    RT64::Inspector& inspector = device->getInspector();
+    inspector.setSceneDescription(sceneDesc);
+}
+
+DLEXPORT void RT64_SetMaterialInspector(RT64_DEVICE* devicePtr, RT64_MATERIAL* material, const char* materialName) {
+    assert(devicePtr != nullptr);
+	RT64::Device* device = (RT64::Device*)(devicePtr);
+    RT64::Inspector& inspector = device->getInspector();
+    inspector.setMaterial(material, std::string(materialName));
+}
+
+DLEXPORT void RT64_SetLightsInspector(RT64_DEVICE* devicePtr, RT64_LIGHT* lights, int* lightCount, int maxLightCount) {
+    assert(devicePtr != nullptr);
+	RT64::Device* device = (RT64::Device*)(devicePtr);
+    RT64::Inspector& inspector = device->getInspector();
+    inspector.setLights(lights, lightCount, maxLightCount);
+}
+
+DLEXPORT void RT64_PrintClearInspector(RT64_DEVICE* devicePtr) {
+    assert(devicePtr != nullptr);
+	RT64::Device* device = (RT64::Device*)(devicePtr);
+    RT64::Inspector& inspector = device->getInspector();
+    inspector.printClear();
+}
+
+DLEXPORT void RT64_PrintMessageInspector(RT64_DEVICE* devicePtr, const char* message) {
+    assert(devicePtr != nullptr);
+	RT64::Device* device = (RT64::Device*)(devicePtr);
+    RT64::Inspector& inspector = device->getInspector();
+    std::string messageStr(message);
+    inspector.printMessage(messageStr);
+}
+
+DLEXPORT void RT64_SetInspectorVisibility(RT64_DEVICE* devicePtr, bool showInspector) {
+    assert(devicePtr != nullptr);
+	RT64::Device* device = (RT64::Device*)(devicePtr);
+    device->setInspectorVisibility(showInspector);
 }
 
 #endif

@@ -14,8 +14,8 @@
 #include "../contrib/im3d/im3d_math.h"
 
 #include "../contrib/imgui/imgui.h"
-#include "../contrib/imgui/backends/imgui_impl_vulkan.h"
 #include "../contrib/imgui/backends/imgui_impl_glfw.h"
+#include "../contrib/imgui/backends/imgui_impl_vulkan.h"
 
 #include <algorithm>
 #include <filesystem>
@@ -31,10 +31,15 @@ std::string dateAsFilename() {
 }
 
 namespace RT64 {
-	Inspector::Inspector(Device* device) {
+	Inspector::Inspector() {}
+
+	bool Inspector::init(Device* device) {
+		if (initialized) { return true; }
 		this->device = device;
 		prevCursorX = prevCursorY = 0;
 		cameraControl = false;
+		invertCameraX = false;
+		invertCameraY = false;
 		cameraPanX = 0.0f;
 		cameraPanY = 0.0f;
 		dumpFrameCount = 0;
@@ -57,45 +62,55 @@ namespace RT64 {
 		//  This is just copied from the imgui demo lmao
 		VkDescriptorPoolSize pool_sizes[] =
 		{
-			{ VK_DESCRIPTOR_TYPE_SAMPLER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1000 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1000 },
-			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 1000 },
-			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 1000 },
-			{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 1000 }
+			{ VK_DESCRIPTOR_TYPE_SAMPLER, 10 },
+			{ VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, 10 },
+			{ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 10 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 10 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER, 10 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 10 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 10 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 10 },
+			{ VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC, 10 },
+			{ VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC, 10 },
+			{ VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT, 10 }
 		};
 
 		VkDescriptorPoolCreateInfo pool_info = {};
 		pool_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 		pool_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-		pool_info.maxSets = 1000;
+		pool_info.maxSets = 10;
 		pool_info.poolSizeCount = std::size(pool_sizes);
 		pool_info.pPoolSizes = pool_sizes;
 		VK_CHECK(vkCreateDescriptorPool(device->getVkDevice(), &pool_info, nullptr, &descPool));
 
 		ImGui_ImplVulkan_InitInfo initInfo = device->generateImguiInitInfo();
-		initInfo.DescriptorPool = descPool;
-		ImGui_ImplGlfw_InitForVulkan(device->getGlfwWindow(), false);
+        initInfo.DescriptorPool = descPool;
+		ImGui_ImplGlfw_InitForVulkan(device->getGlfwWindow(), true);
 		ImGui_ImplVulkan_Init(&initInfo, device->getRenderPass());
 
-		device->addInspector(this);
+		ImGui_ImplVulkan_CreateDeviceObjects();
+		VkCommandBuffer* cmd = device->beginSingleTimeCommands();
+		ImGui_ImplVulkan_CreateFontsTexture(*cmd);
+		device->endSingleTimeCommands(cmd);
+		ImGui_ImplVulkan_DestroyFontUploadObjects();
+		initialized = true;
+		return false;
 	}
 
 	Inspector::~Inspector() {
-		device->removeInspector(this);
-		ImGui_ImplVulkan_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::DestroyContext();
-		vkDestroyDescriptorPool(device->getVkDevice(), descPool, nullptr);
-		vkDestroyDescriptorSetLayout(device->getVkDevice(), descSetLayout, nullptr);
+		if (initialized) {
+			destroy();
+		}
 	}
 
-	void Inspector::render(View *activeView, int cursorX, int cursorY) {
+	void Inspector::destroy() {
+		ImGui_ImplVulkan_Shutdown();
+		ImGui_ImplGlfw_Shutdown();
+		ImGui::DestroyContext();
+		initialized = false;
+	}
+
+	void Inspector::render(View *activeView, long cursorX, long cursorY) {
 		setupWithView(activeView, cursorX, cursorY);
 		
 		// Start the frame.
@@ -111,7 +126,7 @@ namespace RT64 {
 		renderCameraControl(activeView, cursorX, cursorY);
 		renderPrint();
 
-		Im3d::EndFrame();
+		// Im3d::EndFrame();
 
 		// TODO: Implement dump target
 		// If dumping frames is active, save the current state of the RTV into a file.
@@ -122,7 +137,8 @@ namespace RT64 {
 		// 	// device->dumpRenderTarget(oss.str());
 		// }
 
-		activeView->renderInspector(this);
+		// TODO: Finish implementing this
+		// activeView->renderInspector(this);
 
 		// Send the commands to D3D12.
 		// device->getD3D12CommandList()->SetDescriptorHeaps(1, &d3dSrvDescHeap);
@@ -131,7 +147,6 @@ namespace RT64 {
 	}
 
 	void Inspector::resize() {
-		ImGui_ImplVulkan_DestroyFontUploadObjects();
 		ImGui_ImplVulkan_CreateDeviceObjects();
 	}
 
@@ -141,6 +156,7 @@ namespace RT64 {
 		ImGui::Begin("View Params Inspector");
 		int diSamples = view->getDISamples();
 		int giSamples = view->getGISamples();
+		int giBounces = view->getGIBounces();
 		int maxLights = view->getMaxLights();
 		int maxReflections = view->getMaxReflections();
 		float motionBlurStrength = view->getMotionBlurStrength();
@@ -152,6 +168,7 @@ namespace RT64 {
 
 		ImGui::DragInt("DI samples", &diSamples, 0.1f, 0, 32);
 		ImGui::DragInt("GI samples", &giSamples, 0.1f, 0, 32);
+		ImGui::DragInt("GI bounces", &giBounces, 0.1f, 0, 32);
 		ImGui::DragInt("Max lights", &maxLights, 0.1f, 0, 16);
 		ImGui::DragInt("Max reflections", &maxReflections, 0.1f, 0, 32);
 		ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
@@ -160,46 +177,46 @@ namespace RT64 {
 			"Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0"
 			"Reflection\0Refraction\0Transparent\0Motion vectors\0Reactive mask\0Lock mask\0Depth\0");
 
-		ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FSR 2\0NVIDIA DLSS\0Intel XeSS\0");
+		// ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FSR 2\0NVIDIA DLSS\0Intel XeSS\0");
 
-		const UpscaleMode eUpscaleMode = static_cast<UpscaleMode>(upscaleMode);
-		if (view->getUpscalerInitialized(eUpscaleMode)) {
-			int upscalerQualityMode = (int)(view->getUpscalerQualityMode());
-			float upscalerSharpness = view->getUpscalerSharpness();
-			bool upscalerResolutionOverride = view->getUpscalerResolutionOverride();
-			bool upscalerReactiveMask = view->getUpscalerReactiveMask();
-			bool upscalerLockMask = view->getUpscalerLockMask();
-			if (eUpscaleMode != UpscaleMode::Bilinear) {
-				ImGui::Combo("Quality", &upscalerQualityMode, "Ultra Performance\0Performance\0Balanced\0Quality\0Ultra Quality\0Native\0Auto\0");
+		// const UpscaleMode eUpscaleMode = static_cast<UpscaleMode>(upscaleMode);
+		// if (view->getUpscalerInitialized(eUpscaleMode)) {
+		// 	int upscalerQualityMode = (int)(view->getUpscalerQualityMode());
+		// 	float upscalerSharpness = view->getUpscalerSharpness();
+		// 	bool upscalerResolutionOverride = view->getUpscalerResolutionOverride();
+		// 	bool upscalerReactiveMask = view->getUpscalerReactiveMask();
+		// 	bool upscalerLockMask = view->getUpscalerLockMask();
+		// 	if (eUpscaleMode != UpscaleMode::Bilinear) {
+		// 		ImGui::Combo("Quality", &upscalerQualityMode, "Ultra Performance\0Performance\0Balanced\0Quality\0Ultra Quality\0Native\0Auto\0");
 
-				if (eUpscaleMode != UpscaleMode::XeSS) {
-					ImGui::DragFloat("Sharpness", &upscalerSharpness, 0.01f, -1.0f, 1.0f);
-				}
+		// 		if (eUpscaleMode != UpscaleMode::XeSS) {
+		// 			ImGui::DragFloat("Sharpness", &upscalerSharpness, 0.01f, -1.0f, 1.0f);
+		// 		}
 
-				ImGui::Checkbox("Resolution Override", &upscalerResolutionOverride);
-				if (upscalerResolutionOverride) {
-					ImGui::SameLine();
-					ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
-				}
+		// 		ImGui::Checkbox("Resolution Override", &upscalerResolutionOverride);
+		// 		if (upscalerResolutionOverride) {
+		// 			ImGui::SameLine();
+		//			ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
+		// 		}
 
-				if (eUpscaleMode == UpscaleMode::FSR) {
-					ImGui::Checkbox("Reactive Mask", &upscalerReactiveMask);
-				}
+		// 		if (eUpscaleMode == UpscaleMode::FSR) {
+		// 			ImGui::Checkbox("Reactive Mask", &upscalerReactiveMask);
+		// 		}
 
-				ImGui::Checkbox("Lock Mask", &upscalerLockMask);
+		// 		ImGui::Checkbox("Lock Mask", &upscalerLockMask);
 
-				view->setUpscalerQualityMode((Upscaler::QualityMode)(upscalerQualityMode));
-				view->setUpscalerSharpness(upscalerSharpness);
-				view->setUpscalerResolutionOverride(upscalerResolutionOverride);
-				view->setUpscalerReactiveMask(upscalerReactiveMask);
-				view->setUpscalerLockMask(upscalerLockMask);
-			}
-			else {
-				ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
-			}
+		// 		view->setUpscalerQualityMode((Upscaler::QualityMode)(upscalerQualityMode));
+		// 		view->setUpscalerSharpness(upscalerSharpness);
+		// 		view->setUpscalerResolutionOverride(upscalerResolutionOverride);
+		// 		view->setUpscalerReactiveMask(upscalerReactiveMask);
+		// 		view->setUpscalerLockMask(upscalerLockMask);
+		// 	}
+		// 	else {
+		// 		ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
+		// 	}
 
-			view->setUpscaleMode(eUpscaleMode);
-		}
+		// 	view->setUpscaleMode(eUpscaleMode);
+		// }
 
 		ImGui::Checkbox("Denoiser", &denoiser);
 
@@ -219,6 +236,7 @@ namespace RT64 {
 		// Update viewport parameters.
 		view->setDISamples(diSamples);
 		view->setGISamples(giSamples);
+		view->setGIBounces(giBounces);
 		view->setMaxLights(maxLights);
 		view->setMaxReflections(maxReflections);
 		view->setMotionBlurStrength(motionBlurStrength);
@@ -375,7 +393,7 @@ namespace RT64 {
 		}
 	}
 
-	void Inspector::renderCameraControl(View *view, int cursorX, int cursorY) {
+	void Inspector::renderCameraControl(View *view, long cursorX, long cursorY) {
 		assert(view != nullptr);
 
 		if (ImGui::Begin("Camera controls")) {
@@ -384,26 +402,31 @@ namespace RT64 {
 			if (cameraControl) {
 				ImGui::DragFloat("Camera pan x", &cameraPanX, 0.1f, -100.0f, 100.0f);
 				ImGui::DragFloat("Camera pan y", &cameraPanY, 0.1f, -100.0f, 100.0f);
+				ImGui::DragFloat("Camera pan speed", &cameraPanSpeed, 0.01f, 0.0f, 10.0f);
+				ImGui::Checkbox("Invert Camera X", &invertCameraX);
+				ImGui::Checkbox("Invert Camera Y", &invertCameraY);
 
 				if ((cameraPanX != 0.0f) || (cameraPanY != 0.0f)) {
 					view->movePerspective({ cameraPanX, cameraPanY, 0.0f });
 				}
 				else if (!ImGui::GetIO().WantCaptureMouse) {
-					float cameraSpeed = (view->getFarDistance() - view->getNearDistance()) / 5.0f;
-					bool leftAlt = GetAsyncKeyState(VK_LMENU) & 0x8000;
-					bool leftCtrl = GetAsyncKeyState(VK_LCONTROL) & 0x8000;
+					float cameraSpeed = (view->getFarDistance() - view->getNearDistance()) / 5.0f * cameraPanSpeed;
+					bool leftAlt = glfwGetKey(device->getGlfwWindow(), GLFW_KEY_LEFT_ALT);
+					bool leftCtrl = glfwGetKey(device->getGlfwWindow(), GLFW_KEY_LEFT_CONTROL);
 					float localX = (cursorX - prevCursorX) / (float)(view->getWidth());
-					float localY = (cursorY - prevCursorY) / (float)(view->getHeight());
+					float localY = -(cursorY - prevCursorY) / (float)(view->getHeight());
 					localX += cameraPanX;
 					localY += cameraPanY;
+					if (invertCameraX) { localX *= -1.0f; }
+					if (invertCameraY) { localY *= -1.0f; }
 
-					if (GetAsyncKeyState(VK_MBUTTON) & 0x8000) {
+					if (glfwGetMouseButton(device->getGlfwWindow(), GLFW_MOUSE_BUTTON_MIDDLE)) {
 						if (leftCtrl) {
-							view->movePerspective({ 0.0f, 0.0f, (localX + localY) * cameraSpeed });
+							view->movePerspective({ 0.0f, 0.0f, (localY) * cameraSpeed });
 						}
 						else if (leftAlt) {
 							float cameraRotationSpeed = 5.0f;
-							view->rotatePerspective(0.0f, -localX * cameraRotationSpeed, -localY * cameraRotationSpeed);
+							view->rotatePerspective(-localX * cameraRotationSpeed, -localY * cameraRotationSpeed, 0.0f);
 						}
 						else {
 							view->movePerspective({ -localX * cameraSpeed, localY * cameraSpeed, 0.0f });
@@ -422,9 +445,9 @@ namespace RT64 {
 				cameraPanX = 0.0f;
 				cameraPanY = 0.0f;
 			}
-
-			ImGui::End();
 		}
+
+		ImGui::End();
 	}
 
 	void Inspector::renderPrint() {
@@ -437,9 +460,9 @@ namespace RT64 {
 		}
 	}
 
-	void Inspector::setupWithView(View *view, int cursorX, int cursorY) {
+	void Inspector::setupWithView(View *view, long cursorX, long cursorY) {
 		assert(view != nullptr);
-		Im3d::AppData &appData = Im3d::GetAppData();
+		Im3d::AppData& appData = Im3d::GetAppData();
 		RT64_VECTOR3 viewPos = view->getViewPosition();
 		RT64_VECTOR3 viewDir = view->getViewDirection();
 		RT64_VECTOR3 rayDir = view->getRayDirectionAt(cursorX, cursorY);
@@ -455,7 +478,7 @@ namespace RT64 {
 		appData.m_snapScale = 0.0f;
 		appData.m_cursorRayOrigin = Im3d::Vec3(viewPos.x, viewPos.y, viewPos.z);
 		appData.m_cursorRayDirection = Im3d::Vec3(rayDir.x, rayDir.y, rayDir.z);
-		appData.m_keyDown[Im3d::Mouse_Left] = (GetAsyncKeyState(VK_LBUTTON) & 0x8000) != 0;
+		appData.m_keyDown[Im3d::Mouse_Left] = (glfwGetMouseButton(device->getGlfwWindow(), GLFW_MOUSE_BUTTON_LEFT)) != 0;
 	}
 
 	void Inspector::setSceneDescription(RT64_SCENE_DESC* sceneDesc) {
@@ -483,59 +506,9 @@ namespace RT64 {
 
 	// extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-	bool Inspector::handleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
-		// return ImGui_ImplWin32_WndProcHandler(device->getHwnd(), msg, wParam, lParam);
-	}
+	// bool Inspector::handleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
+	// 	return ImGui_ImplWin32_WndProcHandler(device->getHwnd(), msg, wParam, lParam);
+	// }
 };
-
-// Library exports
-
-DLEXPORT RT64_INSPECTOR* RT64_CreateInspector(RT64_DEVICE* devicePtr) {
-    assert(devicePtr != nullptr);
-    RT64::Device* device = (RT64::Device*)(devicePtr);
-    RT64::Inspector* inspector = new RT64::Inspector(device);
-    return (RT64_INSPECTOR*)(inspector);
-}
-
-DLEXPORT bool RT64_HandleMessageInspector(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam) {
-    assert(inspectorPtr != nullptr);
-    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
-    return inspector->handleMessage(msg, wParam, lParam);
-}
-
-DLEXPORT void RT64_SetSceneInspector(RT64_INSPECTOR* inspectorPtr, RT64_SCENE_DESC* sceneDesc) {
-    assert(inspectorPtr != nullptr);
-    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
-    inspector->setSceneDescription(sceneDesc);
-}
-
-DLEXPORT void RT64_SetMaterialInspector(RT64_INSPECTOR* inspectorPtr, RT64_MATERIAL* material, const char* materialName) {
-    assert(inspectorPtr != nullptr);
-    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
-    inspector->setMaterial(material, std::string(materialName));
-}
-
-DLEXPORT void RT64_SetLightsInspector(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT* lights, int* lightCount, int maxLightCount) {
-    assert(inspectorPtr != nullptr);
-    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
-    inspector->setLights(lights, lightCount, maxLightCount);
-}
-
-DLEXPORT void RT64_PrintClearInspector(RT64_INSPECTOR* inspectorPtr) {
-    assert(inspectorPtr != nullptr);
-    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
-    inspector->printClear();
-}
-
-DLEXPORT void RT64_PrintMessageInspector(RT64_INSPECTOR* inspectorPtr, const char* message) {
-    assert(inspectorPtr != nullptr);
-    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
-    std::string messageStr(message);
-    inspector->printMessage(messageStr);
-}
-
-DLEXPORT void RT64_DestroyInspector(RT64_INSPECTOR* inspectorPtr) {
-    delete (RT64::Inspector*)(inspectorPtr);
-}
 
 #endif

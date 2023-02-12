@@ -69,8 +69,8 @@ struct {
 	RT64_LIBRARY lib;
 	RT64_LIGHT lights[16];
 	int lightCount;
+	bool showInspector;
 	RT64_DEVICE *device = nullptr;
-	RT64_INSPECTOR* inspector = nullptr;
 	RT64_SCENE *scene = nullptr;
 	RT64_SCENE_DESC sceneDesc;
 	RT64_VIEW *view = nullptr;
@@ -89,15 +89,13 @@ struct {
 	std::vector<unsigned int> objIndices;
 } RT64;
 
-// LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-// 	if ((RT64.inspector != nullptr) && RT64.lib.HandleMessageInspector(RT64.inspector, message, wParam, lParam)) {
-// 		return true;
-// 	}
+struct {
+	bool doDaylightCycle = true;
+	float daylightCycleSpeed = 0.0f;
+	float daylightTime = 0.0f;
+} Sample;
 
-// 	switch (message) {
-// 	case WM_CLOSE:
-// 		PostQuitMessage(0);
-// 		break;
+
 // 	case WM_RBUTTONDOWN: {
 // 		POINT cursorPos = {};
 // 		GetCursorPos(&cursorPos);
@@ -105,79 +103,22 @@ struct {
 // 		RT64_INSTANCE *instance = RT64.lib.GetViewRaytracedInstanceAt(RT64.view, cursorPos.x, cursorPos.y);
 // 		fprintf(stdout, "GetViewRaytracedInstanceAt: %p\n", instance);
 // 		break;
-// 	}
-// 	case WM_KEYDOWN: {
-// 		if (wParam == VK_F1) {
-// 			if (RT64.inspector != nullptr) {
-// 				RT64.lib.DestroyInspector(RT64.inspector);
-// 				RT64.inspector = nullptr;
-// 			}
-// 			else {
-// 				RT64.inspector = RT64.lib.CreateInspector(RT64.device);
-// 			}
-// 		}
-
-// 		break;
-// 	}
-// 	case WM_PAINT: {
-// 		if (RT64.view != nullptr) {
-// 			RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 1000.0f, true);
-
-// 			if (RT64.inspector != nullptr) {
-// 				RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");
-// 				RT64.lib.SetSceneInspector(RT64.inspector, &RT64.sceneDesc);
-// 				RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
-// 			}
-
-// 			RT64.frameMaterial = RT64.baseMaterial;
-// 			RT64_ApplyMaterialAttributes(&RT64.frameMaterial, &RT64.materialMods);
-
-// 			if (RT64.inspector != nullptr) {
-// 				RT64.lib.SetLightsInspector(RT64.inspector, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
-// 			}
-
-// 			RT64_INSTANCE_DESC instDesc;
-// 			instDesc.scissorRect = { 0, 0, 0, 0 };
-// 			instDesc.viewportRect = { 0, 0, 0, 0 };
-// 			instDesc.mesh = RT64.mesh;
-// 			instDesc.transform = RT64.transform;
-// 			instDesc.previousTransform = RT64.transform;
-// 			instDesc.diffuseTexture = RT64.textureDif;
-// 			instDesc.normalTexture = RT64.textureNrm;
-// 			instDesc.specularTexture = RT64.textureSpc;
-// 			instDesc.material = RT64.frameMaterial;
-// 			instDesc.shader = RT64.shader;
-// 			instDesc.flags = 0;
-
-// 			RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
-// 			RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
-// 			RT64.lib.DrawDevice(RT64.device, 1);
-// 			return 0;
-// 		}
-// 	}
-// 	default:
-// 		return DefWindowProc(hWnd, message, wParam, lParam);
-// 	}
-
-// 	return 0;
-// }
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-	if (key == GLFW_KEY_F1) {
-		// if (RT64.inspector != nullptr) {
-		// 	RT64.lib.DestroyInspector(RT64.inspector);
-		// 	RT64.inspector = nullptr;
-		// }
-		// else {
-		// 	RT64.inspector = RT64.lib.CreateInspector(RT64.device);
-		// }
+	if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
+		RT64.showInspector = !RT64.showInspector;
+		RT64.lib.SetInspectorVisibility(RT64.device, RT64.showInspector);
+	}
+
+	if (key == GLFW_KEY_F4 && action == GLFW_PRESS) {
+		Sample.doDaylightCycle = !Sample.doDaylightCycle;
 	}
 }
 
 void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
-	if (button == GLFW_MOUSE_BUTTON_RIGHT) {
-		// double xpos, ypos;
-		// glfwGetCursorPos(window, &xpos, &ypos);
+	double xpos, ypos = 0.0;
+	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+		glfwGetCursorPos(window, &xpos, &ypos);
 	}
 }
 
@@ -187,7 +128,7 @@ void draw(GLFWwindow* window ) {
 	// if (!focused) {
 	// 	return;
 	// }
-
+	
     static auto startTime = std::chrono::high_resolution_clock::now();
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count() / 4.0f;
@@ -216,19 +157,22 @@ void draw(GLFWwindow* window ) {
 	RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 1000.0f, true);
 
 	// Day-night cycle
-	float daylightTime = time / 4.0f;
-	float daylightSin =   1.0f;
-	float daylightSinM = -1.0f;
-	float daylightCos =   1.0f;
-	float daylightCosM = -1.0f;
+
+	if (Sample.doDaylightCycle) {
+		Sample.daylightTime = time / 4.0f;
+	}
+	float daylightSin =   sinf32(Sample.daylightTime);
+	float daylightSinM = -sinf32(Sample.daylightTime);
+	float daylightCos =   cosf32(Sample.daylightTime);
+	float daylightCosM = -cosf32(Sample.daylightTime);
 	RT64_VECTOR3 sunColor = {3.5f, 2.0f, 1.875f};
 	RT64_VECTOR3 moonColor = {0.0125f, 0.05f, 0.075f};
 	RT64.lights[0].position = { daylightSin * 1500000.0f, daylightSin * 3000000.0f, daylightCos * 3000000.0f };
 	RT64.lights[1].position = { daylightSinM * 15000.0f, daylightSinM * 30000.0f, daylightCosM * 30000.0f };
 	RT64.lights[0].diffuseColor = { 
-		glm::clamp(sunColor.x * daylightSin * 1.0f - 0.0f, 0.0f, sunColor.x),
-		glm::clamp(sunColor.y * daylightSin * 1.5f - 0.25f, 0.0f, sunColor.y),
-		glm::clamp(sunColor.z * daylightSin * 2.5f - 0.75f, 0.0f, sunColor.z),
+		glm::clamp(sunColor.x * daylightSin, 0.0f, sunColor.x),
+		glm::clamp(sunColor.y * (daylightSin < 0.f ? 0.f : daylightSin * daylightSin), 0.0f, sunColor.y),
+		glm::clamp(sunColor.z * daylightSin * daylightSin * daylightSin, 0.0f, sunColor.z),
 	};
 	RT64.lights[1].diffuseColor = { 
 		glm::clamp(moonColor.x * daylightSinM * 1.0f, 0.0f, moonColor.x),
@@ -249,6 +193,13 @@ void draw(GLFWwindow* window ) {
 		0.00025f + glm::clamp(daylightSin * 0.025f, 0.0f, 1.0f), 
 	};
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
+
+	// Inspector stuff
+	if (RT64.showInspector) {
+		RT64.lib.SetMaterialInspector(RT64.device, &RT64.materialMods, "Sphere");
+		RT64.lib.SetSceneInspector(RT64.device, &RT64.sceneDesc);
+		RT64.lib.SetLightsInspector(RT64.device, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
+	}
 	
 	RT64.frameMaterial = RT64.baseMaterial;
 	RT64_ApplyMaterialAttributes(&RT64.frameMaterial, &RT64.materialMods);
@@ -264,7 +215,7 @@ void draw(GLFWwindow* window ) {
 	instDesc.material = RT64.frameMaterial;
 	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
-	// RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
+	RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
 	RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
 	RT64.lib.DrawDevice(RT64.device, 1, time);
 }
@@ -374,7 +325,7 @@ void setupRT64Scene() {
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
 	// Make initial transform with a 0.1f scale.
-	float scale = 0.30f;
+	float scale = 0.01f;
 	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
 	RT64.transform.m[0][0] = scale;
 	RT64.transform.m[1][1] = scale;
@@ -492,12 +443,12 @@ void setupRT64Scene() {
 	RT64.lib.SetInstanceDescription(instanceB, instDesc);
 
 	// Create RT Instance.
-	// RT64.instance = RT64.lib.CreateInstance(RT64.scene);
+	RT64.instance = RT64.lib.CreateInstance(RT64.scene);
 	instDesc.mesh = RT64.mesh;
 	instDesc.diffuseTexture = RT64.textureDif;
 	instDesc.normalTexture = RT64.textureNrm;
 	instDesc.specularTexture = RT64.textureSpc;
-	// RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
+	RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
 
 	// Create HUD A Instance.
 	RT64_INSTANCE* instanceA = RT64.lib.CreateInstance(RT64.scene);

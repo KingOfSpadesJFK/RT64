@@ -76,7 +76,7 @@ namespace RT64
                 unsigned int giSamples;
 	            unsigned int giBounces;
                 unsigned int diReproject;
-                unsigned int giReproject = 1;
+                unsigned int giReproject;
                 unsigned int binaryLockMask;
                 unsigned int maxLights;
                 unsigned int motionBlurSamples;
@@ -86,8 +86,7 @@ namespace RT64
 
             Device* device;
             Scene* scene;
-		    int maxReflections = 4;
-            int secondaryBounces = 5;
+		    int maxReflections;
             float fovRadians = 40.0f;
             float nearDist;
             float farDist;
@@ -171,6 +170,10 @@ namespace RT64
             AllocatedBuffer rtHitInstanceId;
             AllocatedImage rtOutputUpscaled;
 
+            // Im3d
+		    AllocatedResource im3dVertexBuffer;
+		    unsigned int im3dVertexCount;
+
             void createOutputBuffers();
             void destroyOutputBuffers();
 
@@ -200,6 +203,7 @@ namespace RT64
             void setPerspectiveCanReproject(bool v);
             VkImageView& getDepthImageView();
             AllocatedBuffer& getGlobalParamsBuffer();
+            RT64_VECTOR3 getRayDirectionAt(int px, int py);
 		    void renderInspector(Inspector* inspector);
             void setSkyPlaneTexture(Texture* texture);
             int getWidth() const;

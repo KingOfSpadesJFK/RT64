@@ -11,6 +11,7 @@
 #include "rt64_mesh.h"
 #include "rt64_texture.h"
 #include "rt64_shader.h"
+#include "rt64_inspector.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <GLFW/glfw3.h>
@@ -63,8 +64,8 @@ namespace RT64
     };
 
     struct RaygenPushConstant {
-        float indirectDropoff;
-        float indirectBounces;
+        float bounceDivisor;
+        float currentBounce;
     };
     
     class Device
@@ -139,7 +140,9 @@ namespace RT64
             std::vector<Shader*> shaders;
             std::vector<Mesh*> meshes;
             std::vector<Texture*> textures;
-            std::vector<Inspector*> inspectors;
+
+            Inspector inspector;
+            bool showInspector = false;
             
 		    Mipmaps* mipmaps = nullptr;
 		    Texture* blueNoise;
@@ -286,6 +289,7 @@ namespace RT64
             uint32_t getHitShaderCount() const;
             uint32_t getRasterShaderCount() const;
             VkFence& getCurrentFence();
+            Inspector& getInspector();
             // Shader getters
             VkPipelineShaderStageCreateInfo getPrimaryShaderStage() const;
             VkPipelineShaderStageCreateInfo getDirectShaderStage() const;
@@ -311,6 +315,7 @@ namespace RT64
             VkImageView createImageView(VkImage image, VkFormat format, VkImageAspectFlags aspectFlags);
             VkBufferView createBufferView(VkBuffer& buffer, VkFormat format, VkBufferViewCreateFlags flags, VkDeviceSize size);
             void draw(int vsyncInterval, double delta);
+            void setInspectorVisibility(bool v);
 		    void addScene(Scene* scene);
 		    void removeScene(Scene* scene);
 		    void addMesh(Mesh* mesh);
@@ -319,8 +324,6 @@ namespace RT64
 		    void removeTexture(Texture* texture);
             void addShader(Shader* shader);
             void removeShader(Shader* shader);
-            void addInspector(Inspector* inspector);
-            void removeInspector(Inspector* inspector);
             ImGui_ImplVulkan_InitInfo generateImguiInitInfo();
             void addDepthImageView(VkImageView* depthImageView);
             void removeDepthImageView(VkImageView* depthImageView);
