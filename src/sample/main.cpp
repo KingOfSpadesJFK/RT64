@@ -217,10 +217,10 @@ void draw(GLFWwindow* window ) {
 
 	// Day-night cycle
 	float daylightTime = time / 4.0f;
-	float daylightSin =   sinf32(daylightTime) * glm::radians(90.0f);
-	float daylightSinM = -sinf32(daylightTime) * glm::radians(90.0f);
-	float daylightCos =   cosf32(daylightTime) * glm::radians(90.0f);
-	float daylightCosM = -cosf32(daylightTime) * glm::radians(90.0f);
+	float daylightSin =   1.0f;
+	float daylightSinM = -1.0f;
+	float daylightCos =   1.0f;
+	float daylightCosM = -1.0f;
 	RT64_VECTOR3 sunColor = {3.5f, 2.0f, 1.875f};
 	RT64_VECTOR3 moonColor = {0.0125f, 0.05f, 0.075f};
 	RT64.lights[0].position = { daylightSin * 1500000.0f, daylightSin * 3000000.0f, daylightCos * 3000000.0f };

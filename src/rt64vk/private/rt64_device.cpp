@@ -435,10 +435,17 @@ namespace RT64
         }
         
 	    RT64_LOG_PRINTF("Creating the RT pipeline...");
+		// Set up the push constnants
+		VkPushConstantRange pushConstant;
+		pushConstant.offset = 0;
+		pushConstant.size = sizeof(RaygenPushConstant);
+		pushConstant.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
         // Create the pipeline layout create info
         VkPipelineLayoutCreateInfo layoutInfo {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
         layoutInfo.setLayoutCount = rtDescriptorSetLayouts.size();
         layoutInfo.pSetLayouts = rtDescriptorSetLayouts.data();
+        layoutInfo.pushConstantRangeCount = 1;
+        layoutInfo.pPushConstantRanges = &pushConstant;
         vkCreatePipelineLayout(vkDevice, &layoutInfo, nullptr, &rtPipelineLayout);
 
         // Assemble the shader stages and recursion depth info into the ray tracing pipeline

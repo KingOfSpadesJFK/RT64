@@ -33,7 +33,7 @@ namespace RT64
         globalParamsData.randomSeed = 0;
         globalParamsData.diSamples = 1;
         globalParamsData.giSamples = 1;
-        globalParamsData.giBounces = 3;
+        globalParamsData.giBounces = 2;
         globalParamsData.maxLights = 12;
         globalParamsData.motionBlurSamples = 32;
         globalParamsData.visualizationMode = 0;
@@ -1245,9 +1245,13 @@ namespace RT64
                     VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
                     &commandBuffer);
             
+                VkDeviceSize offsets[] = {0};
+                RaygenPushConstant pushConst = { 1.0f };
                 for (int i = 0; i < globalParamsData.giBounces; i++) {
-                    RT64_LOG_PRINTF("Dispatching indirect light rays batch #" + (i+2));
+                    RT64_LOG_PRINTF("Dispatching indirect light rays batch #" + (i+1));
+                    vkCmdPushConstants(commandBuffer, device->getRTPipelineLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(RaygenPushConstant), &pushConst);
                     vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+                    pushConst.indirectDropoff *= 2.0f;
 
                     if (i < globalParamsData.giBounces - 1) {
                         // This is meant to just make the gpu wait until it's done with the prior indirect lighting
@@ -1293,6 +1297,9 @@ namespace RT64
 
             } else if (globalParamsData.giBounces == 1 && globalParamsData.giSamples > 0) {
                 RT64_LOG_PRINTF("Dispatching only first indirect rays");
+                VkDeviceSize offsets[] = {0};
+                RaygenPushConstant pushConst = { 1.0f };
+                vkCmdPushConstants(commandBuffer, device->getRTPipelineLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(RaygenPushConstant), &pushConst);
                 vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 
                 // Wait until indirect light is done before dispatching reflection or refraction rays.

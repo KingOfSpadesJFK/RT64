@@ -28,6 +28,12 @@ float3 getCosHemisphereSampleBlueNoise(uint2 pixelPos, uint frameCount, float3 h
 	return tangent * (r * cos(phi).x) + bitangent * (r * sin(phi)) + hitNorm.xyz * sqrt(max(0.0, 1.0f - randVal.x));
 }
 
+struct PushConstant { 
+	float indirectDropoff;
+};
+
+[[vk::push_constant]] PushConstant pc;
+
 [shader("raygeneration")]
 void IndirectRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
@@ -51,12 +57,12 @@ void IndirectRayGen() {
 		float weightNormal = pow(max(0.0f, dot(prevNormal, shadingNormal)), WeightNormalExponent);
 		float historyWeight = exp(-weightDepth) * weightNormal;
 		newIndirect = prevIndirectAccum.rgb / giBounces;
-		historyLength = prevIndirectAccum.a * historyWeight * giBounces;
+		historyLength = prevIndirectAccum.a * historyWeight;
 	}
 
 	// Skip if the instance ID is invalid
 	if ((instanceId < 0)) {
-		gIndirectLightAccum[launchIndex] += float4(newIndirect, historyLength);
+		gIndirectLightAccum[launchIndex] += float4(newIndirect / pc.indirectDropoff, historyLength);
 		return;
 	}
 
@@ -152,5 +158,5 @@ void IndirectRayGen() {
 		gInstanceId[launchIndex] = hitInstanceId;
 	}
 
-	gIndirectLightAccum[launchIndex] += float4(newIndirect, historyLength);
+	gIndirectLightAccum[launchIndex] += float4(newIndirect / pc.indirectDropoff, historyLength);
 }
