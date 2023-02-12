@@ -162,8 +162,23 @@ struct {
 // 	return 0;
 // }
 
-void toggleInspector() {
-	
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	if (key == GLFW_KEY_F1) {
+		// if (RT64.inspector != nullptr) {
+		// 	RT64.lib.DestroyInspector(RT64.inspector);
+		// 	RT64.inspector = nullptr;
+		// }
+		// else {
+		// 	RT64.inspector = RT64.lib.CreateInspector(RT64.device);
+		// }
+	}
+}
+
+void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
+	if (button == GLFW_MOUSE_BUTTON_RIGHT) {
+		// double xpos, ypos;
+		// glfwGetCursorPos(window, &xpos, &ypos);
+	}
 }
 
 // Process drawing 
@@ -201,10 +216,10 @@ void draw(GLFWwindow* window ) {
 	RT64.lib.SetViewPerspective(RT64.view, RT64.viewMatrix, (45.0f * (float)(M_PI)) / 180.0f, 0.1f, 1000.0f, true);
 
 	// Day-night cycle
-	float daylightTime = time / 10.0f;
-	float daylightSin = sinf32(daylightTime) * glm::radians(90.0f);
+	float daylightTime = time / 4.0f;
+	float daylightSin =   sinf32(daylightTime) * glm::radians(90.0f);
 	float daylightSinM = -sinf32(daylightTime) * glm::radians(90.0f);
-	float daylightCos = cosf32(daylightTime) * glm::radians(90.0f);
+	float daylightCos =   cosf32(daylightTime) * glm::radians(90.0f);
 	float daylightCosM = -cosf32(daylightTime) * glm::radians(90.0f);
 	RT64_VECTOR3 sunColor = {3.5f, 2.0f, 1.875f};
 	RT64_VECTOR3 moonColor = {0.0125f, 0.05f, 0.075f};
@@ -227,6 +242,11 @@ void draw(GLFWwindow* window ) {
 		0.015f + daylight * 0.985f,
 		0.025f + daylight * 0.975f,
 		0.05f + daylight * 0.95f,
+	};
+	RT64.sceneDesc.ambientBaseColor = { 
+		0.000125f + glm::clamp(daylightSin * 0.0125f, 0.0f, 1.0f), 
+		0.00015f + glm::clamp(daylightSin * 0.015f, 0.0f, 1.0f),  
+		0.00025f + glm::clamp(daylightSin * 0.025f, 0.0f, 1.0f), 
 	};
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 	
@@ -513,7 +533,7 @@ void setupRT64Scene() {
 
 	RT64_MESH* floorMesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED);
 	RT64.lib.SetMesh(floorMesh, floorVertices, _countof(floorVertices), sizeof(VERTEX), floorIndices, _countof(floorIndices));
-	RT64_INSTANCE* floorInstance = RT64.lib.CreateInstance(RT64.scene);
+	// RT64_INSTANCE* floorInstance = RT64.lib.CreateInstance(RT64.scene);
 	RT64_MATERIAL floorMat = RT64.baseMaterial;
 	floorMat.reflectionFactor = 0.0f;
 	instDesc.mesh = floorMesh;
@@ -525,7 +545,7 @@ void setupRT64Scene() {
 	instDesc.shader = RT64.shader;
 	instDesc.material = floorMat;
 	instDesc.flags = 0;
-	RT64.lib.SetInstanceDescription(floorInstance, instDesc);
+	// RT64.lib.SetInstanceDescription(floorInstance, instDesc);
 }
 
 void destroyRT64() {
@@ -701,7 +721,7 @@ void setupSponza()
 				VERTEX vertex;
 				vertex.position = { attrib.vertices[3 * idx.vertex_index + 0], attrib.vertices[3 * idx.vertex_index + 1], attrib.vertices[3 * idx.vertex_index + 2], 1.0f };
 				vertex.normal = { attrib.normals[3 * idx.normal_index + 0], attrib.normals[3 * idx.normal_index + 1], attrib.normals[3 * idx.normal_index + 2] };
-				vertex.uv = { attrib.texcoords[2 * idx.texcoord_index + 0], attrib.texcoords[2 * idx.texcoord_index + 1] };
+				vertex.uv = { attrib.texcoords[2 * idx.texcoord_index + 0], 1.0f - attrib.texcoords[2 * idx.texcoord_index + 1] };
 				vertex.input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 
 				objIndices[matIndex].push_back((unsigned int)(objVertices[matIndex].size()));
@@ -730,7 +750,9 @@ void setupSponza()
 		RT64_INSTANCE* instance = RT64.lib.CreateInstance(RT64.scene);
 		RT64_MATRIX4 sceneTransform {};
 		RT64_MATERIAL mat = RT64.baseMaterial;
-		mat.reflectionFactor = 0.0f;
+		// if (i % 5 == 0) {
+		// 	mat.reflectionFactor = 0.250f;
+		// }
 		const float sceneScale = 1.0f;
 		sceneTransform.m[0][0] = sceneScale;
 		sceneTransform.m[1][1] = sceneScale;
@@ -788,6 +810,9 @@ int main(int argc, char *argv[]) {
 	// Setup scene in RT64.
 	setupRT64Scene();
 	setupSponza();
+
+	glfwSetKeyCallback(window, keyCallback);
+	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
 
 	// GLFW Window loop.
 	while (!glfwWindowShouldClose(window)) {

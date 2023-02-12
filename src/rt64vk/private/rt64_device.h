@@ -61,6 +61,11 @@ namespace RT64
         std::vector<VkSurfaceFormatKHR> formats;
         std::vector<VkPresentModeKHR> presentModes;
     };
+
+    struct RaygenPushConstant {
+        float indirectDropoff;
+        float indirectBounces;
+    };
     
     class Device
     {

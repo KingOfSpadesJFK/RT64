@@ -196,6 +196,13 @@ void PrimaryRayGen() {
 	gLockMask[launchIndex] = binaryLockMask ? step(0.5f, resLockMask) : min(resLockMask, 1.0f);
 	gNormal[launchIndex] = float4(resNormal, 0.0f);
 	gDepth[launchIndex] = resDepth;
+
+	// Clear the indirect buffer
+	if ((giSamples > 0) && (giBounces > 0)) {
+		gIndirectLightAccum[launchIndex] = float4(0.f, 0.f, 0.f, 1.f);
+	} else {
+		gIndirectLightAccum[launchIndex] = float4(ambientBaseColor.rgb + ambientNoGIColor.rgb, 0.0f);
+	}
 }
 
 [shader("miss")]

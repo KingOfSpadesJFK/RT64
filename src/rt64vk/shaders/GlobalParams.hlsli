@@ -33,6 +33,7 @@ cbuffer gParams : register(b0) {
 	uint randomSeed;
 	uint diSamples;
 	uint giSamples;
+	uint giBounces;
 	uint diReproject;
 	uint giReproject;
 	uint binaryLockMask;

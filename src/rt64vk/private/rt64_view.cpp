@@ -31,8 +31,9 @@ namespace RT64
         globalParamsData.motionBlurStrength = 0.0f;
         globalParamsData.skyPlaneTexIndex = -1;
         globalParamsData.randomSeed = 0;
-        globalParamsData.diSamples = 3;
+        globalParamsData.diSamples = 1;
         globalParamsData.giSamples = 1;
+        globalParamsData.giBounces = 3;
         globalParamsData.maxLights = 12;
         globalParamsData.motionBlurSamples = 32;
         globalParamsData.visualizationMode = 0;
@@ -109,9 +110,12 @@ namespace RT64
         device->allocateImage(&rtOutput[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         // Shading position
+        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         device->allocateImage(&rtShadingPosition, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtShadingPositionSecondary, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         // Diffuse
+        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
         device->allocateImage(&rtDiffuse, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
@@ -119,9 +123,12 @@ namespace RT64
         imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
         device->allocateImage(&rtNormal[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtNormal[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         device->allocateImage(&rtShadingNormal, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtShadingNormalSecondary, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         // Flow
+        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         imageInfo.format = VK_FORMAT_R16G16_SFLOAT;
         device->allocateImage(&rtFlow, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
@@ -152,9 +159,8 @@ namespace RT64
         device->allocateImage(&rtTransparent, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         imageInfo.format = VK_FORMAT_R32_SINT;
-        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT| VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         device->allocateImage(&rtInstanceId, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
-        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         device->allocateImage(&rtFirstInstanceId, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         
         // Create a buffer big enough to read the resource back.
@@ -230,7 +236,9 @@ namespace RT64
         rtOutput[1].setAllocationName("rtOutput[1]");
         rtViewDirection.setAllocationName("rtViewDirection");
         rtShadingPosition.setAllocationName("rtShadingPosition");
+        rtShadingPositionSecondary.setAllocationName("rtShadingPositionSecondary");
         rtShadingNormal.setAllocationName("rtShadingNormal");
+        rtShadingNormalSecondary.setAllocationName("rtShadingNormalSecondary");
         rtShadingSpecular.setAllocationName("rtShadingSpecular");
         rtDiffuse.setAllocationName("rtDiffuse");
         rtNormal[0].setAllocationName("rtNormal[0]");
@@ -267,7 +275,9 @@ namespace RT64
         rtOutput[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtViewDirection.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtShadingPosition.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtShadingPositionSecondary.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtShadingNormal.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtShadingNormalSecondary.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtShadingSpecular.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtDiffuse.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtNormal[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -321,7 +331,9 @@ namespace RT64
         rtOutput[1].destroyResource();
         rtViewDirection.destroyResource();
         rtShadingPosition.destroyResource();
+        rtShadingPositionSecondary.destroyResource();
         rtShadingNormal.destroyResource();
+        rtShadingNormalSecondary.destroyResource();
         rtShadingSpecular.destroyResource();
         rtDiffuse.destroyResource();
         rtNormal[0].destroyResource();
@@ -1195,17 +1207,103 @@ namespace RT64
 		    RT64_LOG_PRINTF("Dispatching direct light rays");
             vkCmdTraceRaysKHR(commandBuffer, &directRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 
-		    RT64_LOG_PRINTF("Dispatching indirect light rays");
-            vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+            // Indirect lighting
+            if (globalParamsData.giBounces > 1 && globalParamsData.giSamples > 0) {
+                // Copy the shading position/normal/direction into the secondary shading images
+                AllocatedImage* primaryShadingBarriers[] = {
+                    &rtShadingPosition,
+                    &rtShadingNormal,
+                };
+                AllocatedImage* secondaryShadingBarriers[] = {
+                    &rtShadingPositionSecondary,
+                    &rtShadingNormalSecondary,
+                };
 
-    		// Wait until indirect light is done before dispatching reflection or refraction rays.
-            // TODO: This is only required to prevent simultaneous usage of the anyhit buffers.
-            //  This barrier can be removed if this no longer happens, resulting in less serialization of the commands.
-            device->transitionImageLayout(rtIndirectLightAccum[rtSwap ? 1 : 0], 
-                VK_IMAGE_LAYOUT_GENERAL,
-                VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
-                VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
-                &commandBuffer);
+                device->transitionImageLayout(primaryShadingBarriers, sizeof(primaryShadingBarriers) / sizeof(AllocatedImage*), 
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    VK_ACCESS_TRANSFER_READ_BIT,
+                    VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    &commandBuffer);
+                device->transitionImageLayout(secondaryShadingBarriers, sizeof(secondaryShadingBarriers) / sizeof(AllocatedImage*), 
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    VK_ACCESS_TRANSFER_READ_BIT,
+                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    &commandBuffer);
+                device->copyImage(rtShadingPosition, rtShadingPositionSecondary, rtShadingPosition.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
+                device->copyImage(rtShadingNormal,   rtShadingNormalSecondary, rtShadingNormal.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
+
+                // Now make the primary shading images readable/writeable
+                device->transitionImageLayout(primaryShadingBarriers, sizeof(primaryShadingBarriers) / sizeof(AllocatedImage*), 
+                    VK_IMAGE_LAYOUT_GENERAL,
+                    VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                    &commandBuffer);
+
+                // Transition the instance ID buffer into an optimal attachment
+                device->transitionImageLayout(rtInstanceId, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                    VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                    &commandBuffer);
+            
+                for (int i = 0; i < globalParamsData.giBounces; i++) {
+                    RT64_LOG_PRINTF("Dispatching indirect light rays batch #" + (i+2));
+                    vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+
+                    if (i < globalParamsData.giBounces - 1) {
+                        // This is meant to just make the gpu wait until it's done with the prior indirect lighting
+                        device->transitionImageLayout(primaryShadingBarriers, sizeof(primaryShadingBarriers) / sizeof(AllocatedImage*), 
+                            VK_IMAGE_LAYOUT_GENERAL,
+                            VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+                            VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                            &commandBuffer);
+                    }
+                }
+
+                // Copy the secondary shading position image into the primary shading position image now that we're done with secondary bounces
+                device->transitionImageLayout(secondaryShadingBarriers, sizeof(secondaryShadingBarriers) / sizeof(AllocatedImage*), 
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    VK_ACCESS_TRANSFER_READ_BIT,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    &commandBuffer);
+                device->transitionImageLayout(primaryShadingBarriers, sizeof(primaryShadingBarriers) / sizeof(AllocatedImage*), 
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    VK_ACCESS_TRANSFER_READ_BIT,
+                    VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    &commandBuffer);
+                device->copyImage(rtShadingPositionSecondary, rtShadingPosition, rtShadingPosition.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
+                device->copyImage(rtShadingNormalSecondary,   rtShadingNormal, rtShadingNormal.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
+
+                // Now make the shading position image readable
+                device->transitionImageLayout(primaryShadingBarriers, sizeof(primaryShadingBarriers) / sizeof(AllocatedImage*), 
+                    VK_IMAGE_LAYOUT_GENERAL,
+                    VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                    &commandBuffer);
+
+                // Copy the first instance id back into the instance id image.
+                device->transitionImageLayout(rtFirstInstanceId, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    VK_ACCESS_TRANSFER_READ_BIT,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    &commandBuffer);
+                device->transitionImageLayout(rtInstanceId, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    VK_ACCESS_TRANSFER_WRITE_BIT,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    &commandBuffer);
+                device->copyImage(rtFirstInstanceId, rtInstanceId, rtInstanceId.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
+
+            } else if (globalParamsData.giBounces == 1 && globalParamsData.giSamples > 0) {
+                RT64_LOG_PRINTF("Dispatching only first indirect rays");
+                vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
+
+                // Wait until indirect light is done before dispatching reflection or refraction rays.
+                // TODO: This is only required to prevent simultaneous usage of the anyhit buffers.
+                //  This barrier can be removed if this no longer happens, resulting in less serialization of the commands.
+                device->transitionImageLayout(rtIndirectLightAccum[rtSwap ? 1 : 0], 
+                    VK_IMAGE_LAYOUT_GENERAL,
+                    VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT,
+                    VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+                    &commandBuffer);
+            }
 
 		    // Transition the instance ID buffer into an optimal attachment
             device->transitionImageLayout(rtInstanceId, VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
@@ -1239,7 +1337,7 @@ namespace RT64
                         &rtInstanceId,
                         &rtReflection
                     };
-                    device->transitionImageLayout(newInputBarriers, sizeof(shadingBarriers) / sizeof(AllocatedImage*), 
+                    device->transitionImageLayout(newInputBarriers, sizeof(newInputBarriers) / sizeof(AllocatedImage*), 
                         VK_IMAGE_LAYOUT_GENERAL, 
                         VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT, 
                         VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 
@@ -1449,25 +1547,12 @@ namespace RT64
         return farDist;
     }
 
-    void RT64::View::setDISamples(int v) {
-        if (globalParamsData.diSamples != v) {
-            globalParamsData.diSamples = v;
-        }
-    }
-
-    int RT64::View::getDISamples() const {
-        return globalParamsData.diSamples;
-    }
-
-    void RT64::View::setGISamples(int v) {
-        if (globalParamsData.giSamples != v) {
-            globalParamsData.giSamples = v;
-        }
-    }
-
-    int RT64::View::getGISamples() const {
-        return globalParamsData.giSamples;
-    }
+    void RT64::View::setDISamples(int v) { globalParamsData.diSamples = v; }
+    int RT64::View::getDISamples() const { return globalParamsData.diSamples; }
+    void RT64::View::setGISamples(int v) { globalParamsData.giSamples = v; }
+    int RT64::View::getGISamples() const { return globalParamsData.giSamples; }
+    void RT64::View::setGIBounces(int v) { globalParamsData.giBounces = v; }
+    int RT64::View::getGIBounces() const { return globalParamsData.giBounces; }
 
     void RT64::View::setMaxLights(int v) {
         globalParamsData.maxLights = v;

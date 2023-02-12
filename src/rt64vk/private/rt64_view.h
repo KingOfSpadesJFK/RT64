@@ -74,8 +74,9 @@ namespace RT64
                 unsigned int randomSeed;
                 unsigned int diSamples;
                 unsigned int giSamples;
+	            unsigned int giBounces;
                 unsigned int diReproject;
-                unsigned int giReproject;
+                unsigned int giReproject = 1;
                 unsigned int binaryLockMask;
                 unsigned int maxLights;
                 unsigned int motionBlurSamples;
@@ -86,6 +87,7 @@ namespace RT64
             Device* device;
             Scene* scene;
 		    int maxReflections = 4;
+            int secondaryBounces = 5;
             float fovRadians = 40.0f;
             float nearDist;
             float farDist;
@@ -142,7 +144,9 @@ namespace RT64
             AllocatedImage rtOutput[2];
             AllocatedImage rtViewDirection;
             AllocatedImage rtShadingPosition;
+            AllocatedImage rtShadingPositionSecondary;
             AllocatedImage rtShadingNormal;
+            AllocatedImage rtShadingNormalSecondary;
             AllocatedImage rtShadingSpecular;
             AllocatedImage rtDiffuse;
             AllocatedImage rtInstanceId;
@@ -207,6 +211,8 @@ namespace RT64
             int getDISamples() const;
             void setGISamples(int v);
             int getGISamples() const;
+            void setGIBounces(int v);
+            int getGIBounces() const;
             void setMaxLights(int v);
             int getMaxLights() const;
             void setMotionBlurStrength(float v);

@@ -189,6 +189,7 @@ typedef struct {
 	float motionBlurStrength;
 	unsigned int diSamples;
 	unsigned int giSamples;
+	unsigned int giBounces;
 	unsigned int maxLights;
 	unsigned char upscaler;
 	unsigned char upscalerMode;
