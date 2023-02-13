@@ -34,6 +34,8 @@
 // Pixel shaders
 #include "shaders/ComposePS.hlsl.h"
 #include "shaders/HelloTrianglePS.hlsl.h"
+#include "shaders/PostProcessPS.hlsl.h"
+#include "shaders/DebugPS.hlsl.h"
 #include "shaders/Im3DPS.hlsl.h"
 
 // Geometry shaders
@@ -69,7 +71,7 @@ namespace RT64
         createSwapChain();
         updateViewport();
         createImageViews();
-        createRenderPass();
+        createRenderPass(renderPass, swapChainImageFormat, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
         createCommandPool();
 
         createCommandBuffers();
@@ -126,6 +128,11 @@ namespace RT64
     //  layouts and blue noise
     void Device::loadAssets() {
 	    RT64_LOG_PRINTF("Asset loading started");
+
+        // Create the off-screen render pass
+        RT64_LOG_PRINTF("Creating offscreen render pass");
+        createRenderPass(offscreenRenderPass, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
         std::array<VkDynamicState, 2> dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
             VK_DYNAMIC_STATE_SCISSOR
@@ -184,7 +191,6 @@ namespace RT64
         pipelineInfo.pColorBlendState = &colorBlending;
         pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pDynamicState = &dynamicState;
-        pipelineInfo.renderPass = renderPass;
         pipelineInfo.subpass = 0;
 
         // Can't believe I can do this
@@ -209,10 +215,26 @@ namespace RT64
             generateRayGenDescriptorSetLayout();
         }
 
+	    RT64_LOG_PRINTF("Creating the composition descriptor set layout");
+        {
+		    VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+            std::vector<VkDescriptorSetLayoutBinding> bindings {
+                {0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {4 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {5 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {6 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {0 + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+            };
+            generateDescriptorSetLayout(bindings, flags, composeDescriptorSetLayout);
+        }
+
         RT64_LOG_PRINTF("Creating a generic image sampler for the compose shader");
         {
-            VkSamplerCreateInfo samplerInfo{};
-            samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+            VkSamplerCreateInfo samplerInfo { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
             samplerInfo.magFilter = VK_FILTER_LINEAR;
             samplerInfo.minFilter = VK_FILTER_LINEAR;
             samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
@@ -231,23 +253,6 @@ namespace RT64
             vkCreateSampler(vkDevice, &samplerInfo, nullptr, &composeSampler);
         }
 
-	    RT64_LOG_PRINTF("Creating the composition descriptor set");
-        {
-		    VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
-            std::vector<VkDescriptorSetLayoutBinding> bindings {
-                {0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-                {1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-                {2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-                {3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-                {4 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-                {5 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-                {6 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-                {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-                {0 + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
-            };
-            generateDescriptorSetLayout(bindings, flags, rtComposeDescriptorSetLayout);
-        }
-
         RT64_LOG_PRINTF("Creating the composition pipeline");
         {
             // Create the shader modules and shader stages
@@ -263,15 +268,128 @@ namespace RT64
 		    // Create the pipeline layout
             VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
             pipelineLayoutInfo.setLayoutCount = 1;
-            pipelineLayoutInfo.pSetLayouts = &rtComposeDescriptorSetLayout;
-            VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &rtComposePipelineLayout));
+            pipelineLayoutInfo.pSetLayouts = &composeDescriptorSetLayout;
+            VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &composePipelineLayout));
 
             // Create the pipeline
             pipelineInfo.pVertexInputState = &vertexInputInfo;
             pipelineInfo.stageCount = composeStages.size();
             pipelineInfo.pStages = composeStages.data();
-            pipelineInfo.layout = rtComposePipelineLayout;
-            VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &rtComposePipeline));
+            pipelineInfo.layout = composePipelineLayout;
+            pipelineInfo.renderPass = offscreenRenderPass;
+            VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &composePipeline));
+        }
+
+        RT64_LOG_PRINTF("Creating the post processing descriptor set layout");
+        {
+		    VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+            std::vector<VkDescriptorSetLayoutBinding> bindings {
+                {0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+            };
+            generateDescriptorSetLayout(bindings, flags, postProcessDescriptorSetLayout);
+        }
+
+        RT64_LOG_PRINTF("Creating the post process sampler");
+        {
+            VkSamplerCreateInfo samplerInfo { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+            samplerInfo.magFilter = VK_FILTER_LINEAR;
+            samplerInfo.minFilter = VK_FILTER_LINEAR;
+            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.anisotropyEnable = VK_FALSE;
+            samplerInfo.maxAnisotropy = 1.0f;
+            samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+            samplerInfo.unnormalizedCoordinates = VK_FALSE;
+            samplerInfo.compareEnable = VK_FALSE;
+            samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+            samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            samplerInfo.mipLodBias = 0.0f;
+            samplerInfo.minLod = 0.0f;
+            samplerInfo.maxLod = std::numeric_limits<float>::max();
+            vkCreateSampler(vkDevice, &samplerInfo, nullptr, &postProcessSampler);
+        }
+
+        RT64_LOG_PRINTF("Creating the post process pipeline");
+        {
+            // Create the shader modules and shader stages
+            std::vector<VkPipelineShaderStageCreateInfo> postStages;
+            postStages.push_back(fullscreenVSStage);
+            createShaderModule(PostProcessPS_SPIRV, sizeof(PostProcessPS_SPIRV), PS_ENTRY, VK_SHADER_STAGE_FRAGMENT_BIT, postProcessPSStage, postProcessPSModule, &postStages);
+
+            // Bind the vertex inputs
+            VkPipelineVertexInputStateCreateInfo vertexInputInfo{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+            vertexInputInfo.vertexBindingDescriptionCount = 0;
+            vertexInputInfo.vertexAttributeDescriptionCount = 0;
+
+		    // Create the pipeline layout
+            VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+            pipelineLayoutInfo.setLayoutCount = 1;
+            pipelineLayoutInfo.pSetLayouts = &postProcessDescriptorSetLayout;
+            VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &postProcessPipelineLayout));
+
+            // Create the pipeline
+            pipelineInfo.pVertexInputState = &vertexInputInfo;
+            pipelineInfo.stageCount = postStages.size();
+            pipelineInfo.pStages = postStages.data();
+            pipelineInfo.layout = postProcessPipelineLayout;
+            pipelineInfo.renderPass = renderPass;
+            VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &postProcessPipeline));
+        }
+
+        RT64_LOG_PRINTF("Creating the debug descriptor set layout");
+        {
+		    VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+            std::vector<VkDescriptorSetLayoutBinding> bindings {
+                {UAV_SHIFT + UAV_INDEX(gShadingPosition), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gShadingNormal), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gShadingSpecular), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
+                {UAV_SHIFT + UAV_INDEX(gDiffuse), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr },
+                {UAV_SHIFT + UAV_INDEX(gInstanceId), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gDirectLightAccum), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gIndirectLightAccum), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gFilteredDirectLight), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gFilteredIndirectLight), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gReflection), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gRefraction), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gTransparent), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gFlow), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gReactiveMask), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gLockMask), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {UAV_SHIFT + UAV_INDEX(gDepth), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {CBV_SHIFT + CBV_INDEX(gParams), VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}
+            };
+            generateDescriptorSetLayout(bindings, flags, debugDescriptorSetLayout);
+        }
+
+        RT64_LOG_PRINTF("Creating the debug pipeline");
+        {
+            // Create the shader modules and shader stages
+            std::vector<VkPipelineShaderStageCreateInfo> debugStages;
+            debugStages.push_back(fullscreenVSStage);
+            createShaderModule(DebugPS_SPIRV, sizeof(DebugPS_SPIRV), PS_ENTRY, VK_SHADER_STAGE_FRAGMENT_BIT, debugPSStage, debugPSModule, &debugStages);
+
+            // Bind the vertex inputs
+            VkPipelineVertexInputStateCreateInfo vertexInputInfo{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+            vertexInputInfo.vertexBindingDescriptionCount = 0;
+            vertexInputInfo.vertexAttributeDescriptionCount = 0;
+
+		    // Create the pipeline layout
+            VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+            pipelineLayoutInfo.setLayoutCount = 1;
+            pipelineLayoutInfo.pSetLayouts = &debugDescriptorSetLayout;
+            VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &debugPipelineLayout));
+
+            // Create the pipeline
+            pipelineInfo.pVertexInputState = &vertexInputInfo;
+            pipelineInfo.stageCount = debugStages.size();
+            pipelineInfo.pStages = debugStages.data();
+            pipelineInfo.layout = debugPipelineLayout;
+            pipelineInfo.renderPass = renderPass;
+            VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &debugPipeline));
         }
 
         RT64_LOG_PRINTF("Creating the Im3d descriptor set");
@@ -377,6 +495,7 @@ namespace RT64
 	    RT64_LOG_PRINTF("Loading the hit modules...");
         // Add the generated hit shaders to the shaderStages vector
          for (Shader* s : shaders) {
+            if (s == nullptr) { continue; }
             if (s->hasHitGroups()) {
                 Shader::HitGroup surfaceHitGroup = s->getSurfaceHitGroup();
                 shaderStages.push_back(surfaceHitGroup.shaderInfo);
@@ -426,7 +545,8 @@ namespace RT64
         rtDescriptorSetLayouts.push_back(raygenDescriptorSetLayout);
         for (int i = 0; i < shaders.size(); i++) {
             Shader* s = shaders[i];
-            if (s != nullptr && s->hasHitGroups()) {
+            if (s == nullptr) { continue; }
+            if (s->hasHitGroups()) {
                 rtDescriptorSetLayouts.push_back(s->getRTDescriptorSetLayout());
             } else {
                 // Push the empty descriptor set 
@@ -465,6 +585,7 @@ namespace RT64
         rtDescriptorSets.clear();
         rtDescriptorSets.push_back(raygenDescriptorSet);
         for (Shader* s : shaders) {
+            if (s == nullptr) { continue; }
             if (s->hasHitGroups()) {
                 rtDescriptorSets.push_back(s->getRTDescriptorSet());
             }
@@ -534,13 +655,16 @@ namespace RT64
 
 	    RT64_LOG_PRINTF("Allocating the descriptor sets to the pool...");
         allocateDescriptorSet(raygenDescriptorSetLayout, raygenDescriptorSet);
-        allocateDescriptorSet(rtComposeDescriptorSetLayout, rtComposeDescriptorSet);
+        allocateDescriptorSet(composeDescriptorSetLayout, composeDescriptorSet);
+        allocateDescriptorSet(postProcessDescriptorSetLayout, postProcessDescriptorSet);
+        allocateDescriptorSet(debugDescriptorSetLayout, debugDescriptorSet);
         allocateDescriptorSet(im3dDescriptorSetLayout, im3dDescriptorSet);
         
         // Push the main RT descriptor set layout into the layouts vector
         rtDescriptorSetLayouts.clear();
         rtDescriptorSetLayouts.push_back(raygenDescriptorSetLayout);
         for (Shader* s : shaders) {
+            if (s == nullptr) { continue; }
             if (s->hasRasterGroup()) {
                 s->allocateRasterDescriptorSet();
             }
@@ -757,12 +881,11 @@ namespace RT64
             std::vector<VkImageView> attachments = {
                 swapChainImageViews[i]
             };
-            for (int j = 0; j < depthViews.size(); j++) {  
-                attachments.push_back(*depthViews[j]);
-            }
+            // for (int j = 0; j < depthViews.size(); j++) {  
+            //     attachments.push_back(*depthViews[j]);
+            // }
 
-            VkFramebufferCreateInfo framebufferInfo{};
-            framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+            VkFramebufferCreateInfo framebufferInfo{ VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
             framebufferInfo.renderPass = renderPass;
             framebufferInfo.attachmentCount = attachments.size();
             framebufferInfo.pAttachments = attachments.data();
@@ -772,22 +895,36 @@ namespace RT64
 
             VK_CHECK(vkCreateFramebuffer(vkDevice, &framebufferInfo, nullptr, &swapChainFramebuffers[i]));
         }
-
     }
 
-    void Device::createRenderPass() {
+    void Device::createFramebuffer(VkFramebuffer& framebuffer, VkRenderPass& renderPass, VkImageView& imageView, VkExtent2D extent) {
+        std::vector<VkImageView> attachments = { imageView };
+        // for (int j = 0; j < depthViews.size(); j++) {  
+        //     attachments.push_back(*depthViews[j]);
+        // }
+        VkFramebufferCreateInfo framebufferInfo{ VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
+        framebufferInfo.renderPass = renderPass;
+        framebufferInfo.attachmentCount = attachments.size();
+        framebufferInfo.pAttachments = attachments.data();
+        framebufferInfo.width = extent.width;
+        framebufferInfo.height = extent.height;
+        framebufferInfo.layers = 1;
+        VK_CHECK(vkCreateFramebuffer(vkDevice, &framebufferInfo, nullptr, &framebuffer));
+    }
+
+    void Device::createRenderPass(VkRenderPass& renderPass, VkFormat imageFormat, VkImageLayout finalLayout) {
 	    RT64_LOG_PRINTF("Render pass creation started");
         // Describe the render pass
-        // TODO: Add the rest of the color/depth buffers later on
+        // TODO: Make this function, like, less hard coded
         VkAttachmentDescription colorAttachment{};
-        colorAttachment.format = swapChainImageFormat;
+        colorAttachment.format = imageFormat;
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
         colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;        // Not gonna worry about stencil buffers
         colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        colorAttachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        colorAttachment.finalLayout = finalLayout;
 
         VkAttachmentDescription depthAttachment{};
         depthAttachment.format = VK_FORMAT_D32_SFLOAT;
@@ -810,7 +947,7 @@ namespace RT64
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         subpass.colorAttachmentCount = 1;
         subpass.pColorAttachments = &colorAttachmentRef;
-        subpass.pDepthStencilAttachment = &depthAttachmentRef;
+        subpass.pDepthStencilAttachment = nullptr;
 
         VkSubpassDependency dependency{};
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -823,7 +960,7 @@ namespace RT64
         VkAttachmentDescription attachments[] = {colorAttachment, depthAttachment};
         VkRenderPassCreateInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = 2;
+        renderPassInfo.attachmentCount = 1;     // Set it to two when ready
         renderPassInfo.pAttachments = attachments;
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpass;
@@ -1118,7 +1255,7 @@ namespace RT64
     VkSurfaceFormatKHR Device::chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats)
     {
         for (const auto& availableFormat : availableFormats) {
-            if (availableFormat.format == VK_FORMAT_B8G8R8A8_SRGB && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+            if (availableFormat.format == VK_FORMAT_B8G8R8A8_UNORM && availableFormat.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
                 return availableFormat;
             }
         }
@@ -1363,7 +1500,9 @@ namespace RT64
         // Destroy the shaders
         auto shadersCopy = shaders;
         for (Shader* sh : shadersCopy) {
-            delete sh;
+            if (sh != nullptr) {
+                delete sh;
+            }
         }
 
         // Destroy the inspector
@@ -1395,9 +1534,9 @@ namespace RT64
         vkDestroyPipelineLayout(vkDevice, rtPipelineLayout, nullptr);
         vkDestroyDescriptorSetLayout(vkDevice, raygenDescriptorSetLayout, nullptr);
         // Destroy compose pipeline and descriptor set
-        vkDestroyPipeline(vkDevice, rtComposePipeline, nullptr);
-        vkDestroyPipelineLayout(vkDevice, rtComposePipelineLayout, nullptr);
-        vkDestroyDescriptorSetLayout(vkDevice, rtComposeDescriptorSetLayout, nullptr);
+        vkDestroyPipeline(vkDevice, composePipeline, nullptr);
+        vkDestroyPipelineLayout(vkDevice, composePipelineLayout, nullptr);
+        vkDestroyDescriptorSetLayout(vkDevice, composeDescriptorSetLayout, nullptr);
         // Destroy im3d pipeline and descriptor set
         vkDestroyPipeline(vkDevice, im3dPipeline, nullptr);
         vkDestroyPipeline(vkDevice, im3dLinesPipeline, nullptr);
@@ -1436,6 +1575,7 @@ namespace RT64
 	nvvk::ResourceAllocator& Device::getRTAllocator() { return rtAllocator; }
 
     VkRenderPass& Device::getRenderPass() { return renderPass; };
+    VkRenderPass& Device::getOffscreenRenderPass() { return offscreenRenderPass; };
     VkExtent2D& Device::getSwapchainExtent() { return swapChainExtent; }
 	VkViewport& Device::getViewport() { return vkViewport; }
 	VkRect2D& Device::getScissors() { return vkScissorRect; }
@@ -1452,12 +1592,19 @@ namespace RT64
     VkPipelineLayout& Device::getRTPipelineLayout() { return rtPipelineLayout; }
     VkDescriptorSet& Device::getRayGenDescriptorSet() { return raygenDescriptorSet; }
     std::vector<VkDescriptorSet>& Device::getRTDescriptorSets() { return rtDescriptorSets; }
-    VkPipeline& Device::getComposePipeline() { return rtComposePipeline; }
-    VkPipelineLayout& Device::getComposePipelineLayout() { return rtComposePipelineLayout; }
-    VkDescriptorSet& Device::getComposeDescriptorSet() { return rtComposeDescriptorSet; }
+    VkPipeline& Device::getComposePipeline() { return composePipeline; }
+    VkPipelineLayout& Device::getComposePipelineLayout() { return composePipelineLayout; }
+    VkDescriptorSet& Device::getComposeDescriptorSet() { return composeDescriptorSet; }
+    VkSampler& Device::getComposeSampler() { return composeSampler; }
+    VkPipeline& Device::getPostProcessPipeline() { return postProcessPipeline; }
+    VkPipelineLayout& Device::getPostProcessPipelineLayout() { return postProcessPipelineLayout; }
+    VkDescriptorSet& Device::getPostProcessDescriptorSet() { return postProcessDescriptorSet; }
+    VkSampler& Device::getPostProcessSampler() { return postProcessSampler; }
+    VkPipeline& Device::getDebugPipeline() { return debugPipeline; }
+    VkPipelineLayout& Device::getDebugPipelineLayout() { return debugPipelineLayout; }
+    VkDescriptorSet& Device::getDebugDescriptorSet() { return debugDescriptorSet; }
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR Device::getRTProperties() const { return rtProperties; }
     Texture* Device::getBlueNoise() const { return blueNoise; }
-    VkSampler& Device::getComposeSampler() { return composeSampler; }
     uint32_t Device::getHitShaderCount() const { return hitShaderCount; }
     uint32_t Device::getRasterShaderCount() const { return rasterShaderCount; }
     VkFence& Device::getCurrentFence() { return inFlightFences[currentFrame]; }

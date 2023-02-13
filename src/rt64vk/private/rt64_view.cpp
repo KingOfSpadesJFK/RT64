@@ -122,7 +122,7 @@ namespace RT64
         // Create buffers for raytracing output.
         imageInfo.extent.width = rtWidth;
         imageInfo.extent.height = rtHeight;
-        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
 	    imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         device->allocateImage(&rtOutput[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtOutput[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
@@ -340,6 +340,11 @@ namespace RT64
         depthImageView = device->createImageView(depthImage.getImage(), VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
         this->device->addDepthImageView(&depthImageView);
 
+        // Create the framebuffers for the raytraced output
+        for (int i = 0; i <  2; i++) {
+            device->createFramebuffer(rtOutputFB[i], device->getOffscreenRenderPass(), rtOutput[i].getImageView(), {(unsigned int)rtWidth, (unsigned int)rtHeight});
+        }
+
         imageBuffersInit = true;
     }
 
@@ -386,6 +391,10 @@ namespace RT64
         depthImage.destroyResource();   
         device->removeDepthImageView(&depthImageView);
         vkDestroyImageView(device->getVkDevice(), depthImageView, nullptr);
+
+        // Destroy the raytraced framebuffers
+        vkDestroyFramebuffer(device->getVkDevice(), rtOutputFB[0], nullptr);
+        vkDestroyFramebuffer(device->getVkDevice(), rtOutputFB[1], nullptr);
     }
 
     View::~View() {
@@ -433,7 +442,7 @@ namespace RT64
 
         globalParamsData.viewI = glm::inverse(globalParamsData.view);
         globalParamsData.projectionI = glm::inverse(globalParamsData.projection);
-        globalParamsData.viewProj = globalParamsData.view * globalParamsData.projection;
+        globalParamsData.viewProj = globalParamsData.projection * globalParamsData.view;
 
         if (!perspectiveCanReproject) {
             globalParamsData.prevViewI = globalParamsData.viewI;
@@ -792,6 +801,61 @@ namespace RT64
             vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
             descriptorWrites.clear();
         }
+
+        // Update the post process descriptor set
+        {
+            VkDescriptorSet& descriptorSet = device->getPostProcessDescriptorSet();
+            // if (rtUpscaleActive) {
+            //  pretend there's something here
+            // } else {
+                descriptorWrites.push_back(rtOutput[rtSwap ? 1 : 0].generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            // }
+            descriptorWrites.push_back(rtFlow.generateDescriptorWrite(1, 1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
+
+            // Add the post process sampler
+            VkDescriptorImageInfo samplerInfo { };
+            samplerInfo.sampler = device->getPostProcessSampler();
+            VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+            samplerWrite.descriptorCount = 1;
+            samplerWrite.dstBinding = 0 + SAMPLER_SHIFT;
+            samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+            samplerWrite.pImageInfo = &samplerInfo;
+            samplerWrite.dstSet = descriptorSet;
+            descriptorWrites.push_back(samplerWrite);
+
+            // Write to the post process descriptor set
+            vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            descriptorWrites.clear();
+        }
+
+        // Update the debug descriptor set
+        {
+            VkDescriptorSet& descriptorSet = device->getDebugDescriptorSet();
+            // The "UAVs"
+            VkWriteDescriptorSet write {};
+            descriptorWrites.push_back(rtShadingPosition.generateDescriptorWrite(1, UAV_INDEX(gShadingPosition) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtShadingNormal.generateDescriptorWrite(1, UAV_INDEX(gShadingNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtShadingSpecular.generateDescriptorWrite(1, UAV_INDEX(gShadingSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDiffuse.generateDescriptorWrite(1, UAV_INDEX(gDiffuse) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtInstanceId.generateDescriptorWrite(1, UAV_INDEX(gInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, UAV_INDEX(gFilteredDirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, UAV_INDEX(gFilteredIndirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtReflection.generateDescriptorWrite(1, UAV_INDEX(gReflection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtRefraction.generateDescriptorWrite(1, UAV_INDEX(gRefraction) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtTransparent.generateDescriptorWrite(1, UAV_INDEX(gTransparent) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFlow.generateDescriptorWrite(1, UAV_INDEX(gFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtReactiveMask.generateDescriptorWrite(1, UAV_INDEX(gReactiveMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtLockMask.generateDescriptorWrite(1, UAV_INDEX(gLockMask) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDepth[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gDepth) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
+
+            // Write to the debug descriptor set
+            vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            descriptorWrites.clear();
+        }
     }
 
     void View::update() 
@@ -1070,6 +1134,7 @@ namespace RT64
         VkViewport viewport = scene->getDevice()->getViewport();
         VkRect2D scissors = scene->getDevice()->getScissors();
         VkRenderPass renderPass = scene->getDevice()->getRenderPass();
+        VkRenderPass offscreenRenderPass = scene->getDevice()->getOffscreenRenderPass();
         VkFramebuffer framebuffer = scene->getDevice()->getCurrentSwapchainFramebuffer();
         VkExtent2D swapChainExtent = scene->getDevice()->getSwapchainExtent();
 
@@ -1403,13 +1468,14 @@ namespace RT64
             VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
             &commandBuffer);
 
-        // Begin the render pass (you can't raytrace with it, so just raytrace before you render pass it up)
+        // Begin the offscreen render pass (you can't raytrace with it, so just raytrace before you render pass it up)
         VkRenderPassBeginInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-        renderPassInfo.renderPass = renderPass;
-        renderPassInfo.framebuffer = framebuffer;
+        renderPassInfo.renderPass = offscreenRenderPass;
+        renderPassInfo.framebuffer = rtOutputFB[rtSwap ? 1 : 0];
         renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent = swapChainExtent;
+        renderPassInfo.renderArea.extent.width = rtWidth;
+        renderPassInfo.renderArea.extent.height = rtHeight;
         std::array<VkClearValue, 2> clearValues{};
         clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         clearValues[1].depthStencil = {1.0f, 0};
@@ -1423,9 +1489,35 @@ namespace RT64
         applyViewport(v);
 
         // Now compose 
+		RT64_LOG_PRINTF("Composing the raytracing output");
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipeline());
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipelineLayout(), 0, 1, &device->getComposeDescriptorSet(), 0, nullptr);
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+
+        vkCmdEndRenderPass(commandBuffer);
+
+        // Begine the on-screen render pass
+        renderPassInfo.framebuffer = framebuffer;
+        renderPassInfo.renderArea.extent = swapChainExtent;
+        renderPassInfo.renderPass = renderPass;
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+        // Apply the same scissor and viewport that was determined for the raytracing step.
+		applyScissor(rtScissorRect);
+		applyViewport(rtViewport);
+
+        // The final output
+        if (globalParamsData.visualizationMode == VisualizationModeFinal) {
+            RT64_LOG_PRINTF("Drawing the final output!");
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getPostProcessPipeline());
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getPostProcessPipelineLayout(), 0, 1, &device->getPostProcessDescriptorSet(), 0, nullptr);
+            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+        } else {
+            RT64_LOG_PRINTF("Drawing the debug image");
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getDebugPipeline());
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getDebugPipelineLayout(), 0, 1, &device->getDebugDescriptorSet(), 0, nullptr);
+            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+        }
 
         // Draw the raster images
         // Draw the background instances to the screen.
@@ -1530,19 +1622,19 @@ namespace RT64
 
         globalParamsData.view = {
             viewMatrix.m[0][0], 
-           -viewMatrix.m[0][1],
+            viewMatrix.m[0][1],
             viewMatrix.m[0][2], 
             viewMatrix.m[0][3],
             viewMatrix.m[1][0], 
-           -viewMatrix.m[1][1], 
+            viewMatrix.m[1][1], 
             viewMatrix.m[1][2], 
             viewMatrix.m[1][3],
             viewMatrix.m[2][0], 
-           -viewMatrix.m[2][1], 
+            viewMatrix.m[2][1], 
             viewMatrix.m[2][2], 
             viewMatrix.m[2][3],
             viewMatrix.m[3][0], 
-           -viewMatrix.m[3][1], 
+            viewMatrix.m[3][1], 
             viewMatrix.m[3][2], 
             viewMatrix.m[3][3],
         };
@@ -1566,10 +1658,6 @@ namespace RT64
             glm::vec3{viewFocus.x, viewFocus.y, viewFocus.z}, 
             glm::vec3{0.0f, 1.0f, 0.0f}
         );
-        globalParamsData.view[0][1] *= -1;
-        globalParamsData.view[1][1] *= -1;
-        globalParamsData.view[2][1] *= -1;
-        globalParamsData.view[3][1] *= -1;
     }
 
 	void View::renderInspector(Inspector* inspector) {

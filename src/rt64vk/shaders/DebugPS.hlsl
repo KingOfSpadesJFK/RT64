@@ -115,6 +115,7 @@ float4 getDepth(float2 pos) {
 }
 
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
+    uv.y = 1.0f - uv.y;
     switch (visualizationMode) {
     case VISUALIZATION_MODE_SHADING_POSITION:
         return getShadingPosition(uv * resolution.xy);

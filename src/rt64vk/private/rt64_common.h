@@ -252,6 +252,7 @@ namespace RT64 {
 				VmaAllocatorInfo allocatorInfo;
 				vmaGetAllocatorInfo(*allocator, &allocatorInfo);
 				if (bufferViewCreated) {
+					bufferViewCreated = false;
 					vkDestroyBufferView(allocatorInfo.device, bufferView, nullptr);
 				}
 				if (mapped) {

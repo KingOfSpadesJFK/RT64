@@ -110,9 +110,10 @@ namespace RT64
             void cleanupSwapChain();
             void createSwapChain();
             void createImageViews();
-		    void createRenderPass();
+		    void createRenderPass(VkRenderPass& renderPass, VkFormat imageFormat, VkImageLayout finalLayout);
             void createCommandPool();
             void createCommandBuffers();
+            void createFramebuffers();
             void createSyncObjects();
             void createRayTracingPipeline();
             void createDescriptorPool();
@@ -147,9 +148,11 @@ namespace RT64
 		    Mipmaps* mipmaps = nullptr;
 		    Texture* blueNoise;
             VkSampler composeSampler;
+            VkSampler postProcessSampler;
 
             VmaAllocator allocator;
             VkRenderPass renderPass;
+            VkRenderPass offscreenRenderPass;
             std::vector<VkFramebuffer> swapChainFramebuffers;
 
             VkCommandPool commandPool;
@@ -199,6 +202,8 @@ namespace RT64
             VkShaderModule im3dPSModule;
             VkShaderModule im3dGSPointsModule;
             VkShaderModule im3dGSLinesModule;
+            VkShaderModule postProcessPSModule;
+            VkShaderModule debugPSModule;
             // And their shader stage infos
             VkPipelineShaderStageCreateInfo primaryRayGenStage      {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo directRayGenStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
@@ -213,24 +218,34 @@ namespace RT64
             VkPipelineShaderStageCreateInfo im3dPSStage             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo im3dGSPointsStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo im3dGSLinesStage        {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo postProcessPSStage      {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo debugPSStage            {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             // And pipelines
             VkPipelineLayout        rtPipelineLayout;
             VkPipeline              rtPipeline;
-            VkPipelineLayout        rtComposePipelineLayout;
-            VkPipeline              rtComposePipeline;
+            VkPipelineLayout        composePipelineLayout;
+            VkPipeline              composePipeline;
             VkPipelineLayout        im3dPipelineLayout;
             VkPipeline              im3dPipeline;
             VkPipelineLayout        im3dPointsPipelineLayout;
             VkPipeline              im3dPointsPipeline;
             VkPipelineLayout        im3dLinesPipelineLayout;
             VkPipeline              im3dLinesPipeline;
+            VkPipelineLayout        postProcessPipelineLayout;
+            VkPipeline              postProcessPipeline;
+            VkPipelineLayout        debugPipelineLayout;
+            VkPipeline              debugPipeline;
             // Did I mention the descriptors?
             VkDescriptorSetLayout   raygenDescriptorSetLayout;
             VkDescriptorSet         raygenDescriptorSet;
-            VkDescriptorSetLayout   rtComposeDescriptorSetLayout;
-            VkDescriptorSet         rtComposeDescriptorSet;
+            VkDescriptorSetLayout   composeDescriptorSetLayout;
+            VkDescriptorSet         composeDescriptorSet;
             VkDescriptorSetLayout   im3dDescriptorSetLayout;
             VkDescriptorSet         im3dDescriptorSet;
+            VkDescriptorSetLayout   postProcessDescriptorSetLayout;
+            VkDescriptorSet         postProcessDescriptorSet;
+            VkDescriptorSetLayout   debugDescriptorSetLayout;
+            VkDescriptorSet         debugDescriptorSet;
             VkDescriptorSetLayout   emptyDescriptorSetLayout;
 #endif
 
@@ -267,6 +282,7 @@ namespace RT64
 		    VmaAllocator& getMemAllocator();
 		    VkExtent2D& getSwapchainExtent();
             VkRenderPass& getRenderPass();
+            VkRenderPass& getOffscreenRenderPass();
 		    VkViewport& getViewport();
 		    VkRect2D& getScissors();
 		    int getWidth();
@@ -282,26 +298,34 @@ namespace RT64
             VkPipelineLayout& getRTPipelineLayout();
             VkDescriptorSet& getRayGenDescriptorSet();
             std::vector<VkDescriptorSet>& getRTDescriptorSets();
-            VkPipeline& getComposePipeline();
-            VkPipelineLayout& getComposePipelineLayout();
-            VkDescriptorSet& getComposeDescriptorSet();
-            VkSampler& getComposeSampler();
             Texture* getBlueNoise() const;
             uint32_t getHitShaderCount() const;
             uint32_t getRasterShaderCount() const;
             VkFence& getCurrentFence();
             Inspector& getInspector();
+            // Samplers
+            VkSampler& getComposeSampler();
+            VkSampler& getPostProcessSampler();
             // Shader getters
             VkPipelineShaderStageCreateInfo getPrimaryShaderStage() const;
             VkPipelineShaderStageCreateInfo getDirectShaderStage() const;
             VkPipelineShaderStageCreateInfo getIndirectShaderStage() const;
             VkPipelineShaderStageCreateInfo getReflectionShaderStage() const;
             VkPipelineShaderStageCreateInfo getRefractionShaderStage() const;
+            // Rasterization pipelines and descriptor sets
+            VkPipeline&         getComposePipeline();
+            VkPipelineLayout&   getComposePipelineLayout();
+            VkDescriptorSet&    getComposeDescriptorSet();
+            VkPipeline&         getPostProcessPipeline();
+            VkPipelineLayout&   getPostProcessPipelineLayout();
+            VkDescriptorSet&    getPostProcessDescriptorSet();
+            VkPipeline&         getDebugPipeline();
+            VkPipelineLayout&   getDebugPipelineLayout();
+            VkDescriptorSet&    getDebugDescriptorSet();
 
             VkCommandBuffer* beginSingleTimeCommands();
             VkCommandBuffer* beginSingleTimeCommands(VkCommandBuffer* commandBuffer);
-            void endSingleTimeCommands(VkCommandBuffer* commandBuffer);\
-            void createFramebuffers();
+            void endSingleTimeCommands(VkCommandBuffer* commandBuffer);
 
             VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedBuffer* alre);
             VkResult allocateImage(AllocatedImage* alre, VkImageCreateInfo createInfo, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties);
@@ -336,6 +360,7 @@ namespace RT64
             uint32_t getFirstAvailableHitDescriptorSetIndex() const;
             uint32_t getFirstAvailableHitShaderID() const;
             uint32_t getFirstAvailableRasterShaderID() const;
+            void createFramebuffer(VkFramebuffer& framebuffer, VkRenderPass& renderPass, VkImageView& imageView, VkExtent2D extent);
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }

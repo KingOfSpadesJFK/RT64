@@ -196,7 +196,7 @@ namespace RT64 {
 		// 		ImGui::Checkbox("Resolution Override", &upscalerResolutionOverride);
 		// 		if (upscalerResolutionOverride) {
 		// 			ImGui::SameLine();
-		//			ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
+					ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
 		// 		}
 
 		// 		if (eUpscaleMode == UpscaleMode::FSR) {
@@ -427,10 +427,10 @@ namespace RT64 {
 						}
 						else if (leftAlt) {
 							float cameraRotationSpeed = 5.0f;
-							view->rotatePerspective(-localX * cameraRotationSpeed, -localY * cameraRotationSpeed, cameraRoll);
+							view->rotatePerspective(-localX * cameraRotationSpeed, localY * cameraRotationSpeed, cameraRoll);
 						}
 						else {
-							view->movePerspective({ -localX * cameraSpeed, localY * cameraSpeed, 0.0f });
+							view->movePerspective({ -localX * cameraSpeed, -localY * cameraSpeed, 0.0f });
 						}
 					}
 				}

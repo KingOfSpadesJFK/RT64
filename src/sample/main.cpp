@@ -199,14 +199,14 @@ void draw(GLFWwindow* window ) {
 	float daylightSinM = -sinf32(Sample.daylightTime);
 	float daylightCos =   cosf32(Sample.daylightTime);
 	float daylightCosM = -cosf32(Sample.daylightTime);
-	RT64_VECTOR3 sunColor = {3.5f, 2.0f, 1.875f};
+	RT64_VECTOR3 sunColor = {5.0f, 3.0f, 2.50f};
 	RT64_VECTOR3 moonColor = {0.0125f, 0.05f, 0.075f};
 	RT64.lights[0].position = { daylightSin * 1500000.0f, daylightSin * 3000000.0f, daylightCos * 3000000.0f };
 	RT64.lights[1].position = { daylightSinM * 15000.0f, daylightSinM * 30000.0f, daylightCosM * 30000.0f };
 	RT64.lights[0].diffuseColor = { 
-		glm::clamp(sunColor.x * daylightSin, 0.0f, sunColor.x),
-		glm::clamp(sunColor.y * (daylightSin < 0.f ? 0.f : daylightSin * daylightSin), 0.0f, sunColor.y),
-		glm::clamp(sunColor.z * daylightSin * daylightSin * daylightSin, 0.0f, sunColor.z),
+		glm::clamp(sunColor.x * (daylightSin < 0.f ? 0.f : daylightSin * daylightSin), 0.0f, sunColor.x),
+		glm::clamp(sunColor.y * daylightSin * daylightSin * daylightSin, 0.0f, sunColor.y),
+		glm::clamp(sunColor.z * daylightSin * daylightSin * daylightSin * daylightSin * daylightSin, 0.0f, sunColor.z),
 	};
 	RT64.lights[1].diffuseColor = { 
 		glm::clamp(moonColor.x * daylightSinM - 0.0025f, 0.0f, moonColor.x),

@@ -45,7 +45,6 @@ void PrimaryRayGen() {
 
 	// Sample the background.
 	float2 screenUV = (float2(launchIndex) + pixelJitter) / float2(launchDims);
-	screenUV.y = 1.0 - screenUV.y;
 	float3 bgColor = SampleBackground2D(screenUV);
 	float4 skyColor = SampleSky2D(screenUV);
 	float3 bgPosition = rayOrigin + rayDirection * RAY_MAX_DISTANCE;
