@@ -36,6 +36,11 @@ namespace RT64
         globalParamsData.giBounces = 2;
         globalParamsData.maxLights = 12;
         globalParamsData.motionBlurSamples = 32;
+        globalParamsData.tonemapMode = 1;
+        globalParamsData.tonemapExposure = 1.0f;
+        globalParamsData.tonemapGamma = 1.0f;
+        globalParamsData.tonemapWhite = 1.0f;
+        globalParamsData.tonemapBlack = 0.0f;
         globalParamsData.visualizationMode = 0;
         globalParamsData.frameCount = 0;
         rtSwap = false;
@@ -126,6 +131,7 @@ namespace RT64
 	    imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         device->allocateImage(&rtOutput[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtOutput[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtOutputTonemapped, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         // Shading position
         imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
@@ -206,6 +212,7 @@ namespace RT64
         AllocatedImage* transRightsBitch[] = {
             &rasterBg,
             &rtOutput[0], &rtOutput[1],
+            &rtOutputTonemapped,
             &rtViewDirection,
             &rtShadingPosition,
             &rtShadingNormal,
@@ -252,6 +259,7 @@ namespace RT64
         rasterBg.setAllocationName("rasterBg");
         rtOutput[0].setAllocationName("rtOutput[0]");
         rtOutput[1].setAllocationName("rtOutput[1]");
+        rtOutputTonemapped.setAllocationName("rtOutputTonemapped");
         rtViewDirection.setAllocationName("rtViewDirection");
         rtShadingPosition.setAllocationName("rtShadingPosition");
         rtShadingPositionSecondary.setAllocationName("rtShadingPositionSecondary");
@@ -291,6 +299,7 @@ namespace RT64
         rasterBg.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtOutput[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtOutput[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtOutputTonemapped.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtViewDirection.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtShadingPosition.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtShadingPositionSecondary.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -344,6 +353,7 @@ namespace RT64
         for (int i = 0; i <  2; i++) {
             device->createFramebuffer(rtOutputFB[i], device->getOffscreenRenderPass(), rtOutput[i].getImageView(), {(unsigned int)rtWidth, (unsigned int)rtHeight});
         }
+        device->createFramebuffer(rtOutputTonemappedFB, device->getOffscreenRenderPass(), rtOutputTonemapped.getImageView(), {(unsigned int)rtWidth, (unsigned int)rtHeight});
 
         imageBuffersInit = true;
     }
@@ -352,6 +362,7 @@ namespace RT64
         rasterBg.destroyResource();
         rtOutput[0].destroyResource();
         rtOutput[1].destroyResource();
+        rtOutputTonemapped.destroyResource();
         rtViewDirection.destroyResource();
         rtShadingPosition.destroyResource();
         rtShadingPositionSecondary.destroyResource();
@@ -395,6 +406,7 @@ namespace RT64
         // Destroy the raytraced framebuffers
         vkDestroyFramebuffer(device->getVkDevice(), rtOutputFB[0], nullptr);
         vkDestroyFramebuffer(device->getVkDevice(), rtOutputFB[1], nullptr);
+        vkDestroyFramebuffer(device->getVkDevice(), rtOutputTonemappedFB, nullptr);
     }
 
     View::~View() {
@@ -802,13 +814,39 @@ namespace RT64
             descriptorWrites.clear();
         }
 
+        // Update the tonemapping descriptor set
+        {
+            VkDescriptorSet& descriptorSet = device->getTonemappingDescriptorSet();
+            // if (rtUpscaleActive) {
+            //  pretend there's something here
+            // } else {
+                descriptorWrites.push_back(rtOutput[rtSwap ? 1 : 0].generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            // }
+            descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
+
+            // Add the tonemapping sampler
+            VkDescriptorImageInfo samplerInfo { };
+            samplerInfo.sampler = device->getTonemappingSampler();
+            VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+            samplerWrite.descriptorCount = 1;
+            samplerWrite.dstBinding = 0 + SAMPLER_SHIFT;
+            samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+            samplerWrite.pImageInfo = &samplerInfo;
+            samplerWrite.dstSet = descriptorSet;
+            descriptorWrites.push_back(samplerWrite);
+
+            // Write to the tonemapping descriptor set
+            vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            descriptorWrites.clear();
+        }
+
         // Update the post process descriptor set
         {
             VkDescriptorSet& descriptorSet = device->getPostProcessDescriptorSet();
             // if (rtUpscaleActive) {
             //  pretend there's something here
             // } else {
-                descriptorWrites.push_back(rtOutput[rtSwap ? 1 : 0].generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+                descriptorWrites.push_back(rtOutputTonemapped.generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             // }
             descriptorWrites.push_back(rtFlow.generateDescriptorWrite(1, 1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
@@ -1467,6 +1505,11 @@ namespace RT64
             VK_ACCESS_SHADER_READ_BIT, 
             VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
             &commandBuffer);
+        device->transitionImageLayout(rtOutputTonemapped, 
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+            VK_ACCESS_SHADER_READ_BIT, 
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+            &commandBuffer);
 
         // Begin the offscreen render pass (you can't raytrace with it, so just raytrace before you render pass it up)
         VkRenderPassBeginInfo renderPassInfo{};
@@ -1488,12 +1531,23 @@ namespace RT64
         VkViewport v = {0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f};
         applyViewport(v);
 
-        // Now compose 
+        // Now compose!
 		RT64_LOG_PRINTF("Composing the raytracing output");
         vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipeline());
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipelineLayout(), 0, 1, &device->getComposeDescriptorSet(), 0, nullptr);
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
+        vkCmdEndRenderPass(commandBuffer);
+
+        // Begin tonemapping 
+        renderPassInfo.framebuffer = rtOutputTonemappedFB;
+        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        
+        // Now tonemap!
+		RT64_LOG_PRINTF("Tonemapping the raytracing output");
+        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getTonemappingPipeline());
+        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getTonemappingPipelineLayout(), 0, 1, &device->getTonemappingDescriptorSet(), 0, nullptr);
+        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         vkCmdEndRenderPass(commandBuffer);
 
         // Begine the on-screen render pass
@@ -1692,64 +1746,40 @@ namespace RT64
         }
     }
 
-    void View::setPerspectiveControlActive(bool v) {
-        perspectiveControlActive = v;
-    }
-
-    void View::setPerspectiveCanReproject(bool v) {
-        perspectiveCanReproject = v;
-    }
-
-    float RT64::View::getFOVRadians() const {
-        return fovRadians;
-    }
-
-    float RT64::View::getNearDistance() const {
-        return nearDist;
-    }
-
-    float RT64::View::getFarDistance() const {
-        return farDist;
-    }
-
+    void View::setPerspectiveControlActive(bool v) { perspectiveControlActive = v; } 
+    void View::setPerspectiveCanReproject(bool v) { perspectiveCanReproject = v; } 
+    float RT64::View::getFOVRadians() const { return fovRadians; } 
+    float RT64::View::getNearDistance() const { return nearDist; } 
+    float RT64::View::getFarDistance() const { return farDist; } 
     void RT64::View::setDISamples(int v) { globalParamsData.diSamples = v; }
     int RT64::View::getDISamples() const { return globalParamsData.diSamples; }
     void RT64::View::setGISamples(int v) { globalParamsData.giSamples = v; }
     int RT64::View::getGISamples() const { return globalParamsData.giSamples; }
     void RT64::View::setGIBounces(int v) { globalParamsData.giBounces = v; }
-    int RT64::View::getGIBounces() const { return globalParamsData.giBounces; }
-
-    void RT64::View::setMaxLights(int v) {
-        globalParamsData.maxLights = v;
-    }
-
-    int RT64::View::getMaxLights() const {
-        return globalParamsData.maxLights;
-    }
-
-    void RT64::View::setMotionBlurStrength(float v) {
-        globalParamsData.motionBlurStrength = v;
-    }
-
-    float RT64::View::getMotionBlurStrength() const {
-        return globalParamsData.motionBlurStrength;
-    }
-
-    void RT64::View::setMotionBlurSamples(int v) {
-        globalParamsData.motionBlurSamples = v;
-    }
-
-    int RT64::View::getMotionBlurSamples() const {
-        return globalParamsData.motionBlurSamples;
-    }
-
-    void RT64::View::setVisualizationMode(int v) {
-        globalParamsData.visualizationMode = v;
-    }
-
-    int RT64::View::getVisualizationMode() const {
-        return globalParamsData.visualizationMode;
-    }
+    int RT64::View::getGIBounces() const { return globalParamsData.giBounces; } 
+    void RT64::View::setMaxLights(int v) { globalParamsData.maxLights = v; } 
+    int RT64::View::getMaxLights() const { return globalParamsData.maxLights; } 
+    int   View::getTonemappingMode() { return globalParamsData.tonemapMode; }
+    void  View::setTonemappingMode(int v) { globalParamsData.tonemapMode = v; }
+    float View::getTonemappingExposure() { return globalParamsData.tonemapExposure; }
+    void  View::setTonemappingExposure(float v)  { globalParamsData.tonemapExposure = v; }
+    float View::getTonemappingBlack() { return globalParamsData.tonemapBlack; }
+    void  View::setTonemappingBlack(float v) { globalParamsData.tonemapBlack = v; }
+    float View::getTonemappingWhite() { return globalParamsData.tonemapWhite; }
+    void  View::setTonemappingWhite(float v) { globalParamsData.tonemapWhite = v; }
+    float View::getTonemappingGamma() { return globalParamsData.tonemapGamma; }
+    void  View::setTonemappingGamma(float v) { globalParamsData.tonemapGamma = v; }
+    void RT64::View::setMotionBlurStrength(float v) { globalParamsData.motionBlurStrength = v; } 
+    float RT64::View::getMotionBlurStrength() const { return globalParamsData.motionBlurStrength; } 
+    void RT64::View::setMotionBlurSamples(int v) { globalParamsData.motionBlurSamples = v; } 
+    int RT64::View::getMotionBlurSamples() const { return globalParamsData.motionBlurSamples; }
+    void RT64::View::setVisualizationMode(int v) { globalParamsData.visualizationMode = v; } 
+    int RT64::View::getVisualizationMode() const { return globalParamsData.visualizationMode; } 
+    float RT64::View::getResolutionScale() const { return resolutionScale; } 
+    void RT64::View::setMaxReflections(int v) { maxReflections = v; } 
+    int RT64::View::getMaxReflections() const { return maxReflections; }
+    void RT64::View::setDenoiserEnabled(bool v) { denoiserEnabled = v; }
+    bool RT64::View::getDenoiserEnabled() const { return denoiserEnabled; }
 
     void RT64::View::setResolutionScale(float v) {
         if (resolutionScale != v) {
@@ -1757,27 +1787,6 @@ namespace RT64
             recreateRTBuffers = true;
         }
     }
-
-    float RT64::View::getResolutionScale() const {
-        return resolutionScale;
-    }
-
-    void RT64::View::setMaxReflections(int v) {
-        maxReflections = v;
-    }
-
-    int RT64::View::getMaxReflections() const {
-        return maxReflections;
-    }
-
-    void RT64::View::setDenoiserEnabled(bool v) {
-        denoiserEnabled = v;
-    }
-
-    bool RT64::View::getDenoiserEnabled() const {
-        return denoiserEnabled;
-    }
-
 };
 
 // Library exports

@@ -185,16 +185,21 @@ typedef struct {
 } RT64_SCENE_DESC;
 
 typedef struct {
-	float resolutionScale;
-	float motionBlurStrength;
-	unsigned int diSamples;
-	unsigned int giSamples;
-	unsigned int giBounces;
-	unsigned int maxLights;
-	unsigned char upscaler;
-	unsigned char upscalerMode;
-	float upscalerSharpness;
-	bool denoiserEnabled;
+	float 			resolutionScale;
+	float 			motionBlurStrength;
+	unsigned int 	diSamples;
+	unsigned int 	giSamples;
+	unsigned int 	giBounces;
+	unsigned int 	maxLights;
+	unsigned char 	upscaler;
+	unsigned char 	upscalerMode;
+	float 			upscalerSharpness;
+	bool 			denoiserEnabled;
+	int 			tonemapMode;
+	float 			tonemapExposure;
+	float 			tonemapBlack;
+	float 			tonemapWhite;
+	float 			tonemapGamma;
 } RT64_VIEW_DESC;
 
 typedef struct {

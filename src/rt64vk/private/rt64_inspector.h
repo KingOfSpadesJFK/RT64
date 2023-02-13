@@ -40,13 +40,15 @@ namespace RT64 {
 
             void setupWithView(View *view, long cursorX, long cursorY);
             void renderViewParams(View *view);
+            void renderPostInspector(View* view);
             void renderSceneInspector();
             void renderMaterialInspector();
             void renderLightInspector();
             void renderPrint();
-            void renderCameraControl(View *view, long cursorX, long cursorY);
+            void renderCameraControl();
         public:
             Inspector();
+            void controlCamera(View *view, long cursorX, long cursorY);
             bool init(Device* device);
             ~Inspector();
             void destroy();

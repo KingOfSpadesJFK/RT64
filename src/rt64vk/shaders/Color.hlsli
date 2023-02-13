@@ -57,3 +57,11 @@ float4 LinearToSrgb(in float4 lin) {
 float4 SrgbToLinear(in float4 srgb) {
     return float4(SrgbToLinear(srgb.rgb), srgb.a);
 }
+
+
+
+// Taken from https://64.github.io/tonemapping/
+float RGBtoLuminance(float3 rgb) {
+    // RGB [0...1] to Luminance [0...1]
+    return dot(rgb, float3(0.2126f, 0.7152f, 0.0722f));
+}

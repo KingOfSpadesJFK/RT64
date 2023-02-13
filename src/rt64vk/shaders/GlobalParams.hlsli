@@ -29,6 +29,11 @@ cbuffer gParams : register(b0) {
 	float giDiffuseStrength;
 	float giSkyStrength;
 	float motionBlurStrength;
+	float tonemapExposure;
+	float tonemapBlack;
+	float tonemapWhite;
+	float tonemapGamma;
+	uint tonemapMode;
 	int skyPlaneTexIndex;
 	uint randomSeed;
 	uint diSamples;

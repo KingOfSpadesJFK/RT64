@@ -33,7 +33,7 @@
 
 // Pixel shaders
 #include "shaders/ComposePS.hlsl.h"
-#include "shaders/HelloTrianglePS.hlsl.h"
+#include "shaders/TonemappingPS.hlsl.h"
 #include "shaders/PostProcessPS.hlsl.h"
 #include "shaders/DebugPS.hlsl.h"
 #include "shaders/Im3DPS.hlsl.h"
@@ -183,6 +183,11 @@ namespace RT64
         // depthStencil.depthCompareOp = VK_COMPARE_OP_LESS;
         depthStencil.stencilTestEnable = VK_FALSE;
 
+        // Bind the vertex inputs
+        VkPipelineVertexInputStateCreateInfo vertexInputInfo{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+        vertexInputInfo.vertexBindingDescriptionCount = 0;
+        vertexInputInfo.vertexAttributeDescriptionCount = 0;
+
         // Pipeline info
         VkGraphicsPipelineCreateInfo pipelineInfo { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
         pipelineInfo.pInputAssemblyState = &inputAssembly;
@@ -201,6 +206,29 @@ namespace RT64
             layoutInfo.bindingCount = 0;
             layoutInfo.flags = 0;
             VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &emptyDescriptorSetLayout));
+        }
+
+        RT64_LOG_PRINTF("Creating a generic image sampler for the fragment shaders");
+        {
+            VkSamplerCreateInfo samplerInfo { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+            samplerInfo.magFilter = VK_FILTER_LINEAR;
+            samplerInfo.minFilter = VK_FILTER_LINEAR;
+            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+            samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+            samplerInfo.anisotropyEnable = VK_FALSE;
+            samplerInfo.maxAnisotropy = 1.0f;
+            samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+            samplerInfo.unnormalizedCoordinates = VK_FALSE;
+            samplerInfo.compareEnable = VK_FALSE;
+            samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+            samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+            samplerInfo.mipLodBias = 0.0f;
+            samplerInfo.minLod = 0.0f;
+            samplerInfo.maxLod = std::numeric_limits<float>::max();
+            vkCreateSampler(vkDevice, &samplerInfo, nullptr, &composeSampler);
+            vkCreateSampler(vkDevice, &samplerInfo, nullptr, &tonemappingSampler);
+            vkCreateSampler(vkDevice, &samplerInfo, nullptr, &postProcessSampler);
         }
 
         RT64_LOG_PRINTF("Creating the raygen/miss modules and descriptor set layout"); 
@@ -232,38 +260,12 @@ namespace RT64
             generateDescriptorSetLayout(bindings, flags, composeDescriptorSetLayout);
         }
 
-        RT64_LOG_PRINTF("Creating a generic image sampler for the compose shader");
-        {
-            VkSamplerCreateInfo samplerInfo { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
-            samplerInfo.magFilter = VK_FILTER_LINEAR;
-            samplerInfo.minFilter = VK_FILTER_LINEAR;
-            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerInfo.anisotropyEnable = VK_FALSE;
-            samplerInfo.maxAnisotropy = 1.0f;
-            samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-            samplerInfo.unnormalizedCoordinates = VK_FALSE;
-            samplerInfo.compareEnable = VK_FALSE;
-            samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-            samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-            samplerInfo.mipLodBias = 0.0f;
-            samplerInfo.minLod = 0.0f;
-            samplerInfo.maxLod = std::numeric_limits<float>::max();
-            vkCreateSampler(vkDevice, &samplerInfo, nullptr, &composeSampler);
-        }
-
         RT64_LOG_PRINTF("Creating the composition pipeline");
         {
             // Create the shader modules and shader stages
             std::vector<VkPipelineShaderStageCreateInfo> composeStages;
             createShaderModule(FullScreenVS_SPIRV, sizeof(FullScreenVS_SPIRV), VS_ENTRY, VK_SHADER_STAGE_VERTEX_BIT, fullscreenVSStage, fullscreenVSModule, &composeStages);
             createShaderModule(ComposePS_SPIRV, sizeof(ComposePS_SPIRV), PS_ENTRY, VK_SHADER_STAGE_FRAGMENT_BIT, composePSStage, composePSModule, &composeStages);
-
-            // Bind the vertex inputs
-            VkPipelineVertexInputStateCreateInfo vertexInputInfo{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
-            vertexInputInfo.vertexBindingDescriptionCount = 0;
-            vertexInputInfo.vertexAttributeDescriptionCount = 0;
 
 		    // Create the pipeline layout
             VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
@@ -292,38 +294,12 @@ namespace RT64
             generateDescriptorSetLayout(bindings, flags, postProcessDescriptorSetLayout);
         }
 
-        RT64_LOG_PRINTF("Creating the post process sampler");
-        {
-            VkSamplerCreateInfo samplerInfo { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
-            samplerInfo.magFilter = VK_FILTER_LINEAR;
-            samplerInfo.minFilter = VK_FILTER_LINEAR;
-            samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-            samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-            samplerInfo.anisotropyEnable = VK_FALSE;
-            samplerInfo.maxAnisotropy = 1.0f;
-            samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-            samplerInfo.unnormalizedCoordinates = VK_FALSE;
-            samplerInfo.compareEnable = VK_FALSE;
-            samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-            samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-            samplerInfo.mipLodBias = 0.0f;
-            samplerInfo.minLod = 0.0f;
-            samplerInfo.maxLod = std::numeric_limits<float>::max();
-            vkCreateSampler(vkDevice, &samplerInfo, nullptr, &postProcessSampler);
-        }
-
         RT64_LOG_PRINTF("Creating the post process pipeline");
         {
             // Create the shader modules and shader stages
             std::vector<VkPipelineShaderStageCreateInfo> postStages;
             postStages.push_back(fullscreenVSStage);
             createShaderModule(PostProcessPS_SPIRV, sizeof(PostProcessPS_SPIRV), PS_ENTRY, VK_SHADER_STAGE_FRAGMENT_BIT, postProcessPSStage, postProcessPSModule, &postStages);
-
-            // Bind the vertex inputs
-            VkPipelineVertexInputStateCreateInfo vertexInputInfo{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
-            vertexInputInfo.vertexBindingDescriptionCount = 0;
-            vertexInputInfo.vertexAttributeDescriptionCount = 0;
 
 		    // Create the pipeline layout
             VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
@@ -338,6 +314,39 @@ namespace RT64
             pipelineInfo.layout = postProcessPipelineLayout;
             pipelineInfo.renderPass = renderPass;
             VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &postProcessPipeline));
+        }
+
+        RT64_LOG_PRINTF("Creating the color correction descriptor set layout");
+        {
+		    VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+            std::vector<VkDescriptorSetLayoutBinding> bindings {
+                {0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+                {CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
+            };
+            generateDescriptorSetLayout(bindings, flags, tonemappingDescriptorSetLayout);
+        }
+
+        RT64_LOG_PRINTF("Creating the color correction pipeline");
+        {
+            // Create the shader modules and shader stages
+            std::vector<VkPipelineShaderStageCreateInfo> colorStages;
+            colorStages.push_back(fullscreenVSStage);
+            createShaderModule(TonemappingPS_SPIRV, sizeof(TonemappingPS_SPIRV), PS_ENTRY, VK_SHADER_STAGE_FRAGMENT_BIT, tonemappingPSStage, tonemappingPSModule, &colorStages);
+
+		    // Create the pipeline layout
+            VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+            pipelineLayoutInfo.setLayoutCount = 1;
+            pipelineLayoutInfo.pSetLayouts = &tonemappingDescriptorSetLayout;
+            VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &tonemappingPipelineLayout));
+
+            // Create the pipeline
+            pipelineInfo.pVertexInputState = &vertexInputInfo;
+            pipelineInfo.stageCount = colorStages.size();
+            pipelineInfo.pStages = colorStages.data();
+            pipelineInfo.layout = tonemappingPipelineLayout;
+            pipelineInfo.renderPass = renderPass;
+            VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &tonemappingPipeline));
         }
 
         RT64_LOG_PRINTF("Creating the debug descriptor set layout");
@@ -650,12 +659,15 @@ namespace RT64
         poolInfo.poolSizeCount = descriptorPoolBindings.size();
         poolInfo.pPoolSizes = descriptorPoolBindings.data();
 		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
-        poolInfo.maxSets = shaders.size() * 3 + 5;
+        // Change the constant if you add more descriptor sets
+        //  Just bellow the RT64_LOG_PRINTF(), count the lines of allocateDescriptorSet() calls
+        poolInfo.maxSets = shaders.size() * 3 + 6;      
 		VK_CHECK(vkCreateDescriptorPool(vkDevice, &poolInfo, nullptr, &descriptorPool));
 
 	    RT64_LOG_PRINTF("Allocating the descriptor sets to the pool...");
         allocateDescriptorSet(raygenDescriptorSetLayout, raygenDescriptorSet);
         allocateDescriptorSet(composeDescriptorSetLayout, composeDescriptorSet);
+        allocateDescriptorSet(tonemappingDescriptorSetLayout, tonemappingDescriptorSet);
         allocateDescriptorSet(postProcessDescriptorSetLayout, postProcessDescriptorSet);
         allocateDescriptorSet(debugDescriptorSetLayout, debugDescriptorSet);
         allocateDescriptorSet(im3dDescriptorSetLayout, im3dDescriptorSet);
@@ -753,6 +765,7 @@ namespace RT64
         if (inspector.init(this) && showInspector) {
             inspector.render(activeView, mouseX, mouseY);
         }
+        inspector.controlCamera(activeView, mouseX, mouseY);
 
         // End the command buffer
         VK_CHECK(vkEndCommandBuffer(commandBuffers[currentFrame]));
@@ -1475,6 +1488,7 @@ namespace RT64
         cleanupSwapChain();
         vkDestroySurfaceKHR(vkInstance, vkSurface, nullptr);
         vkDestroyRenderPass(vkDevice, renderPass, nullptr);
+        vkDestroyRenderPass(vkDevice, offscreenRenderPass, nullptr);
         vkDestroyCommandPool(vkDevice, commandPool, nullptr);
         for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(vkDevice, imageAvailableSemaphores[i], nullptr);
@@ -1521,12 +1535,18 @@ namespace RT64
         vkDestroyShaderModule(vkDevice, shadowMissModule, nullptr);
         vkDestroyShaderModule(vkDevice, fullscreenVSModule, nullptr);
         vkDestroyShaderModule(vkDevice, composePSModule, nullptr);
+        vkDestroyShaderModule(vkDevice, tonemappingPSModule, nullptr);
+        vkDestroyShaderModule(vkDevice, postProcessPSModule, nullptr);
+        vkDestroyShaderModule(vkDevice, debugPSModule, nullptr);
         vkDestroyShaderModule(vkDevice, im3dVSModule, nullptr);
         vkDestroyShaderModule(vkDevice, im3dPSModule, nullptr);
         vkDestroyShaderModule(vkDevice, im3dGSPointsModule, nullptr);
         vkDestroyShaderModule(vkDevice, im3dGSLinesModule, nullptr);
         vkDestroySampler(vkDevice, composeSampler, nullptr);
+        vkDestroySampler(vkDevice, postProcessSampler, nullptr);
+        vkDestroySampler(vkDevice, tonemappingSampler, nullptr);
 
+        vkDestroyDescriptorSetLayout(vkDevice, emptyDescriptorSetLayout, nullptr);
         // Destroy the descriptor pool
         vkDestroyDescriptorPool(vkDevice, descriptorPool, nullptr);
         // Destroy RT pipeline and descriptor set
@@ -1537,6 +1557,18 @@ namespace RT64
         vkDestroyPipeline(vkDevice, composePipeline, nullptr);
         vkDestroyPipelineLayout(vkDevice, composePipelineLayout, nullptr);
         vkDestroyDescriptorSetLayout(vkDevice, composeDescriptorSetLayout, nullptr);
+        // Destroy tonemapping pipeline and descriptor set
+        vkDestroyPipeline(vkDevice, tonemappingPipeline, nullptr);
+        vkDestroyPipelineLayout(vkDevice, tonemappingPipelineLayout, nullptr);
+        vkDestroyDescriptorSetLayout(vkDevice, tonemappingDescriptorSetLayout, nullptr);
+        // Destroy post process pipeline and descriptor set
+        vkDestroyPipeline(vkDevice, postProcessPipeline, nullptr);
+        vkDestroyPipelineLayout(vkDevice, postProcessPipelineLayout, nullptr);
+        vkDestroyDescriptorSetLayout(vkDevice, postProcessDescriptorSetLayout, nullptr);
+        // Destroy debug pipeline and descriptor set
+        vkDestroyPipeline(vkDevice, debugPipeline, nullptr);
+        vkDestroyPipelineLayout(vkDevice, debugPipelineLayout, nullptr);
+        vkDestroyDescriptorSetLayout(vkDevice, debugDescriptorSetLayout, nullptr);
         // Destroy im3d pipeline and descriptor set
         vkDestroyPipeline(vkDevice, im3dPipeline, nullptr);
         vkDestroyPipeline(vkDevice, im3dLinesPipeline, nullptr);
@@ -1596,6 +1628,10 @@ namespace RT64
     VkPipelineLayout& Device::getComposePipelineLayout() { return composePipelineLayout; }
     VkDescriptorSet& Device::getComposeDescriptorSet() { return composeDescriptorSet; }
     VkSampler& Device::getComposeSampler() { return composeSampler; }
+    VkPipeline& Device::getTonemappingPipeline() { return tonemappingPipeline; }
+    VkPipelineLayout& Device::getTonemappingPipelineLayout() { return tonemappingPipelineLayout; }
+    VkDescriptorSet& Device::getTonemappingDescriptorSet() { return tonemappingDescriptorSet; }
+    VkSampler& Device::getTonemappingSampler() { return tonemappingSampler; }
     VkPipeline& Device::getPostProcessPipeline() { return postProcessPipeline; }
     VkPipelineLayout& Device::getPostProcessPipelineLayout() { return postProcessPipelineLayout; }
     VkDescriptorSet& Device::getPostProcessDescriptorSet() { return postProcessDescriptorSet; }

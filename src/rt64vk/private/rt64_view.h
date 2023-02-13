@@ -70,6 +70,11 @@ namespace RT64
                 float giDiffuseStrength;
                 float giSkyStrength;
                 float motionBlurStrength;
+                float tonemapExposure;
+                float tonemapBlack;
+                float tonemapWhite;
+                float tonemapGamma;
+                unsigned int tonemapMode;
                 int skyPlaneTexIndex;
                 unsigned int randomSeed;
                 unsigned int diSamples;
@@ -142,6 +147,8 @@ namespace RT64
             AllocatedImage  rasterBg;
             AllocatedImage  rtOutput[2];
             VkFramebuffer   rtOutputFB[2];
+            AllocatedImage  rtOutputTonemapped;
+            VkFramebuffer   rtOutputTonemappedFB;
             AllocatedImage  rtViewDirection;
             AllocatedImage  rtShadingPosition;
             AllocatedImage  rtShadingPositionSecondary;
@@ -207,6 +214,7 @@ namespace RT64
             RT64_VECTOR3 getRayDirectionAt(int px, int py);
 		    void renderInspector(Inspector* inspector);
             void setSkyPlaneTexture(Texture* texture);
+            // Getters
             int getWidth() const;
             int getHeight() const;
             float getFOVRadians() const;
@@ -220,6 +228,16 @@ namespace RT64
             int getGIBounces() const;
             void setMaxLights(int v);
             int getMaxLights() const;
+            int   getTonemappingMode();
+            void  setTonemappingMode(int v);
+            float getTonemappingExposure();
+            void  setTonemappingExposure(float v);
+            float getTonemappingBlack();
+            void  setTonemappingBlack(float v);
+            float getTonemappingWhite();
+            void  setTonemappingWhite(float v);
+            float getTonemappingGamma();
+            void  setTonemappingGamma(float v);
             void setMotionBlurStrength(float v);
             float getMotionBlurStrength() const;
             void setMotionBlurSamples(int v);

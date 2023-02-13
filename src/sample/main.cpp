@@ -92,10 +92,11 @@ struct {
 struct {
 	std::chrono::_V2::system_clock::time_point startTime = std::chrono::high_resolution_clock::now();;
 	bool doDaylightCycle = true;
-	float daylightCycleSpeed = 1.0f / 8.0f;
-	float daylightTime = 0.0f;
+	float daylightCycleSpeed = 1.0f / 32.0f;
+	float daylightTime = 0.5f;
 	float deltaTime = 0.0f;
 	float sceneScale = 1.0f;
+	float runtime = 0.0f;
 	RT64_SHADER* uiShader = nullptr;
 } Sample;
 
@@ -199,8 +200,8 @@ void draw(GLFWwindow* window ) {
 	float daylightSinM = -sinf32(Sample.daylightTime);
 	float daylightCos =   cosf32(Sample.daylightTime);
 	float daylightCosM = -cosf32(Sample.daylightTime);
-	RT64_VECTOR3 sunColor = {5.0f, 3.0f, 2.50f};
-	RT64_VECTOR3 moonColor = {0.0125f, 0.05f, 0.075f};
+	RT64_VECTOR3 sunColor = {10.0f, 8.75f, 7.50f};
+	RT64_VECTOR3 moonColor = {0.125f, 0.5f, 0.75f};
 	RT64.lights[0].position = { daylightSin * 1500000.0f, daylightSin * 3000000.0f, daylightCos * 3000000.0f };
 	RT64.lights[1].position = { daylightSinM * 15000.0f, daylightSinM * 30000.0f, daylightCosM * 30000.0f };
 	RT64.lights[0].diffuseColor = { 
@@ -217,23 +218,16 @@ void draw(GLFWwindow* window ) {
 	RT64.lights[1].specularColor = RT64.lights[1].diffuseColor;
 	float daylight = glm::clamp(daylightSin, 0.f, 1.f);
 	RT64.sceneDesc.skyDiffuseMultiplier = { 
-		0.015f + daylight * 0.985f,
-		0.025f + daylight * 0.975f,
-		0.05f + daylight * 0.95f,
+		0.075f + daylight * 1.925f,
+		0.125f + daylight * 1.875f,
+		0.25f + daylight * 1.75f,
 	};
 	RT64.sceneDesc.ambientBaseColor = { 
-		0.000125f + glm::clamp(daylightSin * 0.0125f, 0.0f, 1.0f), 
-		0.00015f + glm::clamp(daylightSin * 0.015f, 0.0f, 1.0f),  
-		0.00025f + glm::clamp(daylightSin * 0.025f, 0.0f, 1.0f), 
+		0.00125f + glm::clamp(daylightSin * daylightSin * daylightSin * 0.125f, 0.0f, 1.0f), 
+		0.0015f + glm::clamp(daylightSin * daylightSin * daylightSin * 0.15f, 0.0f, 1.0f),  
+		0.0025f + glm::clamp(daylightSin * daylightSin * daylightSin * 0.25f, 0.0f, 1.0f), 
 	};
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
-
-	// Inspector stuff
-	if (RT64.showInspector) {
-		RT64.lib.SetMaterialInspector(RT64.device, &RT64.materialMods, "Sphere");
-		RT64.lib.SetSceneInspector(RT64.device, &RT64.sceneDesc);
-		RT64.lib.SetLightsInspector(RT64.device, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
-	}
 	
 	RT64.frameMaterial = RT64.baseMaterial;
 	RT64_ApplyMaterialAttributes(&RT64.frameMaterial, &RT64.materialMods);
@@ -254,9 +248,23 @@ void draw(GLFWwindow* window ) {
 	RT64.lib.DrawDevice(RT64.device, 1, Sample.deltaTime);
 
     auto postDrawTime = std::chrono::high_resolution_clock::now();
-    Sample.deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(postDrawTime - currentTime).count() / 4.0f;
+    Sample.deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(postDrawTime - currentTime).count();
+	Sample.runtime += Sample.deltaTime;
 	if (Sample.doDaylightCycle) {
 		Sample.daylightTime += (Sample.deltaTime * Sample.daylightCycleSpeed);
+	}
+
+	// Inspector stuff
+	if (RT64.showInspector) {
+		RT64.lib.PrintClearInspector(RT64.device);
+		RT64.lib.SetMaterialInspector(RT64.device, &RT64.materialMods, "Sphere");
+		RT64.lib.SetSceneInspector(RT64.device, &RT64.sceneDesc);
+		RT64.lib.SetLightsInspector(RT64.device, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
+		std::string print = "Draw time: ";
+		print.append(std::to_string(Sample.deltaTime));
+		print.append("\nRuntime: ");
+		print.append(std::to_string(Sample.runtime));
+		RT64.lib.PrintMessageInspector(RT64.device, print.c_str());
 	}
 }
 

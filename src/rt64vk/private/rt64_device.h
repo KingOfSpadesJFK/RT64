@@ -148,6 +148,7 @@ namespace RT64
 		    Mipmaps* mipmaps = nullptr;
 		    Texture* blueNoise;
             VkSampler composeSampler;
+            VkSampler tonemappingSampler;
             VkSampler postProcessSampler;
 
             VmaAllocator allocator;
@@ -188,7 +189,7 @@ namespace RT64
             IDxcLibrary* d3dDxcLibrary;     // Bro thinks he's on the team  XDXDXDXDXDXD
 
             //***********************************************************
-            // The Raygen Shaders
+            // The Shaders
             VkShaderModule primaryRayGenModule;
             VkShaderModule directRayGenModule;
             VkShaderModule indirectRayGenModule;
@@ -196,14 +197,15 @@ namespace RT64
             VkShaderModule refractionRayGenModule;
             VkShaderModule surfaceMissModule;
             VkShaderModule shadowMissModule;
-            VkShaderModule composePSModule;
             VkShaderModule fullscreenVSModule;
+            VkShaderModule composePSModule;
+            VkShaderModule postProcessPSModule;
+            VkShaderModule tonemappingPSModule;
+            VkShaderModule debugPSModule;
             VkShaderModule im3dVSModule;
             VkShaderModule im3dPSModule;
             VkShaderModule im3dGSPointsModule;
             VkShaderModule im3dGSLinesModule;
-            VkShaderModule postProcessPSModule;
-            VkShaderModule debugPSModule;
             // And their shader stage infos
             VkPipelineShaderStageCreateInfo primaryRayGenStage      {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo directRayGenStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
@@ -212,40 +214,45 @@ namespace RT64
             VkPipelineShaderStageCreateInfo refractionRayGenStage   {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo surfaceMissStage        {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo shadowMissStage         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo composePSStage          {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo fullscreenVSStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo composePSStage          {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo postProcessPSStage      {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo tonemappingPSStage  {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo debugPSStage            {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo im3dVSStage             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo im3dPSStage             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo im3dGSPointsStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             VkPipelineShaderStageCreateInfo im3dGSLinesStage        {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo postProcessPSStage      {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo debugPSStage            {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             // And pipelines
             VkPipelineLayout        rtPipelineLayout;
             VkPipeline              rtPipeline;
             VkPipelineLayout        composePipelineLayout;
             VkPipeline              composePipeline;
+            VkPipelineLayout        tonemappingPipelineLayout;
+            VkPipeline              tonemappingPipeline;
+            VkPipelineLayout        postProcessPipelineLayout;
+            VkPipeline              postProcessPipeline;
+            VkPipelineLayout        debugPipelineLayout;
+            VkPipeline              debugPipeline;
             VkPipelineLayout        im3dPipelineLayout;
             VkPipeline              im3dPipeline;
             VkPipelineLayout        im3dPointsPipelineLayout;
             VkPipeline              im3dPointsPipeline;
             VkPipelineLayout        im3dLinesPipelineLayout;
             VkPipeline              im3dLinesPipeline;
-            VkPipelineLayout        postProcessPipelineLayout;
-            VkPipeline              postProcessPipeline;
-            VkPipelineLayout        debugPipelineLayout;
-            VkPipeline              debugPipeline;
             // Did I mention the descriptors?
             VkDescriptorSetLayout   raygenDescriptorSetLayout;
             VkDescriptorSet         raygenDescriptorSet;
             VkDescriptorSetLayout   composeDescriptorSetLayout;
             VkDescriptorSet         composeDescriptorSet;
-            VkDescriptorSetLayout   im3dDescriptorSetLayout;
-            VkDescriptorSet         im3dDescriptorSet;
+            VkDescriptorSetLayout   tonemappingDescriptorSetLayout;
+            VkDescriptorSet         tonemappingDescriptorSet;
             VkDescriptorSetLayout   postProcessDescriptorSetLayout;
             VkDescriptorSet         postProcessDescriptorSet;
             VkDescriptorSetLayout   debugDescriptorSetLayout;
             VkDescriptorSet         debugDescriptorSet;
+            VkDescriptorSetLayout   im3dDescriptorSetLayout;
+            VkDescriptorSet         im3dDescriptorSet;
             VkDescriptorSetLayout   emptyDescriptorSetLayout;
 #endif
 
@@ -305,6 +312,7 @@ namespace RT64
             Inspector& getInspector();
             // Samplers
             VkSampler& getComposeSampler();
+            VkSampler& getTonemappingSampler();
             VkSampler& getPostProcessSampler();
             // Shader getters
             VkPipelineShaderStageCreateInfo getPrimaryShaderStage() const;
@@ -316,6 +324,9 @@ namespace RT64
             VkPipeline&         getComposePipeline();
             VkPipelineLayout&   getComposePipelineLayout();
             VkDescriptorSet&    getComposeDescriptorSet();
+            VkPipeline&         getTonemappingPipeline();
+            VkPipelineLayout&   getTonemappingPipelineLayout();
+            VkDescriptorSet&    getTonemappingDescriptorSet();
             VkPipeline&         getPostProcessPipeline();
             VkPipelineLayout&   getPostProcessPipelineLayout();
             VkDescriptorSet&    getPostProcessDescriptorSet();
