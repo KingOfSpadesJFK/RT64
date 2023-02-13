@@ -584,9 +584,12 @@ namespace RT64
         RT64_LOG_PRINTF("Device drawing started");
         inspector.init(this);
 
-        if (rtStateDirty) {
+        if (descPoolDirty) {
             vkDestroyDescriptorPool(vkDevice, descriptorPool, nullptr);
             createDescriptorPool();
+            descPoolDirty = false;
+        }
+        if (rtStateDirty) {
             vkDestroyPipeline(vkDevice, rtPipeline, nullptr);
             vkDestroyPipelineLayout(vkDevice, rtPipelineLayout, nullptr);
             createRayTracingPipeline();
@@ -1545,6 +1548,7 @@ namespace RT64
             overallShaderCount++;
             rasterShaderCount++;
         }
+        descPoolDirty = true;
     }
 
     // Removes a shader from the device
@@ -1573,6 +1577,7 @@ namespace RT64
             overallShaderCount--;
             rasterShaderCount--;
         }
+        descPoolDirty = true;
     }
 
     uint32_t Device::getFirstAvailableHitShaderID() const {

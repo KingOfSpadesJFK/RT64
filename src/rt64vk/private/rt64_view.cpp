@@ -724,7 +724,6 @@ namespace RT64
             if (usedShaders.contains(shader)) {
                 continue;
             }
-            // shader->allocateRTDescriptorSet();
 
             VkDescriptorSet& descriptorSet = shader->getRTDescriptorSet();
             if (shader->getSurfaceHitGroup().shaderModule != nullptr) {
@@ -836,6 +835,7 @@ namespace RT64
             rtInstances.clear();
             rasterBgInstances.clear();
             rasterFgInstances.clear();
+            rasterUiInstances.clear();
 
             rtInstances.reserve(totalInstances);
             rasterBgInstances.reserve(totalInstances);
@@ -1558,7 +1558,7 @@ namespace RT64
     void View::rotatePerspective(float localYaw, float localPitch, float localRoll) {
         glm::vec4 viewPos = (globalParamsData.viewI * glm::vec4{0.0f, 0.0f, 0.0f, 1.0f});
         glm::vec4 viewFocus = {0.0f, 0.0f, -farDist, 1.0f};
-        glm::mat4 euler = glm::eulerAngleXY(localPitch, localYaw);
+        glm::mat4 euler = glm::eulerAngleXYZ(localPitch, localYaw, localRoll);
         viewFocus = (euler * viewFocus);
         viewFocus = (globalParamsData.viewI * viewFocus);
         globalParamsData.view = glm::lookAt(

@@ -30,6 +30,7 @@ namespace RT64 {
             bool invertCameraY;
             float cameraPanX;
             float cameraPanY;
+            float cameraRoll;
             float cameraPanSpeed = 1.0f;
             int prevCursorX, prevCursorY;
             std::string dumpPath;

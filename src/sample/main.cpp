@@ -90,9 +90,13 @@ struct {
 } RT64;
 
 struct {
+	std::chrono::_V2::system_clock::time_point startTime = std::chrono::high_resolution_clock::now();;
 	bool doDaylightCycle = true;
-	float daylightCycleSpeed = 0.0f;
+	float daylightCycleSpeed = 1.0f / 8.0f;
 	float daylightTime = 0.0f;
+	float deltaTime = 0.0f;
+	float sceneScale = 1.0f;
+	RT64_SHADER* uiShader = nullptr;
 } Sample;
 
 
@@ -105,13 +109,44 @@ struct {
 // 		break;
 
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-	if (key == GLFW_KEY_F1 && action == GLFW_PRESS) {
-		RT64.showInspector = !RT64.showInspector;
-		RT64.lib.SetInspectorVisibility(RT64.device, RT64.showInspector);
-	}
-
-	if (key == GLFW_KEY_F4 && action == GLFW_PRESS) {
-		Sample.doDaylightCycle = !Sample.doDaylightCycle;
+	if (action == GLFW_PRESS) {
+		switch (key)
+		{
+			case GLFW_KEY_F1:
+				RT64.showInspector = !RT64.showInspector;
+				RT64.lib.SetInspectorVisibility(RT64.device, RT64.showInspector);
+				break;
+			case GLFW_KEY_F3:
+				Sample.daylightTime = 0.0f;
+				break;
+			case GLFW_KEY_F4:
+				Sample.doDaylightCycle = !Sample.doDaylightCycle;
+				break;
+			case GLFW_KEY_UP:
+				Sample.daylightCycleSpeed *= 2.0f;
+				break;
+			case GLFW_KEY_DOWN:
+				if (Sample.daylightCycleSpeed / 2.0f > FLT_EPSILON) {
+					Sample.daylightCycleSpeed /= 2.0f;
+				}
+				break;
+			case GLFW_KEY_LEFT:
+				Sample.daylightTime -= 0.125f;
+				break;
+			case GLFW_KEY_RIGHT:
+				Sample.daylightTime += 0.125f;
+				break;
+		}
+	} else if (action == GLFW_REPEAT) {
+		switch (key)
+		{
+			case GLFW_KEY_LEFT:
+				Sample.daylightTime -= 0.125f;
+				break;
+			case GLFW_KEY_RIGHT:
+				Sample.daylightTime += 0.125f;
+				break;
+		}
 	}
 }
 
@@ -129,15 +164,17 @@ void draw(GLFWwindow* window ) {
 	// 	return;
 	// }
 	
-    static auto startTime = std::chrono::high_resolution_clock::now();
     auto currentTime = std::chrono::high_resolution_clock::now();
-    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - startTime).count() / 4.0f;
+    float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - Sample.startTime).count() / 4.0f;
 
 	// Code to make the view spin around
     #define RADIUS 2.0f
     #define YOFF 5.0f
 	glm::vec3 eye = glm::vec3(sinf32(time) * glm::radians(90.0f) * 6.50 - 1.0, YOFF, cosf32(time) * glm::radians(90.0f) * 1.750 - 1.6250);
-	glm::mat4 v = glm::lookAt(eye, glm::vec3(0.0f, cosf32(time / 2.0f) * glm::radians(90.0f) * -2.00 + 3.0, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	eye.x *= Sample.sceneScale;
+	eye.y *= Sample.sceneScale;
+	eye.z *= Sample.sceneScale;
+	glm::mat4 v = glm::lookAt(eye, glm::vec3(0.0f, (cosf32(time / 2.0f) * glm::radians(90.0f) * -2.00 + 3.0) * Sample.sceneScale, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	RT64.viewMatrix.m[0][0] =  v[0][0];
 	RT64.viewMatrix.m[1][0] =  v[1][0];
 	RT64.viewMatrix.m[2][0] =  v[2][0];
@@ -158,9 +195,6 @@ void draw(GLFWwindow* window ) {
 
 	// Day-night cycle
 
-	if (Sample.doDaylightCycle) {
-		Sample.daylightTime = time / 4.0f;
-	}
 	float daylightSin =   sinf32(Sample.daylightTime);
 	float daylightSinM = -sinf32(Sample.daylightTime);
 	float daylightCos =   cosf32(Sample.daylightTime);
@@ -175,9 +209,9 @@ void draw(GLFWwindow* window ) {
 		glm::clamp(sunColor.z * daylightSin * daylightSin * daylightSin, 0.0f, sunColor.z),
 	};
 	RT64.lights[1].diffuseColor = { 
-		glm::clamp(moonColor.x * daylightSinM * 1.0f, 0.0f, moonColor.x),
-		glm::clamp(moonColor.y * daylightSinM * 1.0f, 0.0f, moonColor.y),
-		glm::clamp(moonColor.z * daylightSinM * 1.0f, 0.0f, moonColor.z),
+		glm::clamp(moonColor.x * daylightSinM - 0.0025f, 0.0f, moonColor.x),
+		glm::clamp(moonColor.y * daylightSinM - 0.0025f, 0.0f, moonColor.y),
+		glm::clamp(moonColor.z * daylightSinM - 0.0025f, 0.0f, moonColor.z),
 	};
 	RT64.lights[0].specularColor = RT64.lights[0].diffuseColor;
 	RT64.lights[1].specularColor = RT64.lights[1].diffuseColor;
@@ -217,7 +251,13 @@ void draw(GLFWwindow* window ) {
 	instDesc.flags = 0;
 	RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
 	RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
-	RT64.lib.DrawDevice(RT64.device, 1, time);
+	RT64.lib.DrawDevice(RT64.device, 1, Sample.deltaTime);
+
+    auto postDrawTime = std::chrono::high_resolution_clock::now();
+    Sample.deltaTime = std::chrono::duration<float, std::chrono::seconds::period>(postDrawTime - currentTime).count() / 4.0f;
+	if (Sample.doDaylightCycle) {
+		Sample.daylightTime += (Sample.deltaTime * Sample.daylightCycleSpeed);
+	}
 }
 
 bool createRT64(GLFWwindow* glfwWindow) {
@@ -704,7 +744,7 @@ void setupSponza()
 		// if (i % 5 == 0) {
 		// 	mat.reflectionFactor = 0.250f;
 		// }
-		const float sceneScale = 1.0f;
+		const float sceneScale = Sample.sceneScale;
 		sceneTransform.m[0][0] = sceneScale;
 		sceneTransform.m[1][1] = sceneScale;
 		sceneTransform.m[2][2] = sceneScale;
@@ -740,8 +780,8 @@ int main(int argc, char *argv[]) {
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	// Create window.
-	const int Width = 850;
-	const int Height = 480;
+	const int Width = 1280;
+	const int Height = 720;
     GLFWwindow* window = glfwCreateWindow(Width, Height, "RT64VK Sample", nullptr, nullptr);
 
 	// Create RT64.

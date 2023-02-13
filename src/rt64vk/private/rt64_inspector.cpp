@@ -126,7 +126,7 @@ namespace RT64 {
 		renderCameraControl(activeView, cursorX, cursorY);
 		renderPrint();
 
-		// Im3d::EndFrame();
+		Im3d::EndFrame();
 
 		// TODO: Implement dump target
 		// If dumping frames is active, save the current state of the RTV into a file.
@@ -402,6 +402,7 @@ namespace RT64 {
 			if (cameraControl) {
 				ImGui::DragFloat("Camera pan x", &cameraPanX, 0.1f, -100.0f, 100.0f);
 				ImGui::DragFloat("Camera pan y", &cameraPanY, 0.1f, -100.0f, 100.0f);
+				ImGui::DragFloat("Camera roll", &cameraRoll, 0.1f, -100.0f, 100.0f);
 				ImGui::DragFloat("Camera pan speed", &cameraPanSpeed, 0.01f, 0.0f, 10.0f);
 				ImGui::Checkbox("Invert Camera X", &invertCameraX);
 				ImGui::Checkbox("Invert Camera Y", &invertCameraY);
@@ -426,7 +427,7 @@ namespace RT64 {
 						}
 						else if (leftAlt) {
 							float cameraRotationSpeed = 5.0f;
-							view->rotatePerspective(-localX * cameraRotationSpeed, -localY * cameraRotationSpeed, 0.0f);
+							view->rotatePerspective(-localX * cameraRotationSpeed, -localY * cameraRotationSpeed, cameraRoll);
 						}
 						else {
 							view->movePerspective({ -localX * cameraSpeed, localY * cameraSpeed, 0.0f });

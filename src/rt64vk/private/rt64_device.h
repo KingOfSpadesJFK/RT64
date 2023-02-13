@@ -161,6 +161,7 @@ namespace RT64
             std::vector<VkImageView*> depthViews;
 
             bool rtStateDirty = false;
+            bool descPoolDirty = false;
             VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
             nvvk::RaytracingBuilderKHR rtBlasBuilder;
             nvvk::ResourceAllocatorDma rtAllocator;
