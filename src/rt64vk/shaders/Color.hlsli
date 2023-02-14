@@ -10,7 +10,7 @@ float3 HUEtoRGB(in float hue) {
     // Hue [0..1] to RGB [0..1]
     // See http://www.chilliant.com/rgb2hsv.html
     float3 rgb = abs(hue * 6. - float3(3, 2, 4)) * float3(1, -1, -1) + float3(-1, 2, 2);
-    return clamp(rgb, 0., 1.);
+    return rgb;
 }
 
 float3 RGBtoHCV(in float3 rgb) {
@@ -39,7 +39,7 @@ float3 RGBtoHSL(in float3 rgb) {
 }
 
 float3 ModRGBWithHSL(in float3 rgb, in float3 hslMod) {
-    return saturate(HSLtoRGB(RGBtoHSL(rgb) + hslMod));
+    return HSLtoRGB(RGBtoHSL(rgb) + hslMod);
 }
 
 float3 LinearToSrgb(in float3 lin) {
@@ -57,8 +57,6 @@ float4 LinearToSrgb(in float4 lin) {
 float4 SrgbToLinear(in float4 srgb) {
     return float4(SrgbToLinear(srgb.rgb), srgb.a);
 }
-
-
 
 // Taken from https://64.github.io/tonemapping/
 float RGBtoLuminance(float3 rgb) {

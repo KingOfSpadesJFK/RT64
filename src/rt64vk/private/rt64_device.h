@@ -110,7 +110,6 @@ namespace RT64
             void cleanupSwapChain();
             void createSwapChain();
             void createImageViews();
-		    void createRenderPass(VkRenderPass& renderPass, VkFormat imageFormat, VkImageLayout finalLayout);
             void createCommandPool();
             void createCommandBuffers();
             void createFramebuffers();
@@ -333,11 +332,19 @@ namespace RT64
             VkPipeline&         getDebugPipeline();
             VkPipelineLayout&   getDebugPipelineLayout();
             VkDescriptorSet&    getDebugDescriptorSet();
+            VkPipeline&         getIm3dPipeline();
+            VkPipelineLayout&   getIm3dPipelineLayout();
+            VkPipeline&         getIm3dPointsPipeline();
+            VkPipelineLayout&   getIm3dPointsPipelineLayout();
+            VkPipeline&         getIm3dLinesPipeline();
+            VkPipelineLayout&   getIm3dLinesPipelineLayout();
+            VkDescriptorSet&    getIm3dDescriptorSet();
 
             VkCommandBuffer* beginSingleTimeCommands();
             VkCommandBuffer* beginSingleTimeCommands(VkCommandBuffer* commandBuffer);
             void endSingleTimeCommands(VkCommandBuffer* commandBuffer);
 
+		    void createRenderPass(VkRenderPass& renderPass, bool useDepth, VkFormat imageFormat, VkImageLayout finalLayout);
             VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedBuffer* alre);
             VkResult allocateImage(AllocatedImage* alre, VkImageCreateInfo createInfo, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties);
             VkResult allocateImage(uint32_t width, uint32_t height, VkImageType imageType, VkFormat imageFormat, VkImageTiling imageTiling, VkImageLayout initLayout, VkImageUsageFlags imageUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedImage* alre);
@@ -371,7 +378,7 @@ namespace RT64
             uint32_t getFirstAvailableHitDescriptorSetIndex() const;
             uint32_t getFirstAvailableHitShaderID() const;
             uint32_t getFirstAvailableRasterShaderID() const;
-            void createFramebuffer(VkFramebuffer& framebuffer, VkRenderPass& renderPass, VkImageView& imageView, VkExtent2D extent);
+            void createFramebuffer(VkFramebuffer& framebuffer, VkRenderPass& renderPass, VkImageView& imageView, VkImageView* depthView, VkExtent2D extent);
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }

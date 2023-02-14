@@ -44,9 +44,9 @@ void PrimaryRayGen() {
 	gRefraction[launchIndex] = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
 	// Sample the background.
-	float2 screenUV = (float2(launchIndex) + pixelJitter) / float2(launchDims);
-	float3 bgColor = SampleBackground2D(screenUV);
-	float4 skyColor = SampleSky2D(screenUV);
+	// float2 screenUV = (float2(launchIndex) + pixelJitter) / float2(launchDims);
+	float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
+	float4 skyColor = SampleSkyPlane(rayDirection);
 	float3 bgPosition = rayOrigin + rayDirection * RAY_MAX_DISTANCE;
 	float2 prevBgPos = WorldToScreenPos(prevViewProj, bgPosition);
 	float2 curBgPos = WorldToScreenPos(viewProj, bgPosition);

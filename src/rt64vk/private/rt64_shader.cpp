@@ -666,6 +666,7 @@ namespace RT64
 			SS("    if (normalTexIndex >= 0) {");
 			SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
 			SS("        float3 normalColor = gTextures[NonUniformResourceIndex(normalTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).xyz;");
+			SS("        normalColor.y = 1.0f - normalColor.y;");
 			SS("        normalColor = (normalColor * 2.0f) - 1.0f;");
 			SS("        float3 newNormal = normalize(mul(normalColor, tbn));");
 			SS("        vertexNormal = newNormal;");

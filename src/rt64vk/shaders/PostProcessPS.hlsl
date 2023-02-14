@@ -20,7 +20,7 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
             float sumWeight = 0.0f;
             float2 startUV = uv - (flow * motionBlurStrength / 2.0f);
             for (uint s = 0; s < motionBlurSamples; s++) {
-                float2 sampleUV = clamp(startUV + flow * s * SampleStep, float2(0.0f, 0.0f), float2(1.0f, 1.0f));
+                float2 sampleUV = startUV + flow * s * SampleStep;
                 float sampleWeight = 1.0f;
                 float4 outputColor = gOutput.SampleLevel(gSampler, sampleUV, 0);
                 sumColor += outputColor.rgb * sampleWeight;

@@ -33,7 +33,7 @@ namespace RT64
         globalParamsData.randomSeed = 0;
         globalParamsData.diSamples = 1;
         globalParamsData.giSamples = 1;
-        globalParamsData.giBounces = 2;
+        globalParamsData.giBounces = 0;
         globalParamsData.maxLights = 12;
         globalParamsData.motionBlurSamples = 32;
         globalParamsData.tonemapMode = 1;
@@ -114,7 +114,7 @@ namespace RT64
         imageInfo.extent.width = screenWidth;
         imageInfo.extent.height = screenHeight;
         imageInfo.extent.depth = 1;
-        imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         imageInfo.arrayLayers = 1;
         imageInfo.mipLevels = 1;
         imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
@@ -128,8 +128,7 @@ namespace RT64
         imageInfo.extent.width = rtWidth;
         imageInfo.extent.height = rtHeight;
         imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-	    imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        device->allocateImage(&rtOutput[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+	    device->allocateImage(&rtOutput[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtOutput[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtOutputTonemapped, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
@@ -140,7 +139,7 @@ namespace RT64
 
         // Diffuse
         imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-        imageInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         device->allocateImage(&rtDiffuse, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         // Normal
@@ -161,10 +160,16 @@ namespace RT64
         device->allocateImage(&rtReactiveMask, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtLockMask, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
-        // RT Depth buffer
+        // Depth buffers
         imageInfo.format = VK_FORMAT_R32_SFLOAT;
         device->allocateImage(&rtDepth[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtDepth[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        {
+            VkImageCreateInfo depthInfo = imageInfo;
+            depthInfo.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+            depthInfo.format = VK_FORMAT_D32_SFLOAT;
+            device->allocateImage(&rasterDepth, depthInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        }
 
         // And everything else
 	    imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -288,6 +293,7 @@ namespace RT64
         rtLockMask.setAllocationName("rtLockMask");
         rtDepth[0].setAllocationName("rtDepth[0]");
         rtDepth[1].setAllocationName("rtDepth[1]");
+        rasterDepth.setAllocationName("rasterDepth");
         rtHitDistAndFlow.setAllocationName("rtHitDistAndFlow");
         rtHitColor.setAllocationName("rtHitColor");
         rtHitNormal.setAllocationName("rtHitNormal");
@@ -327,6 +333,7 @@ namespace RT64
         rtLockMask.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtDepth[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtDepth[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rasterDepth.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_DEPTH_BIT);
         rtHitDistAndFlow.createBufferView(VK_FORMAT_R32G32B32A32_SFLOAT);
         rtHitColor.createBufferView(VK_FORMAT_R8G8B8A8_UNORM);
         rtHitNormal.createBufferView(VK_FORMAT_R16G16B16A16_SNORM);
@@ -334,26 +341,14 @@ namespace RT64
         rtHitInstanceId.createBufferView(VK_FORMAT_R16_UINT);
         // rtOutputUpscaled.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
 
-        // Create the depth buffer
-        VK_CHECK(device->allocateImage(
-            device->getSwapchainExtent().width, 
-            device->getSwapchainExtent().height, 
-            VK_IMAGE_TYPE_2D, 
-            VK_FORMAT_D32_SFLOAT, 
-            VK_IMAGE_TILING_OPTIMAL, 
-            VK_IMAGE_LAYOUT_UNDEFINED, 
-            VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT, 
-            VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, 
-            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT, 
-            &depthImage));
-        depthImageView = device->createImageView(depthImage.getImage(), VK_FORMAT_D32_SFLOAT, VK_IMAGE_ASPECT_DEPTH_BIT);
-        this->device->addDepthImageView(&depthImageView);
+        // Create the render pass for the raster diffuse framebuffer
+        device->createRenderPass(rasterPass, true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-        // Create the framebuffers for the raytraced output
-        for (int i = 0; i <  2; i++) {
-            device->createFramebuffer(rtOutputFB[i], device->getOffscreenRenderPass(), rtOutput[i].getImageView(), {(unsigned int)rtWidth, (unsigned int)rtHeight});
-        }
-        device->createFramebuffer(rtOutputTonemappedFB, device->getOffscreenRenderPass(), rtOutputTonemapped.getImageView(), {(unsigned int)rtWidth, (unsigned int)rtHeight});
+        // Create the framebuffers needed for rendering
+        device->createFramebuffer(rtOutputFB[0], device->getOffscreenRenderPass(), rtOutput[0].getImageView(), nullptr, {(unsigned int)rtWidth, (unsigned int)rtHeight});
+        device->createFramebuffer(rtOutputFB[1], device->getOffscreenRenderPass(), rtOutput[1].getImageView(), nullptr, {(unsigned int)rtWidth, (unsigned int)rtHeight});
+        device->createFramebuffer(rtOutputTonemappedFB, device->getOffscreenRenderPass(), rtOutputTonemapped.getImageView(), nullptr, {(unsigned int)rtWidth, (unsigned int)rtHeight});
+        device->createFramebuffer(diffuseFB, rasterPass, rtDiffuse.getImageView(), &rasterDepth.getImageView(), {(unsigned int)rtWidth, (unsigned int)rtHeight});
 
         imageBuffersInit = true;
     }
@@ -391,6 +386,7 @@ namespace RT64
         rtLockMask.destroyResource();
         rtDepth[0].destroyResource();
         rtDepth[1].destroyResource();
+        rasterDepth.destroyResource();
         rtHitDistAndFlow.destroyResource();
         rtHitColor.destroyResource();
         rtHitNormal.destroyResource();
@@ -398,15 +394,14 @@ namespace RT64
         rtHitInstanceId.destroyResource();
         rtOutputUpscaled.destroyResource();
 
-        // Destroy the depth buffer
-        depthImage.destroyResource();   
-        device->removeDepthImageView(&depthImageView);
-        vkDestroyImageView(device->getVkDevice(), depthImageView, nullptr);
+        // Destroy the render pass
+        vkDestroyRenderPass(device->getVkDevice(), rasterPass, nullptr);
 
         // Destroy the raytraced framebuffers
         vkDestroyFramebuffer(device->getVkDevice(), rtOutputFB[0], nullptr);
         vkDestroyFramebuffer(device->getVkDevice(), rtOutputFB[1], nullptr);
         vkDestroyFramebuffer(device->getVkDevice(), rtOutputTonemappedFB, nullptr);
+        vkDestroyFramebuffer(device->getVkDevice(), diffuseFB, nullptr);
     }
 
     View::~View() {
@@ -417,6 +412,7 @@ namespace RT64
         activeInstancesBufferMaterials.destroyResource();
         activeInstancesBufferTransforms.destroyResource();
         shaderBindingTable.destroyResource();
+        im3dVertexBuffer.destroyResource();
         vkDestroySampler(device->getVkDevice(), skyPlaneSampler, nullptr);
 
         rtBuilder.destroyTlas();
@@ -496,7 +492,7 @@ namespace RT64
     }
 
     void View::createInstanceTransformsBuffer() {
-        uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size());
+        uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size() + rasterUiInstances.size());
         uint32_t newBufferSize = totalInstances * sizeof(InstanceTransforms);
         if (activeInstancesBufferTransformsSize != newBufferSize) {
             activeInstancesBufferTransforms.destroyResource();
@@ -515,7 +511,7 @@ namespace RT64
         activeInstancesBufferTransforms.mapMemory(reinterpret_cast<void**>(&current));
         // D3D12_CHECK(activeInstancesBufferTransforms.Get()->Map(0, &readRange, reinterpret_cast<void **>(&current)));
 
-        for (const RenderInstance &inst : rtInstances) {
+        auto storeTransforms = [this, &current](const RenderInstance& inst) {
             // Store world transform.
             current->objectToWorld = convertNVMATHtoGLMMatrix(inst.transform);
             current->objectToWorldPrevious = convertNVMATHtoGLMMatrix(inst.transformPrevious);
@@ -531,7 +527,23 @@ namespace RT64
             upper3x3[3][3] = 1.f;
 
             current->objectToWorldNormal = glm::transpose(glm::inverse(upper3x3));
+        };
 
+        // Store the transforms
+        for (const RenderInstance &inst : rtInstances) {
+            storeTransforms(inst);
+            current++;
+        } 
+        for (const RenderInstance &inst : rasterBgInstances) {
+            storeTransforms(inst);
+            current++;
+        } 
+        for (const RenderInstance &inst : rasterFgInstances) {
+            storeTransforms(inst);
+            current++;
+        } 
+        for (const RenderInstance &inst : rasterUiInstances) {
+            storeTransforms(inst);
             current++;
         } 
 
@@ -565,9 +577,14 @@ namespace RT64
         for (const RenderInstance& inst : rasterBgInstances) {
             *current = inst.material;
             current++;
-        }
+        } 
 
         for (const RenderInstance& inst : rasterFgInstances) {
+            *current = inst.material;
+            current++;
+        }
+
+        for (const RenderInstance& inst : rasterUiInstances) {
             *current = inst.material;
             current++;
         }
@@ -653,7 +670,7 @@ namespace RT64
             textureWrite.dstSet = descriptorSet;
             descriptorWrites.push_back(textureWrite);
 
-            // Add the background sampler
+            // Add the background samplers
             VkDescriptorImageInfo samplerInfo { };
             samplerInfo.sampler = skyPlaneSampler;
             VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
@@ -731,13 +748,14 @@ namespace RT64
         }
         usedShaders.clear();
 
-        // for (int i = 0; i < rasterUiInstances.size(); i++) {
-        //     Shader* shader = rasterUiInstances[i].shader;
-        //     if (usedShaders.contains(shader)) { continue; }
-        //     writeRasterDescriptors(shader, shader->getRasterGroup().descriptorSet, descriptorWrites);
-        //     usedShaders.emplace(shader);
-        // }
-        // usedShaders.clear();
+        // UI instances
+        for (int i = 0; i < rasterUiInstances.size(); i++) {
+            Shader* shader = rasterUiInstances[i].shader;
+            if (usedShaders.contains(shader)) { continue; }
+            writeRasterDescriptors(shader, shader->getRasterGroup().descriptorSet, descriptorWrites);
+            usedShaders.emplace(shader);
+        }
+        usedShaders.clear();
 
         // And the RT Instances' descriptor sets
         for (int i = 0; i < rtInstances.size(); i++) {
@@ -934,6 +952,7 @@ namespace RT64
 		    bool updateDescriptors = (totalInstances != (rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size()));
             unsigned int instFlags = 0;
             unsigned int screenHeight = getHeight();
+            unsigned int id = 0;
             rtInstances.clear();
             rasterBgInstances.clear();
             rasterFgInstances.clear();
@@ -942,6 +961,7 @@ namespace RT64
             rtInstances.reserve(totalInstances);
             rasterBgInstances.reserve(totalInstances);
             rasterFgInstances.reserve(totalInstances);
+            rasterUiInstances.reserve(totalInstances);
 
             for (Instance *instance : scene->getInstances()) {
                 instFlags = instance->getFlags();
@@ -960,7 +980,7 @@ namespace RT64
                 renderInstance.material.diffuseTexIndex = getTextureIndex(instance->getDiffuseTexture());
                 renderInstance.material.normalTexIndex = getTextureIndex(instance->getNormalTexture());
                 renderInstance.material.specularTexIndex = getTextureIndex(instance->getSpecularTexture());
-
+                
                 if (!instance->hasScissorRect()) {
                     RT64_RECT rect = instance->getScissorRect();
                     renderInstance.scissorRect.offset.x = rect.x;
@@ -985,7 +1005,7 @@ namespace RT64
                     renderInstance.viewport = {0.0f, 0.0f, 0.0f, 0.0f};
                 }
 
-                if (usedMesh->getBlasAddress() != (VkDeviceAddress)nullptr) {
+                if (rtEnabled && usedMesh->getBlasAddress() != (VkDeviceAddress)nullptr) {
                     rtInstances.push_back(renderInstance);
                 } else if (instFlags & RT64_INSTANCE_RASTER_BACKGROUND) {
                     rasterBgInstances.push_back(renderInstance);
@@ -994,10 +1014,11 @@ namespace RT64
                 } else {
                     rasterFgInstances.push_back(renderInstance);
                 }
+                id++;
             }
 
             // Create the acceleration structures used by the raytracer.
-            if (!rtInstances.empty()) {
+            if (rtEnabled && !rtInstances.empty()) {
                 createTopLevelAS(rtInstances);
             }
 
@@ -1012,7 +1033,9 @@ namespace RT64
             
             // Create the shader binding table and indicating which shaders
             // are invoked for each instance in the AS.
-            createShaderBindingTable();
+            if (rtEnabled) {
+                createShaderBindingTable();
+            }
 
             // Update the instance buffers for the active instances.
             updateInstanceTransformsBuffer();
@@ -1021,6 +1044,7 @@ namespace RT64
             rtInstances.clear();
             rasterBgInstances.clear();
             rasterFgInstances.clear();
+            rasterUiInstances.clear();
         }
 
         RT64_LOG_PRINTF("Finished view update");
@@ -1239,7 +1263,7 @@ namespace RT64
         // TODO: Some less hackish way to determine what viewport to use for the raytraced content perhaps.
         VkRect2D rtScissorRect = scissors;
         VkViewport rtViewport = viewport;
-        if (!rtInstances.empty()) {
+        if (!rtInstances.empty() || !rasterFgInstances.empty()) {
             rtScissorRect = rtInstances[0].scissorRect;
             rtViewport = rtInstances[0].viewport;
             if ((rtScissorRect.offset.x + rtScissorRect.extent.width <= rtScissorRect.offset.x)) {
@@ -1277,17 +1301,27 @@ namespace RT64
         beginInfo.pInheritanceInfo = nullptr; // Optional
         VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
 
-        // Draw the background instances to the screen.
-        RT64_LOG_PRINTF("Drawing background instances");
-        resetScissor();
-        resetViewport();
-        // drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), true);
+        // Create a render pass begin info structure (it's a surprise tool that will help us later)
+        VkRenderPassBeginInfo renderPassInfo{ VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
+        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.extent.width = rtWidth;
+        renderPassInfo.renderArea.extent.height = rtHeight;
+        std::array<VkClearValue, 2> clearValues{};
+        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
+        clearValues[1].depthStencil = {1.0f, 0};
+        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+        renderPassInfo.pClearValues = clearValues.data();
 
         // Draw the background instances to a buffer that can be used by the tracer as an environment map.
+        RT64_LOG_PRINTF("Drawing background instances");
         {
+            resetScissor();
+            resetViewport();
+            // drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), true);
         }
 
         // Now raytrace!
+        if (rtEnabled)
         {
             // Make sure the images are usable
             AllocatedImage* primaryTranslation[] = {
@@ -1488,42 +1522,57 @@ namespace RT64
                         &commandBuffer);
                 }
             }
+
+    	    // Barriers for shading buffers after rays are finished.
+            AllocatedImage* postDispatchBarriers[] = {
+                &rtOutput[rtSwap ? 1 : 0],
+                &rtDiffuse,
+                &rtDirectLightAccum[rtSwap ? 1 : 0],
+                &rtIndirectLightAccum[rtSwap ? 1 : 0],
+                &rtReflection,
+                &rtRefraction,
+                &rtTransparent
+            };
+            device->transitionImageLayout(postDispatchBarriers, sizeof(postDispatchBarriers) / sizeof(AllocatedImage*), 
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+                VK_ACCESS_SHADER_READ_BIT, 
+                VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+                &commandBuffer);
+            device->transitionImageLayout(rtOutputTonemapped, 
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+                VK_ACCESS_SHADER_READ_BIT, 
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+                &commandBuffer);
         }
-        
-	    // Barriers for shading buffers after rays are finished.
-        AllocatedImage* postDispatchBarriers[] = {
-            &rtOutput[rtSwap ? 1 : 0],
-            &rtDiffuse,
-            &rtDirectLightAccum[rtSwap ? 1 : 0],
-            &rtIndirectLightAccum[rtSwap ? 1 : 0],
-            &rtReflection,
-            &rtRefraction,
-            &rtTransparent
-        };
-        device->transitionImageLayout(postDispatchBarriers, sizeof(postDispatchBarriers) / sizeof(AllocatedImage*), 
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-            VK_ACCESS_SHADER_READ_BIT, 
-            VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
-            &commandBuffer);
-        device->transitionImageLayout(rtOutputTonemapped, 
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-            VK_ACCESS_SHADER_READ_BIT, 
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
-            &commandBuffer);
+        else        // Or don't raytrace.
+        {
+            // Make sure the images are usable
+            AllocatedImage* primaryTranslation[] = {
+                &rtDiffuse,
+            };
+            device->transitionImageLayout(primaryTranslation, sizeof(primaryTranslation) / sizeof(AllocatedImage*), 
+                VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, 
+                VK_ACCESS_SHADER_WRITE_BIT, 
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+                &commandBuffer);
+
+            // Begin the render pass for the diffuse image
+            renderPassInfo.renderPass = rasterPass;
+            renderPassInfo.framebuffer = diffuseFB;
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            // Apply the scissor and viewport to the size of the output texture.
+            applyScissor({rtWidth, rtHeight});
+            VkViewport v = {0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f};
+            applyViewport(v);
+	        drawInstances(rasterFgInstances, 0, true);
+
+            vkCmdEndRenderPass(commandBuffer);
+        }
 
         // Begin the offscreen render pass (you can't raytrace with it, so just raytrace before you render pass it up)
-        VkRenderPassBeginInfo renderPassInfo{};
-        renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = offscreenRenderPass;
         renderPassInfo.framebuffer = rtOutputFB[rtSwap ? 1 : 0];
-        renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent.width = rtWidth;
-        renderPassInfo.renderArea.extent.height = rtHeight;
-        std::array<VkClearValue, 2> clearValues{};
-        clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
-        clearValues[1].depthStencil = {1.0f, 0};
-        renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-        renderPassInfo.pClearValues = clearValues.data();
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 		// Apply the scissor and viewport to the size of the output texture.
@@ -1573,12 +1622,12 @@ namespace RT64
             vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         }
 
-        // Draw the raster images
-        // Draw the background instances to the screen.
-        RT64_LOG_PRINTF("Drawing background instances");
+        // Draw the UI images
+        RT64_LOG_PRINTF("Drawing UI instances");
         resetScissor();
         resetViewport();
-	    drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
+	        // drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
+	    drawInstances(rasterUiInstances, rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size(), true);
 
         vkCmdEndRenderPass(commandBuffer);
         
@@ -1624,8 +1673,6 @@ namespace RT64
     }
 
     // Public
-
-    VkImageView& View::getDepthImageView() { return depthImageView; }
 
     void View::setSkyPlaneTexture(Texture *texture) {
         skyPlaneTexture = texture;
@@ -1714,13 +1761,12 @@ namespace RT64
         );
     }
 
+    // Doesn't work correctly
 	void View::renderInspector(Inspector* inspector) {
         if (Im3d::GetDrawListCount() > 0) {
             VkCommandBuffer commandBuffer = device->getCurrentCommandBuffer();
             auto viewport = device->getViewport();
             auto scissors = device->getScissors();
-            vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
-            vkCmdSetScissor(commandBuffer, 0, 1, &scissors);
 
             unsigned int totalVertexCount = 0;
             for (Im3d::U32 i = 0, n = Im3d::GetDrawListCount(); i < n; ++i) {
@@ -1737,51 +1783,119 @@ namespace RT64
                 // Create the vertex buffer if it's empty.
                 const unsigned int vertexBufferSize = totalVertexCount * sizeof(Im3d::VertexData);
                 if (im3dVertexBuffer.isNull()) {
+                    VmaAllocationCreateFlags allocFlags = VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT;
+                    device->allocateBuffer(vertexBufferSize, 
+                        VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                        VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+                        allocFlags, &im3dVertexBuffer);
+                    im3dVertexCount = totalVertexCount;
                 }
+
+                // Copy im3d draw lists to vertex buffer.
+                void* pData;
+                uint8_t* pIm3Ddata = (uint8_t*)im3dVertexBuffer.mapMemory(&pData);
+                for (int i = 0; i < Im3d::GetDrawListCount(); i++) {
+                    auto& drawList = Im3d::GetDrawLists()[i];
+                    size_t copySize = sizeof(Im3d::VertexData) * drawList.m_vertexCount;
+                    memcpy(pIm3Ddata, drawList.m_vertexData, copySize);
+                    pIm3Ddata += copySize;
+                }
+                im3dVertexBuffer.unmapMemory();
+
+                // Begin the render pass
+                VkRenderPassBeginInfo renderPassInfo{};
+                renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+                renderPassInfo.renderPass = device->getRenderPass();
+                renderPassInfo.framebuffer = device->getCurrentSwapchainFramebuffer();
+                renderPassInfo.renderArea.offset = {0, 0};
+                renderPassInfo.renderArea.extent.width = device->getWidth();
+                renderPassInfo.renderArea.extent.height = device->getHeight();
+                std::array<VkClearValue, 2> clearValues{};
+                clearValues[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+                clearValues[1].depthStencil = {1.0f, 0};
+                renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+                renderPassInfo.pClearValues = clearValues.data();
+                vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+                vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
+                vkCmdSetScissor(commandBuffer, 0, 1, &scissors);
+                
+                // Draw the im3d stuff
+                unsigned int vertexOffset = 0;
+                for (int i = 0; i < Im3d::GetDrawListCount(); i++) {
+                    auto &drawList = Im3d::GetDrawLists()[i];
+                    VkDeviceSize offsets[] = {0};
+
+                    vkCmdBindVertexBuffers(commandBuffer, 0, 1, &im3dVertexBuffer.getBuffer(), offsets);
+                    switch (drawList.m_primType) {
+                        case Im3d::DrawPrimitive_Points:
+                            // d3dCommandList->SetPipelineState(scene->getDevice()->getIm3dPipelineStatePoint());
+                            // d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_POINTLIST);
+                            vkCmdSetPrimitiveTopology(commandBuffer, VK_PRIMITIVE_TOPOLOGY_POINT_LIST);
+                            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getIm3dPointsPipeline());
+                            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getIm3dPointsPipelineLayout(), 0, 1, &device->getIm3dDescriptorSet(), 0, nullptr);
+                            break;
+                        case Im3d::DrawPrimitive_Lines:
+                            // d3dCommandList->SetPipelineState(scene->getDevice()->getIm3dPipelineStateLine());
+                            // d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_LINELIST);
+                            vkCmdSetPrimitiveTopology(commandBuffer, VK_PRIMITIVE_TOPOLOGY_LINE_LIST);
+                            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getIm3dLinesPipeline());
+                            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getIm3dLinesPipelineLayout(), 0, 1, &device->getIm3dDescriptorSet(), 0, nullptr);
+                            break;
+                        case Im3d::DrawPrimitive_Triangles:
+                            // d3dCommandList->SetPipelineState(scene->getDevice()->getIm3dPipelineStateTriangle());
+                            // d3dCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+                            vkCmdSetPrimitiveTopology(commandBuffer, VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST);
+                            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getIm3dPipeline());
+                            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getIm3dPipelineLayout(), 0, 1, &device->getIm3dDescriptorSet(), 0, nullptr);
+                            break;
+                        default:
+                            break;
+                    }
+                    vkCmdDraw(commandBuffer, drawList.m_vertexCount, 1, vertexOffset, 0);
+				    vertexOffset += drawList.m_vertexCount;
+                }
+
+                vkCmdEndRenderPass(commandBuffer);
             }
-
-			// Copy im3d draw lists to vertex buffer.
-
-            // Draw the im3d stuff
         }
     }
 
-    void View::setPerspectiveControlActive(bool v) { perspectiveControlActive = v; } 
-    void View::setPerspectiveCanReproject(bool v) { perspectiveCanReproject = v; } 
-    float RT64::View::getFOVRadians() const { return fovRadians; } 
-    float RT64::View::getNearDistance() const { return nearDist; } 
-    float RT64::View::getFarDistance() const { return farDist; } 
-    void RT64::View::setDISamples(int v) { globalParamsData.diSamples = v; }
-    int RT64::View::getDISamples() const { return globalParamsData.diSamples; }
-    void RT64::View::setGISamples(int v) { globalParamsData.giSamples = v; }
-    int RT64::View::getGISamples() const { return globalParamsData.giSamples; }
-    void RT64::View::setGIBounces(int v) { globalParamsData.giBounces = v; }
-    int RT64::View::getGIBounces() const { return globalParamsData.giBounces; } 
-    void RT64::View::setMaxLights(int v) { globalParamsData.maxLights = v; } 
-    int RT64::View::getMaxLights() const { return globalParamsData.maxLights; } 
-    int   View::getTonemappingMode() { return globalParamsData.tonemapMode; }
+    void  View::setPerspectiveControlActive(bool v) { perspectiveControlActive = v; } 
+    void  View::setPerspectiveCanReproject(bool v) { perspectiveCanReproject = v; } 
+    float View::getFOVRadians() const { return fovRadians; } 
+    float View::getNearDistance() const { return nearDist; } 
+    float View::getFarDistance() const { return farDist; } 
+    void  View::setDISamples(int v) { globalParamsData.diSamples = v; }
+    int   View::getDISamples() const { return globalParamsData.diSamples; }
+    void  View::setGISamples(int v) { globalParamsData.giSamples = v; }
+    int   View::getGISamples() const { return globalParamsData.giSamples; }
+    void  View::setGIBounces(int v) { globalParamsData.giBounces = v; }
+    int   View::getGIBounces() const { return globalParamsData.giBounces; } 
+    void  View::setMaxLights(int v) { globalParamsData.maxLights = v; } 
+    int   View::getMaxLights() const { return globalParamsData.maxLights; } 
     void  View::setTonemappingMode(int v) { globalParamsData.tonemapMode = v; }
-    float View::getTonemappingExposure() { return globalParamsData.tonemapExposure; }
+    int   View::getTonemappingMode() { return globalParamsData.tonemapMode; }
     void  View::setTonemappingExposure(float v)  { globalParamsData.tonemapExposure = v; }
-    float View::getTonemappingBlack() { return globalParamsData.tonemapBlack; }
+    float View::getTonemappingExposure() { return globalParamsData.tonemapExposure; }
     void  View::setTonemappingBlack(float v) { globalParamsData.tonemapBlack = v; }
-    float View::getTonemappingWhite() { return globalParamsData.tonemapWhite; }
+    float View::getTonemappingBlack() { return globalParamsData.tonemapBlack; }
     void  View::setTonemappingWhite(float v) { globalParamsData.tonemapWhite = v; }
-    float View::getTonemappingGamma() { return globalParamsData.tonemapGamma; }
+    float View::getTonemappingWhite() { return globalParamsData.tonemapWhite; }
     void  View::setTonemappingGamma(float v) { globalParamsData.tonemapGamma = v; }
-    void RT64::View::setMotionBlurStrength(float v) { globalParamsData.motionBlurStrength = v; } 
-    float RT64::View::getMotionBlurStrength() const { return globalParamsData.motionBlurStrength; } 
-    void RT64::View::setMotionBlurSamples(int v) { globalParamsData.motionBlurSamples = v; } 
-    int RT64::View::getMotionBlurSamples() const { return globalParamsData.motionBlurSamples; }
-    void RT64::View::setVisualizationMode(int v) { globalParamsData.visualizationMode = v; } 
-    int RT64::View::getVisualizationMode() const { return globalParamsData.visualizationMode; } 
-    float RT64::View::getResolutionScale() const { return resolutionScale; } 
-    void RT64::View::setMaxReflections(int v) { maxReflections = v; } 
-    int RT64::View::getMaxReflections() const { return maxReflections; }
-    void RT64::View::setDenoiserEnabled(bool v) { denoiserEnabled = v; }
-    bool RT64::View::getDenoiserEnabled() const { return denoiserEnabled; }
+    float View::getTonemappingGamma() { return globalParamsData.tonemapGamma; }
+    void  View::setMotionBlurStrength(float v) { globalParamsData.motionBlurStrength = v; } 
+    float View::getMotionBlurStrength() const { return globalParamsData.motionBlurStrength; } 
+    void  View::setMotionBlurSamples(int v) { globalParamsData.motionBlurSamples = v; } 
+    int   View::getMotionBlurSamples() const { return globalParamsData.motionBlurSamples; }
+    void  View::setVisualizationMode(int v) { globalParamsData.visualizationMode = v; } 
+    int   View::getVisualizationMode() const { return globalParamsData.visualizationMode; } 
+    float View::getResolutionScale() const { return resolutionScale; } 
+    void  View::setMaxReflections(int v) { maxReflections = v; } 
+    int   View::getMaxReflections() const { return maxReflections; }
+    void  View::setDenoiserEnabled(bool v) { denoiserEnabled = v; }
+    bool  View::getDenoiserEnabled() const { return denoiserEnabled; }
 
-    void RT64::View::setResolutionScale(float v) {
+    void View::setResolutionScale(float v) {
         if (resolutionScale != v) {
             resolutionScale = v;
             recreateRTBuffers = true;
@@ -1809,6 +1923,83 @@ DLEXPORT void RT64_SetViewPerspective(RT64_VIEW* viewPtr, RT64_MATRIX4 viewMatri
 	RT64::View *view = (RT64::View *)(viewPtr);
 	view->setPerspective(viewMatrix, fovRadians, nearDist, farDist);
 	view->setPerspectiveCanReproject(canReproject);
+}
+
+DLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc) {
+	assert(viewPtr != nullptr);
+	RT64::View *view = (RT64::View *)(viewPtr);
+	view->setResolutionScale(viewDesc.resolutionScale);
+	view->setMotionBlurStrength(viewDesc.motionBlurStrength);
+	view->setMaxLights(viewDesc.maxLights);
+	view->setDISamples(viewDesc.diSamples);
+	view->setGISamples(viewDesc.giSamples);
+	view->setGIBounces(viewDesc.giBounces);
+    view->setTonemappingMode(viewDesc.tonemapMode);
+    view->setTonemappingExposure(viewDesc.tonemapExposure);
+    view->setTonemappingBlack(viewDesc.tonemapBlack);
+    view->setTonemappingWhite(viewDesc.tonemapWhite);
+    view->setTonemappingGamma(viewDesc.tonemapGamma);
+	view->setDenoiserEnabled(viewDesc.denoiserEnabled);
+	
+	// switch (viewDesc.upscaler) {
+	// case RT64_UPSCALER_AUTO:
+	// 	// Prefer using DLSS if it's supported on NVIDIA hardware.
+	// 	if (view->getUpscalerInitialized(RT64::UpscaleMode::DLSS)) {
+	// 		view->setUpscaleMode(RT64::UpscaleMode::DLSS);
+	// 	}
+	// 	// Prefer using XeSS if it's reported to be on Intel hardware. Initialization is not enough to check for
+	// 	// this because XeSS can run on non-native platforms.
+	// 	else if (view->getUpscalerInitialized(RT64::UpscaleMode::XeSS) && view->getUpscalerAccelerated(RT64::UpscaleMode::XeSS)) {
+	// 		view->setUpscaleMode(RT64::UpscaleMode::XeSS);
+	// 	}
+	// 	else if (view->getUpscalerInitialized(RT64::UpscaleMode::FSR)) {
+	// 		view->setUpscaleMode(RT64::UpscaleMode::FSR);
+	// 	}
+	// 	else {
+	// 		view->setUpscaleMode(RT64::UpscaleMode::Bilinear);
+	// 	}
+
+	// 	break;
+	// case RT64_UPSCALER_DLSS:
+	// 	view->setUpscaleMode(RT64::UpscaleMode::DLSS);
+	// 	break;
+	// case RT64_UPSCALER_FSR:
+	// 	view->setUpscaleMode(RT64::UpscaleMode::FSR);
+	// 	break;
+	// case RT64_UPSCALER_XESS:
+	// 	view->setUpscaleMode(RT64::UpscaleMode::XeSS);
+	// 	break;
+	// case RT64_UPSCALER_OFF:
+	// default:
+	// 	view->setUpscaleMode(RT64::UpscaleMode::Bilinear);
+	// 	break;
+	// }
+
+	// switch (viewDesc.upscalerMode) {
+	// case RT64_UPSCALER_MODE_AUTO:
+	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Auto);
+	// 	break;
+	// case RT64_UPSCALER_MODE_ULTRA_PERFORMANCE:
+	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::UltraPerformance);
+	// 	break;
+	// case RT64_UPSCALER_MODE_PERFORMANCE:
+	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Performance);
+	// 	break;
+	// case RT64_UPSCALER_MODE_BALANCED:
+	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Balanced);
+	// 	break;
+	// case RT64_UPSCALER_MODE_QUALITY:
+	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Quality);
+	// 	break;
+	// case RT64_UPSCALER_MODE_ULTRA_QUALITY:
+	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::UltraQuality);
+	// 	break;
+	// case RT64_UPSCALER_MODE_NATIVE:
+	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Native);
+	// 	break;
+	// }
+
+	// view->setUpscalerSharpness(viewDesc.upscalerSharpness);
 }
 
 DLEXPORT void RT64_DestroyView(RT64_VIEW* viewPtr) {

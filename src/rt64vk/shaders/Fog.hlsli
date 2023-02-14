@@ -13,7 +13,7 @@ float4 ComputeFogFromCamera(uint instanceId, float3 position) {
 
 	float winv = 1.0f / max(clipPos.w, 0.001f);
 	const float DivisionFactor = 255.0f;
-	fogColor.a = clamp((clipPos.z * winv * fogMul + fogOffset) / DivisionFactor, 0.0f, 1.0f);
+	fogColor.a = (clipPos.z * winv * fogMul + fogOffset) / DivisionFactor;
 	return fogColor;
 }
 
@@ -22,6 +22,6 @@ float4 ComputeFogFromOrigin(uint instanceId, float3 position, float3 origin) {
 	float fogMul = instanceMaterials[instanceId].fogMul;
 	float fogOffset = instanceMaterials[instanceId].fogOffset;
 	float distance = length(position - origin);
-	fogColor.a = clamp(((distance + fogOffset) / fogMul) * 0.5f, 0.0f, 1.0f);
+	fogColor.a = ((distance + fogOffset) / fogMul) * 0.5f;
 	return fogColor;
 }

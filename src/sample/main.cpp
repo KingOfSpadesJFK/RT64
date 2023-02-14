@@ -342,8 +342,10 @@ void setupRT64Scene() {
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
 	// Setup shader.
-	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
+	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RASTER_TRANSFORMS_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
 	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
+	shaderFlags = RT64_SHADER_RASTER_ENABLED;
+	Sample.uiShader = RT64.lib.CreateShader(RT64.device, 0x01200a01, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 
 	// Setup lights.
 	RT64.lights[0].position = { 0.0f, 0.0f, 0.0f };
@@ -369,7 +371,7 @@ void setupRT64Scene() {
 	RT64.textureDif = loadTexturePNG("res/Marble012_1K_Color.png");
 	RT64.textureNrm = loadTexturePNG("res/Marble012_1K_NormalGL.png");
 	RT64.textureSpc = nullptr /* loadTexturePNG("res/grass_spc.png") */;
-	RT64_TEXTURE *textureSky = loadTexturePNG("res/clouds.png");
+	RT64_TEXTURE *textureSky = loadTexturePNG("res/clouds2.png");
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
 	// Make initial transform with a 0.1f scale.
@@ -473,7 +475,7 @@ void setupRT64Scene() {
 	RT64_MESH* altMesh = RT64.lib.CreateMesh(RT64.device, 0);
 	RT64.lib.SetMesh(altMesh, vertices, _countof(vertices), sizeof(VERTEX), indices, _countof(indices));
 
-	RT64_INSTANCE_DESC instDesc;
+	RT64_INSTANCE_DESC instDesc {};
 	instDesc.scissorRect = { 0, 0, 0, 0 };
 	instDesc.viewportRect = { 0, 0, 0, 0 };
 	instDesc.mesh = altMesh;
@@ -483,8 +485,8 @@ void setupRT64Scene() {
 	instDesc.normalTexture = normalTexture;
 	instDesc.specularTexture = specularTexture;
 	instDesc.material = RT64.baseMaterial;
-	instDesc.shader = RT64.shader;
-	instDesc.flags = 0;
+	instDesc.shader = Sample.uiShader;
+	instDesc.flags = RT64_INSTANCE_RASTER_UI;
 
 	// Create HUD B Instance.
 	RT64_INSTANCE *instanceB = RT64.lib.CreateInstance(RT64.scene);
@@ -493,6 +495,8 @@ void setupRT64Scene() {
 	// Create RT Instance.
 	RT64.instance = RT64.lib.CreateInstance(RT64.scene);
 	instDesc.mesh = RT64.mesh;
+	instDesc.shader = RT64.shader;
+	instDesc.flags = 0;
 	instDesc.diffuseTexture = RT64.textureDif;
 	instDesc.normalTexture = RT64.textureNrm;
 	instDesc.specularTexture = RT64.textureSpc;
@@ -552,8 +556,7 @@ void destroyRT64() {
 	RT64_UnloadLibrary(RT64.lib);
 }
 
-/*	Just a test scene to test if this thing works very early on.
-	How I think this whole thing works so far:
+/*	How I think this whole thing works so far:
 		- The library creates a device
 		- Then you create a scene, as well as describe that scene
 		- Then you create meshes, textures, transform matrices, shaders viewport and scissor rectangles and whatnot. 
@@ -812,6 +815,21 @@ int main(int argc, char *argv[]) {
 
 	glfwSetKeyCallback(window, keyCallback);
 	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
+
+	RT64_VIEW_DESC viewDesc {};
+	viewDesc.diSamples = 1;
+	viewDesc.giSamples = 1;
+	viewDesc.giBounces = 2;
+	viewDesc.denoiserEnabled = true;
+	viewDesc.maxLights = 12;
+	viewDesc.motionBlurStrength = 0.0f;
+	viewDesc.tonemapMode = 4;
+	viewDesc.tonemapExposure = 2.5f;
+	viewDesc.tonemapWhite = 1.0f;
+	viewDesc.tonemapBlack = 0.0f;
+	viewDesc.tonemapGamma = 1.25f;
+	viewDesc.resolutionScale = 1.0f;
+	RT64.lib.SetViewDescription(RT64.view, viewDesc);
 
 	// GLFW Window loop.
 	while (!glfwWindowShouldClose(window)) {

@@ -152,7 +152,7 @@ namespace RT64 {
 			}
 
 			// Maps a portion of memory to the allocation
-			// Returns the pointer to the first byte in memory
+			// Returns the pointer to the first byte of the resource in memory
 			virtual void* mapMemory(void** ppData) {
 				assert(resourceInit && !mapped);
 				vmaMapMemory(*allocator, allocation, ppData);

@@ -71,7 +71,7 @@ namespace RT64
         createSwapChain();
         updateViewport();
         createImageViews();
-        createRenderPass(renderPass, swapChainImageFormat, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        createRenderPass(renderPass, false, swapChainImageFormat, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
         createCommandPool();
 
         createCommandBuffers();
@@ -131,7 +131,7 @@ namespace RT64
 
         // Create the off-screen render pass
         RT64_LOG_PRINTF("Creating offscreen render pass");
-        createRenderPass(offscreenRenderPass, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        createRenderPass(offscreenRenderPass, false, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
         std::array<VkDynamicState, 2> dynamicStates = {
             VK_DYNAMIC_STATE_VIEWPORT,
@@ -910,11 +910,11 @@ namespace RT64
         }
     }
 
-    void Device::createFramebuffer(VkFramebuffer& framebuffer, VkRenderPass& renderPass, VkImageView& imageView, VkExtent2D extent) {
+    void Device::createFramebuffer(VkFramebuffer& framebuffer, VkRenderPass& renderPass, VkImageView& imageView, VkImageView* depthView, VkExtent2D extent) {
         std::vector<VkImageView> attachments = { imageView };
-        // for (int j = 0; j < depthViews.size(); j++) {  
-        //     attachments.push_back(*depthViews[j]);
-        // }
+        if (depthView != nullptr) {
+            attachments.push_back(*depthView);
+        }
         VkFramebufferCreateInfo framebufferInfo{ VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
         framebufferInfo.renderPass = renderPass;
         framebufferInfo.attachmentCount = attachments.size();
@@ -925,7 +925,7 @@ namespace RT64
         VK_CHECK(vkCreateFramebuffer(vkDevice, &framebufferInfo, nullptr, &framebuffer));
     }
 
-    void Device::createRenderPass(VkRenderPass& renderPass, VkFormat imageFormat, VkImageLayout finalLayout) {
+    void Device::createRenderPass(VkRenderPass& renderPass, bool useDepth, VkFormat imageFormat, VkImageLayout finalLayout) {
 	    RT64_LOG_PRINTF("Render pass creation started");
         // Describe the render pass
         // TODO: Make this function, like, less hard coded
@@ -960,7 +960,7 @@ namespace RT64
         subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
         subpass.colorAttachmentCount = 1;
         subpass.pColorAttachments = &colorAttachmentRef;
-        subpass.pDepthStencilAttachment = nullptr;
+        subpass.pDepthStencilAttachment = useDepth ? &depthAttachmentRef : nullptr;
 
         VkSubpassDependency dependency{};
         dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
@@ -973,7 +973,7 @@ namespace RT64
         VkAttachmentDescription attachments[] = {colorAttachment, depthAttachment};
         VkRenderPassCreateInfo renderPassInfo{};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-        renderPassInfo.attachmentCount = 1;     // Set it to two when ready
+        renderPassInfo.attachmentCount = useDepth ? 2 : 1;     // Set it to two when ready
         renderPassInfo.pAttachments = attachments;
         renderPassInfo.subpassCount = 1;
         renderPassInfo.pSubpasses = &subpass;
@@ -1645,6 +1645,13 @@ namespace RT64
     uint32_t Device::getRasterShaderCount() const { return rasterShaderCount; }
     VkFence& Device::getCurrentFence() { return inFlightFences[currentFrame]; }
     Inspector& Device::getInspector() { return inspector; }
+    VkPipeline&         Device::getIm3dPipeline() { return im3dPipeline; }
+    VkPipelineLayout&   Device::getIm3dPipelineLayout() { return im3dPipelineLayout; }
+    VkPipeline&         Device::getIm3dPointsPipeline() { return im3dPointsPipeline; }
+    VkPipelineLayout&   Device::getIm3dPointsPipelineLayout() { return im3dPointsPipelineLayout; }
+    VkPipeline&         Device::getIm3dLinesPipeline() { return im3dLinesPipeline; }
+    VkPipelineLayout&   Device::getIm3dLinesPipelineLayout() { return im3dLinesPipelineLayout; }
+    VkDescriptorSet&    Device::getIm3dDescriptorSet() { return im3dDescriptorSet; }
 
     // Shader getters
     VkPipelineShaderStageCreateInfo Device::getPrimaryShaderStage() const { return primaryRayGenStage; }

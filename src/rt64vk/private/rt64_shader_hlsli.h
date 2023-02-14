@@ -14,6 +14,10 @@ const char InstancesHLSLI[] =
 #include "../shaders/Instances.hlsli"
 ;
 
+const char RasterInstancesHLSLI[] =
+#include "../shaders/InstancesRaster.hlsli"
+;
+
 const char MaterialsHLSLI[] =
 #include "../shaders/Materials.hlsli"
 ;

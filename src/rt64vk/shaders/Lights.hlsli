@@ -101,7 +101,7 @@ float3 ComputeLight(uint2 launchIndex, uint lightIndex, float3 rayDirection, uin
 			sampleShadowFactor = TraceShadow(position, sampleDirection, RAY_MIN_DISTANCE + shadowRayBias, (sampleDistance - shadowOffset));
 		}
 
-		float3 sampleSpecularityFactor = specular * pow(max(saturate(dot(reflectedLight, -rayDirection) * sampleIntensityFactor), 0.0f), specularExponent);
+		float3 sampleSpecularityFactor = specular * pow(max(dot(reflectedLight, -rayDirection) * sampleIntensityFactor, 0.0f), specularExponent);
 		lLambertFactor += sampleLambertFactor / maxSamples;
 		lSpecularityFactor += sampleSpecularityFactor / maxSamples;
 		lShadowFactor += sampleShadowFactor / maxSamples;

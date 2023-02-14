@@ -109,8 +109,6 @@ namespace RT64
             VkDeviceSize activeInstancesBufferTransformsSize = 0;
             AllocatedBuffer activeInstancesBufferMaterials;
             VkDeviceSize activeInstancesBufferMaterialsSize = 0;
-            AllocatedImage depthImage;
-            VkImageView depthImageView;
             Texture* skyPlaneTexture = nullptr;
             VkSampler skyPlaneSampler;
             std::vector<RenderInstance> rasterBgInstances;
@@ -118,6 +116,7 @@ namespace RT64
             std::vector<RenderInstance> rasterUiInstances;
             std::vector<RenderInstance> rtInstances;
 		    std::vector<Texture*> usedTextures;
+            VkRenderPass rasterPass;
             bool scissorApplied = false;
             bool viewportApplied = false;
             int rtWidth;
@@ -146,9 +145,7 @@ namespace RT64
             // The images
             AllocatedImage  rasterBg;
             AllocatedImage  rtOutput[2];
-            VkFramebuffer   rtOutputFB[2];
             AllocatedImage  rtOutputTonemapped;
-            VkFramebuffer   rtOutputTonemappedFB;
             AllocatedImage  rtViewDirection;
             AllocatedImage  rtShadingPosition;
             AllocatedImage  rtShadingPositionSecondary;
@@ -171,16 +168,21 @@ namespace RT64
             AllocatedImage  rtLockMask;
             AllocatedImage  rtNormal[2];
             AllocatedImage  rtDepth[2];
+            AllocatedImage  rasterDepth;
             AllocatedBuffer rtHitDistAndFlow;
             AllocatedBuffer rtHitColor;
             AllocatedBuffer rtHitNormal;
             AllocatedBuffer rtHitSpecular;
             AllocatedBuffer rtHitInstanceId;
             AllocatedImage  rtOutputUpscaled;
+            // Framebuffers
+            VkFramebuffer   rtOutputFB[2];
+            VkFramebuffer   rtOutputTonemappedFB;
+            VkFramebuffer   diffuseFB;
 
             // Im3d
-		    AllocatedResource im3dVertexBuffer;
-		    unsigned int im3dVertexCount;
+		    AllocatedBuffer im3dVertexBuffer;
+		    unsigned int im3dVertexCount = 0;
 
             void createOutputBuffers();
             void destroyOutputBuffers();
