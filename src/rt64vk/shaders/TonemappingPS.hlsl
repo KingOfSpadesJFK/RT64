@@ -57,7 +57,7 @@ float3 Reinhard(float3 color, float xp)
 
 float3 ChangeLuma(float3 color, float lumaOut)
 {
-    float lumaIn = RGBtoLuminance(color);
+    float lumaIn = RGBtoLuminance(color) + EPSILON;
     return color * (lumaOut / lumaIn);
 }
 
@@ -102,11 +102,11 @@ float3 RRTAndODTFit(float3 v)
 
 float3 ACESFitted(float3 color)
 {
-    color = mul(ACESInputMat, color);
+    color = max(mul(ACESInputMat, color), 0.0f);
 
     // Apply RRT and ODT
     color = RRTAndODTFit(color);
-    color = mul(ACESOutputMat, color);
+    color = max(mul(ACESOutputMat, color), 0.0f);
     
     return color;
 }
@@ -137,7 +137,7 @@ SamplerState gSampler : register(s0);
 
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
     uv.y = 1.0f - uv.y;
-    float4 color = gOutput.SampleLevel(gSampler, uv, 0);
+    float4 color = max(gOutput.SampleLevel(gSampler, uv, 0), 0.0f);
     color.rgb = Tonemapper(max(color.rgb, 0.0f), tonemapExposure);
     
     // Post-tonemapping
