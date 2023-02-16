@@ -1974,6 +1974,17 @@ namespace RT64
 
     }
 
+    // Creates a global memory barrier
+    //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
+    //  Otherwise, it would create a new command buffer just for this
+    void Device::memoryBarrier(VkAccessFlags oldMask, VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer) {
+        VkMemoryBarrier barrier { VK_STRUCTURE_TYPE_MEMORY_BARRIER };
+        barrier.srcAccessMask = oldMask;
+        barrier.dstAccessMask = newMask;
+        vkCmdPipelineBarrier(*commandBuffer, oldStage, newStage, 0,1, &barrier, 0, nullptr, 0, nullptr);
+    }
+
+
     // Creates a memory barrior for the allocated buffer. Gives it new access flags and pipeline stage
     //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
     //  Otherwise, it would create a new command buffer just for this

@@ -351,6 +351,7 @@ namespace RT64
             void copyBuffer(VkBuffer src, VkBuffer dest, VkDeviceSize size, VkCommandBuffer* commandBuffer);
             void copyImage(AllocatedImage& src, AllocatedImage& dest, VkExtent3D dimensions, VkImageAspectFlags srcFlags, VkImageAspectFlags destFlags, VkCommandBuffer* commandBuffer);
             void matchLayoutToAccessMask(VkImageLayout inLayout, VkAccessFlags& outMask);
+            void memoryBarrier(VkAccessFlags oldMask, VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer);
             void bufferMemoryBarrier(AllocatedBuffer& buffer, VkAccessFlags newMask, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer);
             void transitionImageLayout(AllocatedImage& image, VkImageLayout newLayout, VkAccessFlags newMask, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer);
             void transitionImageLayout(AllocatedImage** images, uint32_t imageCount, VkImageLayout newLayout, VkAccessFlags newMask, VkPipelineStageFlags oldStage, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer);
