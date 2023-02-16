@@ -345,7 +345,7 @@ namespace RT64
             pipelineInfo.stageCount = colorStages.size();
             pipelineInfo.pStages = colorStages.data();
             pipelineInfo.layout = tonemappingPipelineLayout;
-            pipelineInfo.renderPass = renderPass;
+            pipelineInfo.renderPass = offscreenRenderPass;
             VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &tonemappingPipeline));
         }
 
@@ -672,9 +672,6 @@ namespace RT64
         allocateDescriptorSet(debugDescriptorSetLayout, debugDescriptorSet);
         allocateDescriptorSet(im3dDescriptorSetLayout, im3dDescriptorSet);
         
-        // Push the main RT descriptor set layout into the layouts vector
-        rtDescriptorSetLayouts.clear();
-        rtDescriptorSetLayouts.push_back(raygenDescriptorSetLayout);
         for (Shader* s : shaders) {
             if (s == nullptr) { continue; }
             if (s->hasRasterGroup()) {
@@ -1808,7 +1805,7 @@ namespace RT64
             if (shaders[i] == nullptr) {
                 break;
             } else {
-                if (shaders[i]->getRTDescriptorSet() != nullptr) {
+                if (shaders[i]->hasHitGroups()) {
                     index++;
                 } else {
                     break;

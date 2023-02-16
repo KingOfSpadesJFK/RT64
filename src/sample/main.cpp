@@ -95,7 +95,7 @@ struct {
 	float daylightCycleSpeed = 1.0f / 32.0f;
 	float daylightTime = 0.5f;
 	float deltaTime = 0.0f;
-	float sceneScale = 1.0f;
+	float sceneScale = 10.0f;
 	float runtime = 0.0f;
 	RT64_SHADER* uiShader = nullptr;
 } Sample;
@@ -375,7 +375,7 @@ void setupRT64Scene() {
 	RT64.lib.SetViewSkyPlane(RT64.view, textureSky);
 
 	// Make initial transform with a 0.1f scale.
-	float scale = 0.01f;
+	float scale = 1.0f;
 	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
 	RT64.transform.m[0][0] = scale;
 	RT64.transform.m[1][1] = scale;

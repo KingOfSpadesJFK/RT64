@@ -1397,7 +1397,7 @@ namespace RT64
                 device->transitionImageLayout(secondaryShadingBarriers, sizeof(secondaryShadingBarriers) / sizeof(AllocatedImage*), 
                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     VK_ACCESS_TRANSFER_READ_BIT,
-                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_TRANSFER_BIT,
                     &commandBuffer);
                 device->copyImage(rtShadingPosition, rtShadingPositionSecondary, rtShadingPosition.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
                 device->copyImage(rtShadingNormal,   rtShadingNormalSecondary, rtShadingNormal.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
