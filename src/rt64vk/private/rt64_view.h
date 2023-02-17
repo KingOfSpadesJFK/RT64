@@ -105,12 +105,15 @@ namespace RT64
             AllocatedBuffer globalParamsBuffer;
             GlobalParams globalParamsData;
             VkDeviceSize globalParamsSize = 0;
+            AllocatedBuffer filterParamsBuffer;
+            VkDeviceSize filterParamsSize = 0;
             AllocatedBuffer activeInstancesBufferTransforms;
             VkDeviceSize activeInstancesBufferTransformsSize = 0;
             AllocatedBuffer activeInstancesBufferMaterials;
             VkDeviceSize activeInstancesBufferMaterialsSize = 0;
             Texture* skyPlaneTexture = nullptr;
             VkSampler skyPlaneSampler;
+            VkDescriptorSet indirectFilterDescriptorSets[2] {};
             std::vector<RenderInstance> rasterBgInstances;
             std::vector<RenderInstance> rasterFgInstances;
             std::vector<RenderInstance> rasterUiInstances;
@@ -197,6 +200,8 @@ namespace RT64
             void updateInstanceTransformsBuffer();
             void createInstanceMaterialsBuffer();
             void updateInstanceMaterialsBuffer();
+            void createFilterParamsBuffer();
+            void updateFilterParamsBuffer();
             
         public:
             View(Scene *scene);
@@ -216,6 +221,7 @@ namespace RT64
             RT64_VECTOR3 getRayDirectionAt(int px, int py);
 		    void renderInspector(Inspector* inspector);
             void setSkyPlaneTexture(Texture* texture);
+            void allocateDescriptorSets();
             // Getters
             int getWidth() const;
             int getHeight() const;

@@ -38,6 +38,9 @@
 #include "shaders/DebugPS.hlsl.h"
 #include "shaders/Im3DPS.hlsl.h"
 
+// Compute shaders
+#include "shaders/GaussianFilterRGB3x3CS.hlsl.h"
+
 // Geometry shaders
 #include "shaders/Im3DGSLines.hlsl.h"
 #include "shaders/Im3DGSPoints.hlsl.h"
@@ -208,7 +211,7 @@ namespace RT64
             VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &emptyDescriptorSetLayout));
         }
 
-        RT64_LOG_PRINTF("Creating a generic image sampler for the fragment shaders");
+        RT64_LOG_PRINTF("Creating a generic image sampler for the fragment/compute shaders");
         {
             VkSamplerCreateInfo samplerInfo { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
             samplerInfo.magFilter = VK_FILTER_LINEAR;
@@ -229,6 +232,7 @@ namespace RT64
             vkCreateSampler(vkDevice, &samplerInfo, nullptr, &composeSampler);
             vkCreateSampler(vkDevice, &samplerInfo, nullptr, &tonemappingSampler);
             vkCreateSampler(vkDevice, &samplerInfo, nullptr, &postProcessSampler);
+            vkCreateSampler(vkDevice, &samplerInfo, nullptr, &gaussianSampler);
         }
 
         RT64_LOG_PRINTF("Creating the raygen/miss modules and descriptor set layout"); 
@@ -401,6 +405,41 @@ namespace RT64
             VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &debugPipeline));
         }
 
+        RT64_LOG_PRINTF("Creating the Gaussian blur descriptor set");
+        {
+		    VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
+            VkShaderStageFlags stages = VK_SHADER_STAGE_COMPUTE_BIT;
+            std::vector<VkDescriptorSetLayoutBinding> bindings {
+                {0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 1, stages, nullptr},
+                {0 + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, stages, nullptr},
+                {0 + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, stages, nullptr},
+                {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, stages, nullptr}
+            };
+            generateDescriptorSetLayout(bindings, flags, gaussianFilterRGB3x3DescriptorSetLayout);
+        }
+
+        RT64_LOG_PRINTF("Creating the Gaussian blur pipeline");
+        {
+            createShaderModule(GaussianFilterRGB3x3CS_SPIRV, sizeof(GaussianFilterRGB3x3CS_SPIRV), CS_ENTRY, VK_SHADER_STAGE_COMPUTE_BIT, gaussianFilterRGB3x3CSStage, gaussianFilterRGB3x3CSModule, nullptr);
+
+            // Bind the vertex inputs
+            VkPipelineVertexInputStateCreateInfo vertexInputInfo{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+            vertexInputInfo.vertexBindingDescriptionCount = 0;
+            vertexInputInfo.vertexAttributeDescriptionCount = 0;
+
+		    // Create the pipeline layout
+            VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+            pipelineLayoutInfo.setLayoutCount = 1;
+            pipelineLayoutInfo.pSetLayouts = &gaussianFilterRGB3x3DescriptorSetLayout;
+            VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &gaussianFilterRGB3x3PipelineLayout));
+
+            // Create the pipeline
+            VkComputePipelineCreateInfo computePipelineInfo = { VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO };
+            computePipelineInfo.stage = gaussianFilterRGB3x3CSStage;
+            computePipelineInfo.layout = gaussianFilterRGB3x3PipelineLayout;
+            VK_CHECK(vkCreateComputePipelines(vkDevice, VK_NULL_HANDLE, 1, &computePipelineInfo, nullptr, &gaussianFilterRGB3x3Pipeline));
+        }
+
         RT64_LOG_PRINTF("Creating the Im3d descriptor set");
         {
 		    VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
@@ -434,14 +473,34 @@ namespace RT64
 	    	attributes.push_back({1, 0, VK_FORMAT_R8G8B8A8_UNORM, sizeof(float)});
 
             // Bind the vertex inputs
-            VkPipelineVertexInputStateCreateInfo vertexInputInfo{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
-            vertexInputInfo.vertexBindingDescriptionCount = 1;
-            vertexInputInfo.pVertexBindingDescriptions = &vertexBind;
-            vertexInputInfo.vertexAttributeDescriptionCount = attributes.size();
-            vertexInputInfo.pVertexAttributeDescriptions = attributes.data();
+            VkPipelineVertexInputStateCreateInfo im3dVertexInputInfo{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
+            im3dVertexInputInfo.vertexBindingDescriptionCount = 1;
+            im3dVertexInputInfo.pVertexBindingDescriptions = &vertexBind;
+            im3dVertexInputInfo.vertexAttributeDescriptionCount = attributes.size();
+            im3dVertexInputInfo.pVertexAttributeDescriptions = attributes.data();
+
+            VkPipelineColorBlendAttachmentState im3dColorBlendAttachment{};
+            im3dColorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+            im3dColorBlendAttachment.blendEnable = VK_TRUE;
+            im3dColorBlendAttachment.colorBlendOp = VK_BLEND_OP_OVERLAY_EXT;
+            im3dColorBlendAttachment.alphaBlendOp = VK_BLEND_OP_MAX;
+            im3dColorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
+            im3dColorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;
+            im3dColorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+            im3dColorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
+
+            VkPipelineColorBlendStateCreateInfo im3dColorBlending{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
+            colorBlending.logicOpEnable = VK_TRUE;
+            colorBlending.logicOp = VK_LOGIC_OP_COPY;
+            colorBlending.attachmentCount = 1;
+            colorBlending.pAttachments = &im3dColorBlendAttachment;
+            colorBlending.blendConstants[0] = 0.0f;
+            colorBlending.blendConstants[1] = 0.0f;
+            colorBlending.blendConstants[2] = 0.0f;
+            colorBlending.blendConstants[3] = 0.0f;
 
             // Just a function for pipeline (layout) creation
-            auto createPipeline = [this, &im3dStages, &vertexInputInfo]
+            auto createPipeline = [this, &im3dStages, &im3dVertexInputInfo, im3dColorBlending]
             (VkGraphicsPipelineCreateInfo pipelineInfo, VkDescriptorSetLayout& descLayout, VkPipelineLayout& pipelineLayout, VkPipeline& pipeline) {
                 // Create the pipeline layout
                 VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
@@ -450,12 +509,12 @@ namespace RT64
                 VK_CHECK(vkCreatePipelineLayout(vkDevice, &pipelineLayoutInfo, nullptr, &pipelineLayout));
 
                 // Create the pipeline
-                pipelineInfo.pVertexInputState = &vertexInputInfo;
+                pipelineInfo.pVertexInputState = &im3dVertexInputInfo;
+                // pipelineInfo.pColorBlendState = &im3dColorBlending;
                 pipelineInfo.stageCount = im3dStages.size();
                 pipelineInfo.pStages = im3dStages.data();
                 pipelineInfo.layout = pipelineLayout;
                 VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &pipeline));
-                
             };
 
             createPipeline(pipelineInfo, im3dDescriptorSetLayout, im3dPipelineLayout, im3dPipeline);
@@ -658,10 +717,12 @@ namespace RT64
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         poolInfo.poolSizeCount = descriptorPoolBindings.size();
         poolInfo.pPoolSizes = descriptorPoolBindings.data();
-		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         // Change the constant if you add more descriptor sets
         //  Just bellow the RT64_LOG_PRINTF(), count the lines of allocateDescriptorSet() calls
-        poolInfo.maxSets = shaders.size() * 3 + 6;      
+        #define DESCRIPTOR_SETS_IN_DEVICE   6
+        #define DESCRIPTOR_SETS_IN_VIEW     2
+        poolInfo.maxSets = (shaders.size() * 3) + (scenes.size() * DESCRIPTOR_SETS_IN_VIEW ) + DESCRIPTOR_SETS_IN_DEVICE;      
 		VK_CHECK(vkCreateDescriptorPool(vkDevice, &poolInfo, nullptr, &descriptorPool));
 
 	    RT64_LOG_PRINTF("Allocating the descriptor sets to the pool...");
@@ -672,6 +733,14 @@ namespace RT64
         allocateDescriptorSet(debugDescriptorSetLayout, debugDescriptorSet);
         allocateDescriptorSet(im3dDescriptorSetLayout, im3dDescriptorSet);
         
+        for (Scene* s : scenes) {
+            if (s != nullptr) {
+                for (View* v : s->getViews()) {
+                    v->allocateDescriptorSets();
+                }
+            }
+        }
+
         for (Shader* s : shaders) {
             if (s == nullptr) { continue; }
             if (s->hasRasterGroup()) {
@@ -1531,6 +1600,7 @@ namespace RT64
         vkDestroyShaderModule(vkDevice, surfaceMissModule, nullptr);
         vkDestroyShaderModule(vkDevice, shadowMissModule, nullptr);
         vkDestroyShaderModule(vkDevice, fullscreenVSModule, nullptr);
+        vkDestroyShaderModule(vkDevice, gaussianFilterRGB3x3CSModule, nullptr);
         vkDestroyShaderModule(vkDevice, composePSModule, nullptr);
         vkDestroyShaderModule(vkDevice, tonemappingPSModule, nullptr);
         vkDestroyShaderModule(vkDevice, postProcessPSModule, nullptr);
@@ -1539,6 +1609,7 @@ namespace RT64
         vkDestroyShaderModule(vkDevice, im3dPSModule, nullptr);
         vkDestroyShaderModule(vkDevice, im3dGSPointsModule, nullptr);
         vkDestroyShaderModule(vkDevice, im3dGSLinesModule, nullptr);
+        vkDestroySampler(vkDevice, gaussianSampler, nullptr);
         vkDestroySampler(vkDevice, composeSampler, nullptr);
         vkDestroySampler(vkDevice, postProcessSampler, nullptr);
         vkDestroySampler(vkDevice, tonemappingSampler, nullptr);
@@ -1574,6 +1645,10 @@ namespace RT64
         vkDestroyPipelineLayout(vkDevice, im3dLinesPipelineLayout, nullptr);
         vkDestroyPipelineLayout(vkDevice, im3dPointsPipelineLayout, nullptr);
         vkDestroyDescriptorSetLayout(vkDevice, im3dDescriptorSetLayout, nullptr);
+        // Destroy gaussian blur pipeline and descriptor set
+        vkDestroyPipeline(vkDevice, gaussianFilterRGB3x3Pipeline, nullptr);
+        vkDestroyPipelineLayout(vkDevice, gaussianFilterRGB3x3PipelineLayout, nullptr);
+        vkDestroyDescriptorSetLayout(vkDevice, gaussianFilterRGB3x3DescriptorSetLayout, nullptr);
 #endif
         if (enableValidationLayers) {
             DestroyDebugUtilsMessengerEXT(vkInstance, debugMessenger, nullptr);
@@ -1614,41 +1689,46 @@ namespace RT64
 	int Device::getCurrentFrameIndex() { return currentFrame; }
 
 	VkCommandBuffer& Device::getCurrentCommandBuffer() { return commandBuffers[currentFrame]; }
+    VkDescriptorPool& Device::getDescriptorPool() { return descriptorPool; }
     VkFramebuffer& Device::getCurrentSwapchainFramebuffer() { return swapChainFramebuffers[framebufferIndex]; };
     IDxcCompiler* Device::getDxcCompiler() { return d3dDxcCompiler; }
     IDxcLibrary* Device::getDxcLibrary() { return d3dDxcLibrary; }
     VkPipeline& Device::getRTPipeline() { return rtPipeline; }
-    VkPipelineLayout& Device::getRTPipelineLayout() { return rtPipelineLayout; }
-    VkDescriptorSet& Device::getRayGenDescriptorSet() { return raygenDescriptorSet; }
+    VkPipelineLayout&   Device::getRTPipelineLayout() { return rtPipelineLayout; }
+    VkDescriptorSet&    Device::getRayGenDescriptorSet() { return raygenDescriptorSet; }
     std::vector<VkDescriptorSet>& Device::getRTDescriptorSets() { return rtDescriptorSets; }
-    VkPipeline& Device::getComposePipeline() { return composePipeline; }
-    VkPipelineLayout& Device::getComposePipelineLayout() { return composePipelineLayout; }
-    VkDescriptorSet& Device::getComposeDescriptorSet() { return composeDescriptorSet; }
-    VkSampler& Device::getComposeSampler() { return composeSampler; }
-    VkPipeline& Device::getTonemappingPipeline() { return tonemappingPipeline; }
-    VkPipelineLayout& Device::getTonemappingPipelineLayout() { return tonemappingPipelineLayout; }
-    VkDescriptorSet& Device::getTonemappingDescriptorSet() { return tonemappingDescriptorSet; }
-    VkSampler& Device::getTonemappingSampler() { return tonemappingSampler; }
-    VkPipeline& Device::getPostProcessPipeline() { return postProcessPipeline; }
-    VkPipelineLayout& Device::getPostProcessPipelineLayout() { return postProcessPipelineLayout; }
-    VkDescriptorSet& Device::getPostProcessDescriptorSet() { return postProcessDescriptorSet; }
-    VkSampler& Device::getPostProcessSampler() { return postProcessSampler; }
-    VkPipeline& Device::getDebugPipeline() { return debugPipeline; }
-    VkPipelineLayout& Device::getDebugPipelineLayout() { return debugPipelineLayout; }
-    VkDescriptorSet& Device::getDebugDescriptorSet() { return debugDescriptorSet; }
+    VkPipeline&             Device::getComposePipeline()                            { return composePipeline; }
+    VkPipelineLayout&       Device::getComposePipelineLayout()                      { return composePipelineLayout; }
+    VkDescriptorSet&        Device::getComposeDescriptorSet()                       { return composeDescriptorSet; }
+    VkSampler&              Device::getComposeSampler()                             { return composeSampler; }
+    VkPipeline&             Device::getTonemappingPipeline()                        { return tonemappingPipeline; }
+    VkPipelineLayout&       Device::getTonemappingPipelineLayout()                  { return tonemappingPipelineLayout; }
+    VkDescriptorSet&        Device::getTonemappingDescriptorSet()                   { return tonemappingDescriptorSet; }
+    VkSampler&              Device::getTonemappingSampler()                         { return tonemappingSampler; }
+    VkPipeline&             Device::getPostProcessPipeline()                        { return postProcessPipeline; }
+    VkPipelineLayout&       Device::getPostProcessPipelineLayout()                  { return postProcessPipelineLayout; }
+    VkDescriptorSet&        Device::getPostProcessDescriptorSet()                   { return postProcessDescriptorSet; }
+    VkSampler&              Device::getPostProcessSampler()                         { return postProcessSampler; }
+    VkPipeline&             Device::getDebugPipeline()                              { return debugPipeline; }
+    VkPipelineLayout&       Device::getDebugPipelineLayout()                        { return debugPipelineLayout; }
+    VkDescriptorSet&        Device::getDebugDescriptorSet()                         { return debugDescriptorSet; }
+    VkPipeline&             Device::getIm3dPipeline()                               { return im3dPipeline; }
+    VkPipelineLayout&       Device::getIm3dPipelineLayout()                         { return im3dPipelineLayout; }
+    VkPipeline&             Device::getIm3dPointsPipeline()                         { return im3dPointsPipeline; }
+    VkPipelineLayout&       Device::getIm3dPointsPipelineLayout()                   { return im3dPointsPipelineLayout; }
+    VkPipeline&             Device::getIm3dLinesPipeline()                          { return im3dLinesPipeline; }
+    VkPipelineLayout&       Device::getIm3dLinesPipelineLayout()                    { return im3dLinesPipelineLayout; }
+    VkDescriptorSet&        Device::getIm3dDescriptorSet()                          { return im3dDescriptorSet; }
+    VkPipeline&             Device::getGaussianFilterRGB3x3Pipeline()               { return gaussianFilterRGB3x3Pipeline; }
+    VkPipelineLayout&       Device::getGaussianFilterRGB3x3PipelineLayout()         { return gaussianFilterRGB3x3PipelineLayout; }
+    VkDescriptorSetLayout&  Device::getGaussianFilterRGB3x3DescriptorSetLayout()    { return gaussianFilterRGB3x3DescriptorSetLayout; }
+    VkSampler&          Device::getGaussianSampler()                    { return gaussianSampler; }
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR Device::getRTProperties() const { return rtProperties; }
     Texture* Device::getBlueNoise() const { return blueNoise; }
     uint32_t Device::getHitShaderCount() const { return hitShaderCount; }
     uint32_t Device::getRasterShaderCount() const { return rasterShaderCount; }
     VkFence& Device::getCurrentFence() { return inFlightFences[currentFrame]; }
     Inspector& Device::getInspector() { return inspector; }
-    VkPipeline&         Device::getIm3dPipeline() { return im3dPipeline; }
-    VkPipelineLayout&   Device::getIm3dPipelineLayout() { return im3dPipelineLayout; }
-    VkPipeline&         Device::getIm3dPointsPipeline() { return im3dPointsPipeline; }
-    VkPipelineLayout&   Device::getIm3dPointsPipelineLayout() { return im3dPointsPipelineLayout; }
-    VkPipeline&         Device::getIm3dLinesPipeline() { return im3dLinesPipeline; }
-    VkPipelineLayout&   Device::getIm3dLinesPipelineLayout() { return im3dLinesPipelineLayout; }
-    VkDescriptorSet&    Device::getIm3dDescriptorSet() { return im3dDescriptorSet; }
 
     // Shader getters
     VkPipelineShaderStageCreateInfo Device::getPrimaryShaderStage() const { return primaryRayGenStage; }
@@ -1687,13 +1767,13 @@ namespace RT64
         meshes.erase(std::remove(meshes.begin(), meshes.end(), mesh), meshes.end());
     }
 
-    // Adds a mesh to the device
+    // Adds a texture to the device
     void Device::addTexture(Texture* texture) {
         assert(texture != nullptr);
         textures.push_back(texture);
     }
     
-    // Removes a mesh from the device
+    // Removes a texture from the device
     void Device::removeTexture(Texture* texture) {
         assert(texture != nullptr);
         textures.erase(std::remove(textures.begin(), textures.end(), texture), textures.end());
@@ -1824,6 +1904,10 @@ namespace RT64
         assert(depthImageView != nullptr);
         depthViews.erase(std::remove(depthViews.begin(), depthViews.end(), depthImageView), depthViews.end());
     }
+
+    // Sets the descPoolDirty state to true.
+    // Call this anytime you have a new descriptor set
+    void Device::dirtyDescriptorPool() { descPoolDirty = true; }
 
     // Creates an allocated buffer. You must pass in a pointer to an AllocatedResource. Once the function does its thing, the pointer will point to the newly created AllocatedBuffer with the buffer
     VkResult Device::allocateBuffer(

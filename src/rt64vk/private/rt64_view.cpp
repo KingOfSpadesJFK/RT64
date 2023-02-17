@@ -84,8 +84,10 @@ namespace RT64
 
         createOutputBuffers();
         createGlobalParamsBuffer();
+	    createFilterParamsBuffer();
 
 	    scene->addView(this);
+        device->dirtyDescriptorPool();
     }
 
     void View::createOutputBuffers() {
@@ -173,6 +175,7 @@ namespace RT64
 
         // And everything else
 	    imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        imageInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
         device->allocateImage(&rtViewDirection, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtShadingSpecular, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtDirectLightAccum[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
@@ -220,7 +223,9 @@ namespace RT64
             &rtOutputTonemapped,
             &rtViewDirection,
             &rtShadingPosition,
+            &rtShadingPositionSecondary,
             &rtShadingNormal,
+            &rtShadingNormalSecondary,
             &rtShadingSpecular,
             &rtDiffuse,
             &rtInstanceId,
@@ -409,11 +414,13 @@ namespace RT64
 
         destroyOutputBuffers();
         globalParamsBuffer.destroyResource();
+        filterParamsBuffer.destroyResource();
         activeInstancesBufferMaterials.destroyResource();
         activeInstancesBufferTransforms.destroyResource();
         shaderBindingTable.destroyResource();
         im3dVertexBuffer.destroyResource();
         vkDestroySampler(device->getVkDevice(), skyPlaneSampler, nullptr);
+        vkFreeDescriptorSets(device->getVkDevice(), device->getDescriptorPool(), 2, indirectFilterDescriptorSets);
 
         rtBuilder.destroyTlas();
     }
@@ -590,6 +597,31 @@ namespace RT64
         }
 
         activeInstancesBufferMaterials.unmapMemory();
+    }
+
+    struct alignas(16) FilterCB {
+        uint32_t TextureSize[2];
+        glm::vec2 TexelSize;
+    };
+
+    void View::createFilterParamsBuffer() {
+        filterParamsSize = sizeof(FilterCB);
+        device->allocateBuffer(filterParamsSize,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VMA_MEMORY_USAGE_AUTO_PREFER_HOST,
+            VMA_ALLOCATION_CREATE_MAPPED_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT,
+            &filterParamsBuffer
+        );
+    }
+
+    void View::updateFilterParamsBuffer() {
+        FilterCB cb;
+        cb.TextureSize[0] = rtWidth;
+        cb.TextureSize[1] = rtHeight;
+        cb.TexelSize.x = 1.0f / cb.TextureSize[0];
+        cb.TexelSize.y = 1.0f / cb.TextureSize[1];
+
+        filterParamsBuffer.setData(&cb, sizeof(FilterCB));
     }
 
     void View::updateShaderDescriptorSets(bool updateDescriptors) { 
@@ -802,15 +834,40 @@ namespace RT64
         }
         usedShaders.clear();
 
+        // Update the descriptor sest for the indirect filter
+        for (int i = 0; i < 2; i++)
+        {
+            VkDescriptorSet& descriptorSet = indirectFilterDescriptorSets[i];
+            
+            descriptorWrites.push_back(rtFilteredIndirectLight[i ? 1 : 0].generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredIndirectLight[i ? 0 : 1].generateDescriptorWrite(1, 0 + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(filterParamsBuffer.generateDescriptorWrite(1, 0 + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
+
+            // Add the texture sampler
+            VkDescriptorImageInfo samplerInfo { };
+            samplerInfo.sampler = device->getGaussianSampler();
+            VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
+            samplerWrite.descriptorCount = 1;
+            samplerWrite.dstSet = descriptorSet;
+            samplerWrite.dstBinding = 0 + SAMPLER_SHIFT;
+            samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
+            samplerWrite.pImageInfo = &samplerInfo;
+            descriptorWrites.push_back(samplerWrite);
+
+            // Write to the instances' descriptor sets
+            vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            descriptorWrites.clear();
+        }
+
         // Update the descriptor set for the compose shader
         {
             VkDescriptorSet& descriptorSet = device->getComposeDescriptorSet();
             descriptorWrites.push_back(rtFlow.generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtDiffuse.generateDescriptorWrite(1, 1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, 2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, 3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            descriptorWrites.push_back(rtDirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, 2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, 3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, 2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, 3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            // descriptorWrites.push_back(rtDirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, 2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            // descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, 3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtReflection.generateDescriptorWrite(1, 4 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtRefraction.generateDescriptorWrite(1, 5 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtTransparent.generateDescriptorWrite(1, 6 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
@@ -1291,7 +1348,7 @@ namespace RT64
             globalParamsData.viewport.w = rtViewport.height;
 
             updateGlobalParamsBuffer();
-            // updateFilterParamsBuffer();
+            updateFilterParamsBuffer();
         }
 
         // Begin the command buffer
@@ -1397,7 +1454,7 @@ namespace RT64
                 device->transitionImageLayout(secondaryShadingBarriers, sizeof(secondaryShadingBarriers) / sizeof(AllocatedImage*), 
                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     VK_ACCESS_TRANSFER_READ_BIT,
-                    VK_PIPELINE_STAGE_NONE, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                     &commandBuffer);
                 device->copyImage(rtShadingPosition, rtShadingPositionSecondary, rtShadingPosition.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
                 device->copyImage(rtShadingNormal,   rtShadingNormalSecondary, rtShadingNormal.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
@@ -1442,7 +1499,7 @@ namespace RT64
                     &commandBuffer);
                 device->transitionImageLayout(primaryShadingBarriers, sizeof(primaryShadingBarriers) / sizeof(AllocatedImage*), 
                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                    VK_ACCESS_TRANSFER_READ_BIT,
+                    VK_ACCESS_TRANSFER_WRITE_BIT,
                     VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TRANSFER_BIT,
                     &commandBuffer);
                 device->copyImage(rtShadingPositionSecondary, rtShadingPosition, rtShadingPosition.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
@@ -1465,6 +1522,13 @@ namespace RT64
                     VK_PIPELINE_STAGE_TRANSFER_BIT,
                     &commandBuffer);
                 device->copyImage(rtFirstInstanceId, rtInstanceId, rtInstanceId.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
+
+                // Transition back to the top of the pipeline
+                device->transitionImageLayout(secondaryShadingBarriers, sizeof(secondaryShadingBarriers) / sizeof(AllocatedImage*), 
+                    VK_IMAGE_LAYOUT_GENERAL,
+                    VK_ACCESS_NONE,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                    &commandBuffer);
 
             } else if (globalParamsData.giBounces == 1 && globalParamsData.giSamples > 0) {
                 RT64_LOG_PRINTF("Dispatching only first indirect rays");
@@ -1543,6 +1607,102 @@ namespace RT64
                 VK_ACCESS_SHADER_READ_BIT, 
                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
                 &commandBuffer);
+
+		    // Copy direct light raw buffer to the first direct filtered buffer.
+#	ifdef DI_DENOISING_SUPPORT
+		    bool denoiseDI = denoiserEnabled && (globalParamsData.diSamples > 0);
+#	else
+		    bool denoiseDI = false;
+#	endif
+            {
+                AllocatedImage& src = rtDirectLightAccum[rtSwap ? 1 : 0];
+                AllocatedImage& dest = rtFilteredDirectLight[denoiseDI ? 0 : 1];
+                device->transitionImageLayout(src, 
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+                    VK_ACCESS_TRANSFER_READ_BIT, 
+                    VK_PIPELINE_STAGE_TRANSFER_BIT, 
+                    &commandBuffer);
+                device->transitionImageLayout(dest, 
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+                    VK_ACCESS_TRANSFER_WRITE_BIT, 
+                    VK_PIPELINE_STAGE_TRANSFER_BIT, 
+                    &commandBuffer);
+
+                device->copyImage(src, dest, src.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
+
+                device->transitionImageLayout(src, 
+                    VK_IMAGE_LAYOUT_GENERAL, 
+                    VK_ACCESS_SHADER_READ_BIT, 
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+                    &commandBuffer);
+                device->transitionImageLayout(dest, 
+                    VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, 
+                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, 
+                    VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+                    &commandBuffer);
+            }
+
+            /* 
+            *
+            *  Filter the direct light, but that seems to be WIP in upstream
+            * 
+            */
+
+            // Copy indirect light raw buffer to the first indirect filtered buffer.
+            bool denoiseGI = denoiserEnabled && (globalParamsData.giSamples > 0);
+            {
+                AllocatedImage& src = rtIndirectLightAccum[rtSwap ? 1 : 0];
+                AllocatedImage& dest = rtFilteredIndirectLight[denoiseGI ? 0 : 1];
+                device->transitionImageLayout(src, 
+                    VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, 
+                    VK_ACCESS_TRANSFER_READ_BIT, 
+                    VK_PIPELINE_STAGE_TRANSFER_BIT, 
+                    &commandBuffer);
+                device->transitionImageLayout(dest, 
+                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 
+                    VK_ACCESS_TRANSFER_WRITE_BIT, 
+                    VK_PIPELINE_STAGE_TRANSFER_BIT, 
+                    &commandBuffer);
+
+                device->copyImage(src, dest, src.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
+
+                device->transitionImageLayout(src, 
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+                    VK_ACCESS_SHADER_READ_BIT, 
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+                    &commandBuffer);
+                device->transitionImageLayout(dest, 
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+                    VK_ACCESS_SHADER_READ_BIT, 
+                    denoiseGI ? VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT : VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+                    &commandBuffer);
+            }
+            
+            if (denoiseGI)
+            {
+                for (int i = 0; i < 5; i++) {
+                    const int ThreadGroupWorkCount = 8;
+                    int dispatchX = rtWidth / ThreadGroupWorkCount + ((rtWidth % ThreadGroupWorkCount) ? 1 : 0);
+                    int dispatchY = rtHeight / ThreadGroupWorkCount + ((rtHeight % ThreadGroupWorkCount) ? 1 : 0);
+
+                    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, device->getGaussianFilterRGB3x3Pipeline());
+                    vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, device->getGaussianFilterRGB3x3PipelineLayout(), 0, 1, &indirectFilterDescriptorSets[i % 2], 0, nullptr);
+                    vkCmdDispatch(commandBuffer, dispatchX, dispatchY, 1);
+
+                    // The read image
+                    device->transitionImageLayout(rtFilteredIndirectLight[(i % 2) ? 1 : 0], 
+                        VK_IMAGE_LAYOUT_GENERAL, 
+                        VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, 
+                        i == 4 ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+                        &commandBuffer);
+                    // The write image
+                    device->transitionImageLayout(rtFilteredIndirectLight[(i % 2) ? 0 : 1], 
+                        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+                        VK_ACCESS_SHADER_READ_BIT, 
+                        i == 4 ? VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT : VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT, 
+                        &commandBuffer);
+                }
+            }
         }
         else        // Or don't raytrace.
         {
@@ -1676,6 +1836,11 @@ namespace RT64
 
     void View::setSkyPlaneTexture(Texture *texture) {
         skyPlaneTexture = texture;
+    }
+
+    void View::allocateDescriptorSets() {
+        device->allocateDescriptorSet(device->getGaussianFilterRGB3x3DescriptorSetLayout(), indirectFilterDescriptorSets[0]);
+        device->allocateDescriptorSet(device->getGaussianFilterRGB3x3DescriptorSetLayout(), indirectFilterDescriptorSets[1]);
     }
 
     RT64_VECTOR3 View::getRayDirectionAt(int px, int py) {

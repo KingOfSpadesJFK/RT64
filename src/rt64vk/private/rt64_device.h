@@ -146,6 +146,7 @@ namespace RT64
             
 		    Mipmaps* mipmaps = nullptr;
 		    Texture* blueNoise;
+            VkSampler gaussianSampler;
             VkSampler composeSampler;
             VkSampler tonemappingSampler;
             VkSampler postProcessSampler;
@@ -205,23 +206,25 @@ namespace RT64
             VkShaderModule im3dPSModule;
             VkShaderModule im3dGSPointsModule;
             VkShaderModule im3dGSLinesModule;
+            VkShaderModule gaussianFilterRGB3x3CSModule;
             // And their shader stage infos
-            VkPipelineShaderStageCreateInfo primaryRayGenStage      {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo directRayGenStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo indirectRayGenStage     {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo reflectionRayGenStage   {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo refractionRayGenStage   {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo surfaceMissStage        {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo shadowMissStage         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo fullscreenVSStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo composePSStage          {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo postProcessPSStage      {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo tonemappingPSStage  {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo debugPSStage            {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo im3dVSStage             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo im3dPSStage             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo im3dGSPointsStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
-            VkPipelineShaderStageCreateInfo im3dGSLinesStage        {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo primaryRayGenStage          {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo directRayGenStage           {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo indirectRayGenStage         {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo reflectionRayGenStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo refractionRayGenStage       {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo surfaceMissStage            {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo shadowMissStage             {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo fullscreenVSStage           {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo composePSStage              {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo postProcessPSStage          {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo tonemappingPSStage          {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo debugPSStage                {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo im3dVSStage                 {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo im3dPSStage                 {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo im3dGSPointsStage           {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo im3dGSLinesStage            {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
+            VkPipelineShaderStageCreateInfo gaussianFilterRGB3x3CSStage {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
             // And pipelines
             VkPipelineLayout        rtPipelineLayout;
             VkPipeline              rtPipeline;
@@ -239,6 +242,8 @@ namespace RT64
             VkPipeline              im3dPointsPipeline;
             VkPipelineLayout        im3dLinesPipelineLayout;
             VkPipeline              im3dLinesPipeline;
+            VkPipelineLayout        gaussianFilterRGB3x3PipelineLayout;
+            VkPipeline              gaussianFilterRGB3x3Pipeline;
             // Did I mention the descriptors?
             VkDescriptorSetLayout   raygenDescriptorSetLayout;
             VkDescriptorSet         raygenDescriptorSet;
@@ -252,6 +257,7 @@ namespace RT64
             VkDescriptorSet         debugDescriptorSet;
             VkDescriptorSetLayout   im3dDescriptorSetLayout;
             VkDescriptorSet         im3dDescriptorSet;
+            VkDescriptorSetLayout   gaussianFilterRGB3x3DescriptorSetLayout;
             VkDescriptorSetLayout   emptyDescriptorSetLayout;
 #endif
 
@@ -296,6 +302,7 @@ namespace RT64
 		    double getAspectRatio();
             int getCurrentFrameIndex();
 		    VkCommandBuffer& getCurrentCommandBuffer();
+            VkDescriptorPool& getDescriptorPool();
 		    VkFramebuffer& getCurrentSwapchainFramebuffer();
             IDxcCompiler* getDxcCompiler();
             IDxcLibrary* getDxcLibrary();
@@ -310,6 +317,7 @@ namespace RT64
             VkFence& getCurrentFence();
             Inspector& getInspector();
             // Samplers
+            VkSampler& getGaussianSampler();
             VkSampler& getComposeSampler();
             VkSampler& getTonemappingSampler();
             VkSampler& getPostProcessSampler();
@@ -320,25 +328,28 @@ namespace RT64
             VkPipelineShaderStageCreateInfo getReflectionShaderStage() const;
             VkPipelineShaderStageCreateInfo getRefractionShaderStage() const;
             // Rasterization pipelines and descriptor sets
-            VkPipeline&         getComposePipeline();
-            VkPipelineLayout&   getComposePipelineLayout();
-            VkDescriptorSet&    getComposeDescriptorSet();
-            VkPipeline&         getTonemappingPipeline();
-            VkPipelineLayout&   getTonemappingPipelineLayout();
-            VkDescriptorSet&    getTonemappingDescriptorSet();
-            VkPipeline&         getPostProcessPipeline();
-            VkPipelineLayout&   getPostProcessPipelineLayout();
-            VkDescriptorSet&    getPostProcessDescriptorSet();
-            VkPipeline&         getDebugPipeline();
-            VkPipelineLayout&   getDebugPipelineLayout();
-            VkDescriptorSet&    getDebugDescriptorSet();
-            VkPipeline&         getIm3dPipeline();
-            VkPipelineLayout&   getIm3dPipelineLayout();
-            VkPipeline&         getIm3dPointsPipeline();
-            VkPipelineLayout&   getIm3dPointsPipelineLayout();
-            VkPipeline&         getIm3dLinesPipeline();
-            VkPipelineLayout&   getIm3dLinesPipelineLayout();
-            VkDescriptorSet&    getIm3dDescriptorSet();
+            VkPipeline&                 getComposePipeline();
+            VkPipelineLayout&           getComposePipelineLayout();
+            VkDescriptorSet&            getComposeDescriptorSet();
+            VkPipeline&                 getTonemappingPipeline();
+            VkPipelineLayout&           getTonemappingPipelineLayout();
+            VkDescriptorSet&            getTonemappingDescriptorSet();
+            VkPipeline&                 getPostProcessPipeline();
+            VkPipelineLayout&           getPostProcessPipelineLayout();
+            VkDescriptorSet&            getPostProcessDescriptorSet();
+            VkPipeline&                 getDebugPipeline();
+            VkPipelineLayout&           getDebugPipelineLayout();
+            VkDescriptorSet&            getDebugDescriptorSet();
+            VkPipeline&                 getIm3dPipeline();
+            VkPipelineLayout&           getIm3dPipelineLayout();
+            VkPipeline&                 getIm3dPointsPipeline();
+            VkPipelineLayout&           getIm3dPointsPipelineLayout();
+            VkPipeline&                 getIm3dLinesPipeline();
+            VkPipelineLayout&           getIm3dLinesPipelineLayout();
+            VkDescriptorSet&            getIm3dDescriptorSet();
+            VkPipeline&                 getGaussianFilterRGB3x3Pipeline();
+            VkPipelineLayout&           getGaussianFilterRGB3x3PipelineLayout();
+            VkDescriptorSetLayout&      getGaussianFilterRGB3x3DescriptorSetLayout();
 
             VkCommandBuffer* beginSingleTimeCommands();
             VkCommandBuffer* beginSingleTimeCommands(VkCommandBuffer* commandBuffer);
@@ -370,6 +381,7 @@ namespace RT64
             void removeShader(Shader* shader);
             ImGui_ImplVulkan_InitInfo generateImguiInitInfo();
             void addDepthImageView(VkImageView* depthImageView);
+            void dirtyDescriptorPool();
             void removeDepthImageView(VkImageView* depthImageView);
             void createShaderModule(const void* code, size_t size, const char* entryName, VkShaderStageFlagBits stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, VkShaderModule& shader, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
             void initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder);
