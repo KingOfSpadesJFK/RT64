@@ -249,6 +249,7 @@ namespace RT64
             &rtReactiveMask,
             &rtLockMask,
             &rtNormal[0], &rtNormal[1],
+            &rtDepth[0], &rtDepth[1],
         };
         device->transitionImageLayout(transRightsBitch, sizeof(transRightsBitch) / sizeof(AllocatedImage*), 
             VK_IMAGE_LAYOUT_GENERAL, 
