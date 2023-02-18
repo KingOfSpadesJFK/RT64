@@ -236,8 +236,6 @@ namespace RT64
             &rtShadingSpecular,
             &rtDiffuse,
             &rtInstanceId,
-            // &rtFirstInstanceId,
-            // AllocatedBuffer &rtFirstInstanceIdReadback,
             &rtDirectLightAccum[0], &rtDirectLightAccum[1],
             &rtFilteredDirectLight[0], &rtFilteredDirectLight[1],
             &rtIndirectLightAccum[0], &rtIndirectLightAccum[1],
@@ -874,8 +872,6 @@ namespace RT64
             descriptorWrites.push_back(rtDiffuse.generateDescriptorWrite(1, 1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, 2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, 3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtDirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, 2 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            // descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, 3 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtReflection.generateDescriptorWrite(1, 4 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtRefraction.generateDescriptorWrite(1, 5 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtTransparent.generateDescriptorWrite(1, 6 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
@@ -900,11 +896,11 @@ namespace RT64
         // Update the tonemapping descriptor set
         {
             VkDescriptorSet& descriptorSet = device->getTonemappingDescriptorSet();
-            // if (rtUpscaleActive) {
-            //  pretend there's something here
-            // } else {
+            if (rtUpscaleActive) {
+                descriptorWrites.push_back(rtOutputUpscaled.generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            } else {
                 descriptorWrites.push_back(rtOutput[rtSwap ? 1 : 0].generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            // }
+            }
             descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
 
             // Add the tonemapping sampler
