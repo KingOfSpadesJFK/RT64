@@ -35,6 +35,13 @@ endif()
 add_subdirectory(${LIBRT64VK_DIR})
 add_subdirectory(${SAMPLE_DIR})
 
+set_target_properties( rt64vk sample
+    PROPERTIES
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+)
+
 ##########################################################
 
 set(CPACK_PROJECT_NAME ${PROJECT_NAME})
