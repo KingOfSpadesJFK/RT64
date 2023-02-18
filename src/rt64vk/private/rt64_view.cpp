@@ -199,8 +199,15 @@ namespace RT64
         uint32_t rowPadding;
         imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         CalculateTextureRowWidthPadding((uint32_t)(imageInfo.extent.width * 4), rtFirstInstanceIdRowWidth, rowPadding);
-        device->allocateBuffer( rtFirstInstanceIdRowWidth * imageInfo.extent.height, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags, 
+        device->allocateBuffer( rtFirstInstanceIdRowWidth * imageInfo.extent.height, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, allocFlags, 
             &rtFirstInstanceIdReadback );
+
+        imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        if (rtUpscaleActive) {
+            imageInfo.extent.width = screenWidth;
+            imageInfo.extent.height = screenHeight;
+            device->allocateImage(&rtOutputUpscaled, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        }
 
         // Create the hit buffers
         uint64_t hitCountBufferSizeOne = rtWidth * rtHeight;
@@ -242,19 +249,19 @@ namespace RT64
             &rtReactiveMask,
             &rtLockMask,
             &rtNormal[0], &rtNormal[1],
-            &rtDepth[0], &rtDepth[1],
-            // AllocatedBuffer &rtHitDistAndFlow,
-            // AllocatedBuffer &rtHitColor,
-            // AllocatedBuffer &rtHitNormal,
-            // AllocatedBuffer &rtHitSpecular,
-            // AllocatedBuffer &rtHitInstanceId,
-            // &rtOutputUpscaled,
         };
         device->transitionImageLayout(transRightsBitch, sizeof(transRightsBitch) / sizeof(AllocatedImage*), 
             VK_IMAGE_LAYOUT_GENERAL, 
             VK_ACCESS_NONE, 
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
             nullptr);
+        if (rtUpscaleActive) {
+            device->transitionImageLayout(rtOutputUpscaled, 
+                VK_IMAGE_LAYOUT_GENERAL, 
+                VK_ACCESS_NONE, 
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
+                nullptr);
+        }
 
         // Memory barrier for the hit buffers
         VkCommandBuffer* cmd = device->beginSingleTimeCommands();
@@ -304,7 +311,7 @@ namespace RT64
         rtHitNormal.setAllocationName("rtHitNormal");
         rtHitSpecular.setAllocationName("rtHitSpecular");
         rtHitInstanceId.setAllocationName("rtHitInstanceId");
-        // rtOutputUpscaled.setAllocationName("rtOutputUpscaled");
+        rtOutputUpscaled.setAllocationName("rtOutputUpscaled");
 #endif
         // Create the image/buffer views
         rasterBg.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -344,7 +351,7 @@ namespace RT64
         rtHitNormal.createBufferView(VK_FORMAT_R16G16B16A16_SNORM);
         rtHitSpecular.createBufferView(VK_FORMAT_R8G8B8A8_UNORM);
         rtHitInstanceId.createBufferView(VK_FORMAT_R16_UINT);
-        // rtOutputUpscaled.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtOutputUpscaled.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
 
         // Create the render pass for the raster diffuse framebuffer
         device->createRenderPass(rasterPass, true, VK_FORMAT_R32G32B32A32_SFLOAT, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -1252,7 +1259,7 @@ namespace RT64
         VkCommandBuffer commandBuffer = scene->getDevice()->getCurrentCommandBuffer();
         VkViewport viewport = scene->getDevice()->getViewport();
         VkRect2D scissors = scene->getDevice()->getScissors();
-        VkRenderPass renderPass = scene->getDevice()->getRenderPass();
+        VkRenderPass presentRenderPass = scene->getDevice()->getPresentRenderPass();
         VkRenderPass offscreenRenderPass = scene->getDevice()->getOffscreenRenderPass();
         VkFramebuffer framebuffer = scene->getDevice()->getCurrentSwapchainFramebuffer();
         VkExtent2D swapChainExtent = scene->getDevice()->getSwapchainExtent();
@@ -1762,7 +1769,7 @@ namespace RT64
         // Begine the on-screen render pass
         renderPassInfo.framebuffer = framebuffer;
         renderPassInfo.renderArea.extent = swapChainExtent;
-        renderPassInfo.renderPass = renderPass;
+        renderPassInfo.renderPass = presentRenderPass;
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
         // Apply the same scissor and viewport that was determined for the raytracing step.
@@ -1970,7 +1977,7 @@ namespace RT64
                 // Begin the render pass
                 VkRenderPassBeginInfo renderPassInfo{};
                 renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-                renderPassInfo.renderPass = device->getRenderPass();
+                renderPassInfo.renderPass = device->getPresentRenderPass();
                 renderPassInfo.framebuffer = device->getCurrentSwapchainFramebuffer();
                 renderPassInfo.renderArea.offset = {0, 0};
                 renderPassInfo.renderArea.extent.width = device->getWidth();

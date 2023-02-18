@@ -16,6 +16,7 @@ set(VMA_DIR ${CONTRIB_DIR}/VulkanMemoryAllocator)
 set(DXC_DIR ${CONTRIB_DIR}/dxc)
 set(NVPRO_DIR ${CONTRIB_DIR}/nvpro_core)
 set(IM3D_DIR ${CONTRIB_DIR}/im3d)
+set(DLSS_DIR ${CONTRIB_DIR}/DLSS)
 
 # DX12 Register shift variables
 #   These map the different dx12 registers to binding values on Vulkan
@@ -33,6 +34,12 @@ endif()
 #######################################################################
 # Shader building
 
+if(UNIX)
+    set(DXC ${DXC_DIR}/bin/dxc)
+else()
+    set(DXC ${DXC_DIR}/bin/win-x64/dxc.exe)
+endif()
+
 add_custom_target(shaders)
 
 # Build vertex shaders
@@ -41,7 +48,7 @@ foreach(shader ${vertexShaders})
     cmake_path(GET shader STEM shaderName)
     add_custom_command(TARGET shaders PRE_BUILD
         COMMAND echo Building vertex shader ${shaderName}...
-        COMMAND ${DXC_DIR}/bin/dxc ${shader} -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T vs_6_3 -E VSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV
+        COMMAND ${DXC} ${shader} -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T vs_6_3 -E VSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV
     )
 endforeach()
 
@@ -51,7 +58,7 @@ foreach(shader ${pixelShaders})
     cmake_path(GET shader STEM shaderName)
     add_custom_command(TARGET shaders PRE_BUILD
         COMMAND echo Building pixel shader ${shaderName}...
-        COMMAND ${DXC_DIR}/bin/dxc ${shader} -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T ps_6_3 -E PSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV
+        COMMAND ${DXC} ${shader} -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T ps_6_3 -E PSMain -Fh ${shader}.h -Vn ${shaderName}_SPIRV
     )
 endforeach()
 
@@ -61,7 +68,7 @@ foreach(shader ${computeShaders})
     cmake_path(GET shader STEM shaderName)
     add_custom_command(TARGET shaders PRE_BUILD
         COMMAND echo Building compute shader ${shaderName}...
-        COMMAND ${DXC_DIR}/bin/dxc ${shader} -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T cs_6_3 -E mainCS -Fh ${shader}.h -Vn ${shaderName}_SPIRV
+        COMMAND ${DXC} ${shader} -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T cs_6_3 -E mainCS -Fh ${shader}.h -Vn ${shaderName}_SPIRV
     )
 endforeach()
 
@@ -71,26 +78,31 @@ foreach(shader ${rayShaders})
     cmake_path(GET shader STEM shaderName)
     add_custom_command(TARGET shaders PRE_BUILD
         COMMAND echo Building raygen shader ${shaderName}...
-        COMMAND ${DXC_DIR}/bin/dxc ${shader} -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T lib_6_3 -Fh ${shader}.h -Vn ${shaderName}_SPIRV
+        COMMAND ${DXC} ${shader} -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T lib_6_3 -Fh ${shader}.h -Vn ${shaderName}_SPIRV
     )
 endforeach()
 
 # Build geometry shaders
 add_custom_command(TARGET shaders PRE_BUILD
     COMMAND echo Building geometry shaders Im3DGSPoints and Im3DGSLines..
-    COMMAND ${DXC_DIR}/bin/dxc ${SHADER_DIR}/Im3DGSPoints.hlsl -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0  -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSPoints.hlsl.h -Vn Im3DGSPoints_SPIRV
-    COMMAND ${DXC_DIR}/bin/dxc ${SHADER_DIR}/Im3DGSLines.hlsl -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSLines.hlsl.h -Vn Im3DGSLines_SPIRV
+    COMMAND ${DXC} ${SHADER_DIR}/Im3DGSPoints.hlsl -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0  -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSPoints.hlsl.h -Vn Im3DGSPoints_SPIRV
+    COMMAND ${DXC} ${SHADER_DIR}/Im3DGSLines.hlsl -spirv -fspv-target-env=vulkan1.3 -fvk-t-shift ${SRV_SHIFT} 0 -fvk-s-shift ${SAMPLER_SHIFT} 0 -fvk-u-shift ${UAV_SHIFT} 0 -fvk-b-shift ${CBV_SHIFT} 0 -T gs_6_3 -E GSMain -Fh ${SHADER_DIR}/Im3DGSLines.hlsl.h -Vn Im3DGSLines_SPIRV
 )
 
 #######################################################################
 # Build the library
 
-# Include the dxc headers
+# Include third party libraries
 if(UNIX)
     set(DXC_HEADER_DIR ${DXC_DIR}/include/linux)
-    file(GLOB DXC_LIBRARIES ${DXC_DIR}/lib/libdxcompiler.so)    
+    file(GLOB DXC_LIBRARIES ${DXC_DIR}/lib/libdxcompiler.so)
+    list(APPEND DLSS_LIBRARY ${DLSS_DIR}/lib/Linux_x86_64/libnvsdk_ngx.a)   
+    list(APPEND DLSS_LIBRARY libstdc++.so)   
+    list(APPEND DLSS_LIBRARY libdl.a)   
 else()
     set(DXC_HEADER_DIR ${DXC_DIR}/include/win)
+    file(GLOB DXC_LIBRARIES ${DXC_DIR}/lib/win-x64/dxcompiler.lib)
+    file(GLOB DLSS_LIBRARY ${DLSS_DIR}/lib/Windows_x86_64/x86_64/*.lib)    
 endif()
 
 if(UNIX)
@@ -118,6 +130,8 @@ add_library(rt64vk SHARED
     ${LIBRT64VK_DIR}/private/rt64_shader.cpp
     ${LIBRT64VK_DIR}/private/rt64_instance.cpp
     ${LIBRT64VK_DIR}/private/rt64_inspector.cpp
+    ${LIBRT64VK_DIR}/private/rt64_upscaler.cpp
+    # ${LIBRT64VK_DIR}/private/rt64_dlss.cpp
     ${NVPRO_DIR}/nvp/perproject_globals.cpp
     ${SHADER_HEADERS}
     ${NVVK_SOURCE}
@@ -140,11 +154,13 @@ target_include_directories(rt64vk PRIVATE
     ${DXC_DIR}
     ${PLATFORM}
     ${NVPRO_DIR}
+    ${DLSS_DIR}/include
 )
 target_link_libraries(rt64vk
     vulkan
     glfw
     ${DXC_LIBRARIES}
+    ${DLSS_LIBRARY}
 )
 
 set_property(TARGET rt64vk PROPERTY CXX_STANDARD 20)

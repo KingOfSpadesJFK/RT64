@@ -74,7 +74,7 @@ namespace RT64
         createSwapChain();
         updateViewport();
         createImageViews();
-        createRenderPass(renderPass, false, swapChainImageFormat, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        createRenderPass(presentRenderPass, false, swapChainImageFormat, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
         createCommandPool();
 
         createCommandBuffers();
@@ -316,7 +316,7 @@ namespace RT64
             pipelineInfo.stageCount = postStages.size();
             pipelineInfo.pStages = postStages.data();
             pipelineInfo.layout = postProcessPipelineLayout;
-            pipelineInfo.renderPass = renderPass;
+            pipelineInfo.renderPass = presentRenderPass;
             VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &postProcessPipeline));
         }
 
@@ -401,7 +401,7 @@ namespace RT64
             pipelineInfo.stageCount = debugStages.size();
             pipelineInfo.pStages = debugStages.data();
             pipelineInfo.layout = debugPipelineLayout;
-            pipelineInfo.renderPass = renderPass;
+            pipelineInfo.renderPass = presentRenderPass;
             VK_CHECK(vkCreateGraphicsPipelines(vkDevice, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &debugPipeline));
         }
 
@@ -803,7 +803,7 @@ namespace RT64
             framebufferCreated = true;
         }
 
-        vkWaitForFences(vkDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+        waitForGPU();
 
         VkResult result = vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
 
@@ -866,7 +866,7 @@ namespace RT64
         result = vkQueuePresentKHR(presentQueue, &presentInfo); 
         
         // Now wait for GPU
-        vkWaitForFences(vkDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+        waitForGPU();
 
         // Handle resizing again
         updateSize(result, "failed to present swap chain image!");
@@ -965,7 +965,7 @@ namespace RT64
             // }
 
             VkFramebufferCreateInfo framebufferInfo{ VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO };
-            framebufferInfo.renderPass = renderPass;
+            framebufferInfo.renderPass = presentRenderPass;
             framebufferInfo.attachmentCount = attachments.size();
             framebufferInfo.pAttachments = attachments.data();
             framebufferInfo.width = swapChainExtent.width;
@@ -974,6 +974,10 @@ namespace RT64
 
             VK_CHECK(vkCreateFramebuffer(vkDevice, &framebufferInfo, nullptr, &swapChainFramebuffers[i]));
         }
+    }
+
+    void Device::waitForGPU() {
+        vkWaitForFences(vkDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
     }
 
     void Device::createFramebuffer(VkFramebuffer& framebuffer, VkRenderPass& renderPass, VkImageView& imageView, VkImageView* depthView, VkExtent2D extent) {
@@ -1553,7 +1557,7 @@ namespace RT64
 
         cleanupSwapChain();
         vkDestroySurfaceKHR(vkInstance, vkSurface, nullptr);
-        vkDestroyRenderPass(vkDevice, renderPass, nullptr);
+        vkDestroyRenderPass(vkDevice, presentRenderPass, nullptr);
         vkDestroyRenderPass(vkDevice, offscreenRenderPass, nullptr);
         vkDestroyCommandPool(vkDevice, commandPool, nullptr);
         for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
@@ -1678,7 +1682,7 @@ namespace RT64
     // Returns RT allocator
 	nvvk::ResourceAllocator& Device::getRTAllocator() { return rtAllocator; }
 
-    VkRenderPass& Device::getRenderPass() { return renderPass; };
+    VkRenderPass& Device::getPresentRenderPass() { return presentRenderPass; };
     VkRenderPass& Device::getOffscreenRenderPass() { return offscreenRenderPass; };
     VkExtent2D& Device::getSwapchainExtent() { return swapChainExtent; }
 	VkViewport& Device::getViewport() { return vkViewport; }

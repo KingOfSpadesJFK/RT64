@@ -2,8 +2,6 @@
 *   RT64VK
 */
 
-#pragma once
-
 #include "rt64_upscaler.h"
 
 // Upscaler

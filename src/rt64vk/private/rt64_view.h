@@ -132,6 +132,7 @@ namespace RT64
             bool rtSkipReprojection = false;
             bool recreateRTBuffers = false;
             bool denoiserEnabled = false;
+            bool rtUpscaleActive = false;
 
             nvvk::RaytracingBuilderKHR rtBuilder;
             AllocatedBuffer shaderBindingTable;
@@ -149,6 +150,7 @@ namespace RT64
             AllocatedImage  rasterBg;
             AllocatedImage  rtOutput[2];
             AllocatedImage  rtOutputTonemapped;
+            AllocatedImage  rtOutputUpscaled;
             AllocatedImage  rtViewDirection;
             AllocatedImage  rtShadingPosition;
             AllocatedImage  rtShadingPositionSecondary;
@@ -177,7 +179,6 @@ namespace RT64
             AllocatedBuffer rtHitNormal;
             AllocatedBuffer rtHitSpecular;
             AllocatedBuffer rtHitInstanceId;
-            AllocatedImage  rtOutputUpscaled;
             // Framebuffers
             VkFramebuffer   rtOutputFB[2];
             VkFramebuffer   rtOutputTonemappedFB;

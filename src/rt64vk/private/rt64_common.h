@@ -179,8 +179,9 @@ namespace RT64 {
 			}
 
 			void setAllocationName(const char* name) {
-				assert(resourceInit);
-				vmaSetAllocationName(*allocator, allocation, name);
+				if (resourceInit) {
+					vmaSetAllocationName(*allocator, allocation, name);
+				}
 			}
 
 			VmaAllocation* getAllocation() { return &allocation; }
@@ -286,17 +287,19 @@ namespace RT64 {
 			}
 
 			void createBufferView(VkFormat format) {
-				VmaAllocatorInfo allocatorInfo;
-				vmaGetAllocatorInfo(*allocator, &allocatorInfo);
-				if (bufferViewCreated) {
-					vkDestroyBufferView(allocatorInfo.device, bufferView, nullptr);
+				if (resourceInit) {
+					VmaAllocatorInfo allocatorInfo;
+					vmaGetAllocatorInfo(*allocator, &allocatorInfo);
+					if (bufferViewCreated) {
+						vkDestroyBufferView(allocatorInfo.device, bufferView, nullptr);
+					}
+					VkBufferViewCreateInfo createInfo { VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO };
+					createInfo.buffer = buffer;
+					createInfo.format = format;
+					createInfo.range = size;
+					vkCreateBufferView(allocatorInfo.device, &createInfo, nullptr, &bufferView);
+					bufferViewCreated = true;
 				}
-				VkBufferViewCreateInfo createInfo { VK_STRUCTURE_TYPE_BUFFER_VIEW_CREATE_INFO };
-				createInfo.buffer = buffer;
-				createInfo.format = format;
-				createInfo.range = size;
-				vkCreateBufferView(allocatorInfo.device, &createInfo, nullptr, &bufferView);
-				bufferViewCreated = true;
 			}
 
 			void memoryBarrier(VkBufferMemoryBarrier barrier, VkPipelineStageFlags newStage, VkCommandBuffer* commandBuffer) {
@@ -340,8 +343,8 @@ namespace RT64 {
 
 	class AllocatedImage :  public AllocatedResource {
 		private:
-			VkImage image;
-			VkImageView imageView;
+			VkImage image {};
+			VkImageView imageView {};
 			VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
 			VkAccessFlags accessFlags = VK_ACCESS_NONE;
 			VkPipelineStageFlags pipelineStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
@@ -384,26 +387,27 @@ namespace RT64 {
 				return res;
 			}
 
-			VkImageView& createImageView(VkImageViewType viewType, VkImageAspectFlags aspectFlags) {
-				VmaAllocatorInfo allocatorInfo;
-				vmaGetAllocatorInfo(*allocator, &allocatorInfo);
-				if (imageViewCreated) {
-					vkDestroyImageView(allocatorInfo.device, imageView, nullptr);
+			void createImageView(VkImageViewType viewType, VkImageAspectFlags aspectFlags) {
+				if (resourceInit) {
+					VmaAllocatorInfo allocatorInfo;
+					vmaGetAllocatorInfo(*allocator, &allocatorInfo);
+					if (imageViewCreated) {
+						vkDestroyImageView(allocatorInfo.device, imageView, nullptr);
+					}
+					imageViewCreated = true;
+					VkImageViewCreateInfo viewInfo{};
+					viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+					viewInfo.image = image;
+					viewInfo.viewType = viewType;
+					viewInfo.format = format;
+					viewInfo.subresourceRange.aspectMask = aspectFlags;
+					viewInfo.subresourceRange.baseMipLevel = 0;
+					viewInfo.subresourceRange.levelCount = 1;
+					viewInfo.subresourceRange.baseArrayLayer = 0;
+					viewInfo.subresourceRange.layerCount = 1;
+					vkCreateImageView(allocatorInfo.device, &viewInfo, nullptr, &imageView);
+					descriptorInfo = { nullptr, imageView, layout };
 				}
-				imageViewCreated = true;
-				VkImageViewCreateInfo viewInfo{};
-				viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-				viewInfo.image = image;
-				viewInfo.viewType = viewType;
-				viewInfo.format = format;
-				viewInfo.subresourceRange.aspectMask = aspectFlags;
-				viewInfo.subresourceRange.baseMipLevel = 0;
-				viewInfo.subresourceRange.levelCount = 1;
-				viewInfo.subresourceRange.baseArrayLayer = 0;
-				viewInfo.subresourceRange.layerCount = 1;
-				vkCreateImageView(allocatorInfo.device, &viewInfo, nullptr, &imageView);
-				descriptorInfo = { nullptr, imageView, layout };
-				return imageView;
 			}
 
 			VkImageView& getImageView() {
@@ -473,6 +477,7 @@ namespace RT64 {
 			VkAccessFlags getAccessFlags() { return accessFlags; }
 			VkAccessFlags getPieplineStage() { return pipelineStage; }
 			VkExtent3D getDimensions() { return dimensions; }
+			VkFormat getFormat() { return format; }
 
 			static void transitionLayouts(AllocatedImage** images, uint32_t imageCount, VkCommandBuffer* commandBuffer, VkPipelineStageFlags sourceStage, VkPipelineStageFlags destStage, VkImageMemoryBarrier* barriers, VkImageLayout newLayout) {
 				vkCmdPipelineBarrier(

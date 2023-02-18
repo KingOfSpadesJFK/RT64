@@ -86,7 +86,7 @@ namespace RT64 {
 		ImGui_ImplVulkan_InitInfo initInfo = device->generateImguiInitInfo();
         initInfo.DescriptorPool = descPool;
 		ImGui_ImplGlfw_InitForVulkan(device->getGlfwWindow(), true);
-		ImGui_ImplVulkan_Init(&initInfo, device->getRenderPass());
+		ImGui_ImplVulkan_Init(&initInfo, device->getPresentRenderPass());
 
 		ImGui_ImplVulkan_CreateDeviceObjects();
 		VkCommandBuffer* cmd = device->beginSingleTimeCommands();

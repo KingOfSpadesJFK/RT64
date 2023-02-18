@@ -152,8 +152,8 @@ namespace RT64
             VkSampler postProcessSampler;
 
             VmaAllocator allocator;
-            VkRenderPass renderPass;
-            VkRenderPass offscreenRenderPass;
+            VkRenderPass presentRenderPass;         // The render pass for presenting to the screen
+            VkRenderPass offscreenRenderPass;       // The render pass for rendering to an r32g32b32a32 image
             std::vector<VkFramebuffer> swapChainFramebuffers;
 
             VkCommandPool commandPool;
@@ -293,7 +293,7 @@ namespace RT64
 		    nvvk::ResourceAllocator& getRTAllocator();
 		    VmaAllocator& getMemAllocator();
 		    VkExtent2D& getSwapchainExtent();
-            VkRenderPass& getRenderPass();
+            VkRenderPass& getPresentRenderPass();
             VkRenderPass& getOffscreenRenderPass();
 		    VkViewport& getViewport();
 		    VkRect2D& getScissors();
@@ -392,6 +392,7 @@ namespace RT64
             uint32_t getFirstAvailableHitShaderID() const;
             uint32_t getFirstAvailableRasterShaderID() const;
             void createFramebuffer(VkFramebuffer& framebuffer, VkRenderPass& renderPass, VkImageView& imageView, VkImageView* depthView, VkExtent2D extent);
+            void waitForGPU();
 
             // More stuff for window resizing
             bool wasWindowResized() { return framebufferResized; }
