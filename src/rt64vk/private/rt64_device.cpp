@@ -2133,7 +2133,7 @@ namespace RT64
         barrier.srcAccessMask = image.getAccessFlags();
         barrier.dstAccessMask = newMask;
 
-        image.transitionLayout(commandBuffer, image.getPieplineStage(), newStage, barrier, newLayout);
+        image.transitionLayout(commandBuffer, image.getPieplineStage(), newStage, barrier);
 
         if (oneTime) {
             // The fact that you passed on passing in a pointer to a

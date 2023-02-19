@@ -67,7 +67,7 @@
 #define RT64_SHADER_RAYTRACE_ENABLED			0x02
 #define RT64_SHADER_NORMAL_MAP_ENABLED			0x04
 #define RT64_SHADER_SPECULAR_MAP_ENABLED		0x08
-#define RT64_SHADER_RASTER_TRANSFORMS_ENABLED	0x10
+#define RT64_SHADER_RASTER_TRANSFORMS_ENABLED	0x10	// Use this if the raster shader should have 3D perspective and transformations enabled
 
 // Instance flags.
 #define RT64_INSTANCE_RASTER_BACKGROUND			0x1

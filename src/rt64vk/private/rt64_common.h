@@ -345,11 +345,11 @@ namespace RT64 {
 		private:
 			VkImage image {};
 			VkImageView imageView {};
-			VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
 			VkAccessFlags accessFlags = VK_ACCESS_NONE;
 			VkPipelineStageFlags pipelineStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
 			VkExtent3D dimensions { 0, 0, 0 };
 			VkFormat format = VK_FORMAT_UNDEFINED;
+			std::vector<VkImageLayout> layouts { VK_IMAGE_LAYOUT_UNDEFINED };
 			VkImageType type = VK_IMAGE_TYPE_1D;
 			VkDescriptorImageInfo descriptorInfo {};
 			unsigned int mipLevels;
@@ -382,9 +382,9 @@ namespace RT64 {
 				this->resourceInit = true;
 				this->dimensions = createInfo.extent;
 				this->format = createInfo.format;
-				this->layout = createInfo.initialLayout;
 				this->type = createInfo.imageType;
 				this->mipLevels = createInfo.mipLevels;
+				this->layouts.resize(this->mipLevels, createInfo.initialLayout);
 				
 				return res;
 			}
@@ -408,7 +408,7 @@ namespace RT64 {
 					viewInfo.subresourceRange.baseArrayLayer = 0;
 					viewInfo.subresourceRange.layerCount = 1;
 					vkCreateImageView(allocatorInfo.device, &viewInfo, nullptr, &imageView);
-					descriptorInfo = { nullptr, imageView, layout };
+					descriptorInfo = { nullptr, imageView, layouts[0] };
 				}
 			}
 
@@ -433,7 +433,7 @@ namespace RT64 {
 				return write;
 			}
 
-			void transitionLayout(VkCommandBuffer* commandBuffer, VkPipelineStageFlags sourceStage, VkPipelineStageFlags destStage, VkImageMemoryBarrier barrier, VkImageLayout newLayout) {
+			void transitionLayout(VkCommandBuffer* commandBuffer, VkPipelineStageFlags sourceStage, VkPipelineStageFlags destStage, VkImageMemoryBarrier barrier) {
 				vkCmdPipelineBarrier(
 					*commandBuffer,
 					sourceStage, destStage,
@@ -442,7 +442,7 @@ namespace RT64 {
 					0, nullptr,
 					1, &barrier
 				);
-				layout = newLayout;
+				layouts[barrier.subresourceRange.baseMipLevel] = barrier.newLayout;
 				accessFlags = barrier.dstAccessMask;
 				pipelineStage = destStage;
 			}
@@ -472,10 +472,12 @@ namespace RT64 {
 					vmaUnmapMemory(*allocator, allocation);
 				}
 				vmaDestroyImage(*allocator, image, allocation);
+				this->layouts.clear();
 				this->resourceInit = false;
 			}
 
-			VkImageLayout getLayout() { return layout; }
+			VkImageLayout getLayout() { return layouts[0]; }
+			VkImageLayout getLayoutAtMipLevel(int mipLevel) { return layouts[mipLevel]; }
 			VkAccessFlags getAccessFlags() { return accessFlags; }
 			VkAccessFlags getPieplineStage() { return pipelineStage; }
 			VkExtent3D getDimensions() { return dimensions; }
@@ -495,7 +497,7 @@ namespace RT64 {
 					imageCount, barriers
 				);
 				for (int i = 0; i < imageCount; i++) {
-					images[i]->layout = newLayout;
+					images[i]->layouts[barriers[i].subresourceRange.baseMipLevel] = newLayout;
 					images[i]->accessFlags = barriers[i].dstAccessMask;
 					images[i]->pipelineStage = destStage;
 				}

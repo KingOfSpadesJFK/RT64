@@ -573,7 +573,7 @@ namespace RT64
         pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = rasterGroup.pipelineLayout;
-        pipelineInfo.renderPass = device->getOffscreenRenderPass();
+        pipelineInfo.renderPass = device->getPresentRenderPass();
         pipelineInfo.subpass = 0;
         pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
         pipelineInfo.basePipelineIndex = -1; // Optional

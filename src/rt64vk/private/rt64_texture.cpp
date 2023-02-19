@@ -91,7 +91,7 @@ namespace RT64 {
         } else {
             device->transitionImageLayout(texture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
             VK_ACCESS_SHADER_READ_BIT, 
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+            VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, 
             commandBuffer);
             device->endSingleTimeCommands(commandBuffer);
         }
