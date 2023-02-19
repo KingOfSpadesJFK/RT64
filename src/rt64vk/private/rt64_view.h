@@ -26,7 +26,9 @@ namespace RT64
 	class Inspector;
 	class Instance;
 	class Texture;
-    struct DescriptorSetBinding;
+    class FSR;
+    class DLSS;
+    class XeSS;
 
 	class View {
         private:
@@ -132,7 +134,18 @@ namespace RT64
             bool rtSkipReprojection = false;
             bool recreateRTBuffers = false;
             bool denoiserEnabled = false;
-            bool rtUpscaleActive = false;
+
+            // Upscalers
+            // DLSS* dlss;
+            FSR* fsr;
+            // XeSS* xess;
+            Upscaler::QualityMode upscalerQuality;
+            float upscalerSharpness = 0.0f;
+            bool upscalerResolutionOverride = false;
+            bool upscalerReactiveMask = true;
+            bool upscalerLockMask = true;
+            bool upscaleActive = false;
+    		UpscaleMode upscaleMode;
 
             nvvk::RaytracingBuilderKHR rtBuilder;
             AllocatedBuffer shaderBindingTable;
@@ -259,5 +272,20 @@ namespace RT64
             int getMaxReflections() const;
             void setDenoiserEnabled(bool v);
             bool getDenoiserEnabled() const;
+            void setUpscaleMode(UpscaleMode v);
+            UpscaleMode getUpscaleMode() const;
+            Upscaler* getUpscaler(UpscaleMode v) const;
+            void setUpscalerQualityMode(Upscaler::QualityMode v);
+            Upscaler::QualityMode getUpscalerQualityMode();
+            void setUpscalerSharpness(float v);
+            float getUpscalerSharpness() const;
+            void setUpscalerResolutionOverride(bool v);
+            bool getUpscalerResolutionOverride() const;
+            void setUpscalerReactiveMask(bool v);
+            bool getUpscalerReactiveMask() const;
+            void setUpscalerLockMask(bool v);
+            bool getUpscalerLockMask() const;
+            bool getUpscalerInitialized(UpscaleMode mode) const;
+            bool getUpscalerAccelerated(UpscaleMode mode) const;
 	};
 };

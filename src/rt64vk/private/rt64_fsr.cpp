@@ -130,15 +130,15 @@ public:
     }
 
     void upscale(const UpscaleParameters &p) {
-        FfxFsr2DispatchDescription dispatchDesc;
+        FfxFsr2DispatchDescription dispatchDesc {};
         dispatchDesc.commandList = ffxGetCommandListVK(device->getCurrentCommandBuffer());
-        dispatchDesc.color = ffxGetTextureResourceVK(&fsrContext, p.inColor.getImage(), p.inColor.getImageView(), p.inColor.getDimensions().width, p.inColor.getDimensions().height, p.inColor.getFormat(), L"inColor");
-        dispatchDesc.depth = ffxGetTextureResourceVK(&fsrContext, p.inDepth.getImage(), p.inDepth.getImageView(), p.inDepth.getDimensions().width, p.inDepth.getDimensions().height, p.inDepth.getFormat(), L"inDepth");
-        dispatchDesc.motionVectors = ffxGetTextureResourceVK(&fsrContext, p.inFlow.getImage(), p.inFlow.getImageView(), p.inFlow.getDimensions().width, p.inFlow.getDimensions().height, p.inFlow.getFormat(), L"inFlow");
+        dispatchDesc.color = ffxGetTextureResourceVK(&fsrContext, p.inColor->getImage(), p.inColor->getImageView(), p.inColor->getDimensions().width, p.inColor->getDimensions().height, p.inColor->getFormat(), L"inColor");
+        dispatchDesc.depth = ffxGetTextureResourceVK(&fsrContext, p.inDepth->getImage(), p.inDepth->getImageView(), p.inDepth->getDimensions().width, p.inDepth->getDimensions().height, p.inDepth->getFormat(), L"inDepth");
+        dispatchDesc.motionVectors = ffxGetTextureResourceVK(&fsrContext, p.inFlow->getImage(), p.inFlow->getImageView(), p.inFlow->getDimensions().width, p.inFlow->getDimensions().height, p.inFlow->getFormat(), L"inFlow");
         dispatchDesc.exposure = ffxGetTextureResourceVK(&fsrContext, nullptr, nullptr, 1, 1, VK_FORMAT_R16_SFLOAT, L"inExposure");
-        dispatchDesc.reactive = ffxGetTextureResourceVK(&fsrContext, p.inReactiveMask.getImage(), p.inReactiveMask.getImageView(), p.inReactiveMask.getDimensions().width, p.inReactiveMask.getDimensions().height, p.inReactiveMask.getFormat(), L"inReactive");
-        dispatchDesc.transparencyAndComposition = ffxGetTextureResourceVK(&fsrContext, p.inLockMask.getImage(), p.inLockMask.getImageView(), p.inLockMask.getDimensions().width, p.inLockMask.getDimensions().height, p.inLockMask.getFormat(), L"inTransparencyAndComposition");
-        dispatchDesc.output = ffxGetTextureResourceVK(&fsrContext, p.outColor.getImage(), p.outColor.getImageView(), p.outColor.getDimensions().width, p.outColor.getDimensions().height, p.outColor.getFormat(), L"outColor", FFX_RESOURCE_STATE_UNORDERED_ACCESS);
+        dispatchDesc.reactive = ffxGetTextureResourceVK(&fsrContext, p.inReactiveMask->getImage(), p.inReactiveMask->getImageView(), p.inReactiveMask->getDimensions().width, p.inReactiveMask->getDimensions().height, p.inReactiveMask->getFormat(), L"inReactive");
+        dispatchDesc.transparencyAndComposition = ffxGetTextureResourceVK(&fsrContext, p.inLockMask->getImage(), p.inLockMask->getImageView(), p.inLockMask->getDimensions().width, p.inLockMask->getDimensions().height, p.inLockMask->getFormat(), L"inTransparencyAndComposition");
+        dispatchDesc.output = ffxGetTextureResourceVK(&fsrContext, p.outColor->getImage(), p.outColor->getImageView(), p.outColor->getDimensions().width, p.outColor->getDimensions().height, p.outColor->getFormat(), L"outColor");
         dispatchDesc.jitterOffset.x = p.jitterX;
         dispatchDesc.jitterOffset.y = p.jitterY;
         dispatchDesc.motionVectorScale = { 1.0f, 1.0f };

@@ -473,6 +473,8 @@ namespace RT64 {
 				}
 				vmaDestroyImage(*allocator, image, allocation);
 				this->layouts.clear();
+				this->format = VK_FORMAT_UNDEFINED;
+				this->accessFlags = VK_ACCESS_NONE;
 				this->resourceInit = false;
 			}
 

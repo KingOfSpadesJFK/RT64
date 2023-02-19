@@ -171,7 +171,7 @@ namespace RT64 {
 			int motionBlurSamples = view->getMotionBlurSamples();
 			int visualizationMode = view->getVisualizationMode();
 			int resScale = lround(view->getResolutionScale() * 100.0f);
-			// int upscaleMode = (int)(view->getUpscaleMode());
+			int upscaleMode = (int)(view->getUpscaleMode());
 			bool denoiser = view->getDenoiserEnabled();
 
 			ImGui::DragInt("DI samples", &diSamples, 0.1f, 0, 32);
@@ -185,46 +185,46 @@ namespace RT64 {
 				"Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0"
 				"Reflection\0Refraction\0Transparent\0Motion vectors\0Reactive mask\0Lock mask\0Depth\0");
 
-			// ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FSR 2\0NVIDIA DLSS\0Intel XeSS\0");
+			ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FSR 2\0"/* \0NVIDIA DLSS\0Intel XeSS\0" */);
 
-			// const UpscaleMode eUpscaleMode = static_cast<UpscaleMode>(upscaleMode);
-			// if (view->getUpscalerInitialized(eUpscaleMode)) {
-			// 	int upscalerQualityMode = (int)(view->getUpscalerQualityMode());
-			// 	float upscalerSharpness = view->getUpscalerSharpness();
-			// 	bool upscalerResolutionOverride = view->getUpscalerResolutionOverride();
-			// 	bool upscalerReactiveMask = view->getUpscalerReactiveMask();
-			// 	bool upscalerLockMask = view->getUpscalerLockMask();
-			// 	if (eUpscaleMode != UpscaleMode::Bilinear) {
-			// 		ImGui::Combo("Quality", &upscalerQualityMode, "Ultra Performance\0Performance\0Balanced\0Quality\0Ultra Quality\0Native\0Auto\0");
+			const UpscaleMode eUpscaleMode = static_cast<UpscaleMode>(upscaleMode);
+			if (view->getUpscalerInitialized(eUpscaleMode)) {
+				int upscalerQualityMode = (int)(view->getUpscalerQualityMode());
+				float upscalerSharpness = view->getUpscalerSharpness();
+				bool upscalerResolutionOverride = view->getUpscalerResolutionOverride();
+				bool upscalerReactiveMask = view->getUpscalerReactiveMask();
+				bool upscalerLockMask = view->getUpscalerLockMask();
+				if (eUpscaleMode != UpscaleMode::Bilinear) {
+					ImGui::Combo("Quality", &upscalerQualityMode, "Ultra Performance\0Performance\0Balanced\0Quality\0Ultra Quality\0Native\0Auto\0");
 
-			// 		if (eUpscaleMode != UpscaleMode::XeSS) {
-			// 			ImGui::DragFloat("Sharpness", &upscalerSharpness, 0.01f, -1.0f, 1.0f);
-			// 		}
+					if (eUpscaleMode != UpscaleMode::XeSS) {
+						ImGui::DragFloat("Sharpness", &upscalerSharpness, 0.01f, -1.0f, 1.0f);
+					}
 
-			// 		ImGui::Checkbox("Resolution Override", &upscalerResolutionOverride);
-			// 		if (upscalerResolutionOverride) {
-			// 			ImGui::SameLine();
+					ImGui::Checkbox("Resolution Override", &upscalerResolutionOverride);
+					if (upscalerResolutionOverride) {
+						ImGui::SameLine();
 						ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
-			// 		}
+					}
 
-			// 		if (eUpscaleMode == UpscaleMode::FSR) {
-			// 			ImGui::Checkbox("Reactive Mask", &upscalerReactiveMask);
-			// 		}
+					if (eUpscaleMode == UpscaleMode::FSR) {
+						ImGui::Checkbox("Reactive Mask", &upscalerReactiveMask);
+					}
 
-			// 		ImGui::Checkbox("Lock Mask", &upscalerLockMask);
+					ImGui::Checkbox("Lock Mask", &upscalerLockMask);
 
-			// 		view->setUpscalerQualityMode((Upscaler::QualityMode)(upscalerQualityMode));
-			// 		view->setUpscalerSharpness(upscalerSharpness);
-			// 		view->setUpscalerResolutionOverride(upscalerResolutionOverride);
-			// 		view->setUpscalerReactiveMask(upscalerReactiveMask);
-			// 		view->setUpscalerLockMask(upscalerLockMask);
-			// 	}
-			// 	else {
-			// 		ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
-			// 	}
+					view->setUpscalerQualityMode((Upscaler::QualityMode)(upscalerQualityMode));
+					view->setUpscalerSharpness(upscalerSharpness);
+					view->setUpscalerResolutionOverride(upscalerResolutionOverride);
+					view->setUpscalerReactiveMask(upscalerReactiveMask);
+					view->setUpscalerLockMask(upscalerLockMask);
+				}
+				else {
+					ImGui::DragInt("Resolution %", &resScale, 1, 1, 200);
+				}
 
-			// 	view->setUpscaleMode(eUpscaleMode);
-			// }
+				view->setUpscaleMode(eUpscaleMode);
+			}
 
 			ImGui::Checkbox("Denoiser", &denoiser);
 

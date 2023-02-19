@@ -81,4 +81,15 @@ target_link_libraries(rt64vk
     ${FSR_LIBRARY}
 )
 
+if(UNIX)
+    # Copy the DLSS .so files into the build folder
+    add_custom_command(TARGET rt64vk POST_BUILD
+        COMMAND cp -r ${DLSS_DIR}/lib/Linux_x86_64/dev/libnvidia-ngx-dlss.so.3.1.1 ${CMAKE_BINARY_DIR}
+    )
+else()
+    # Copy the DLSS .dll files into the build folder
+    add_custom_command(TARGET rt64vk POST_BUILD
+        COMMAND cp -r ${DLSS_DIR}/lib/Windows_x86_64/dev/ ${CMAKE_BINARY_DIR}
+    )
+endif()
 set_property(TARGET rt64vk PROPERTY CXX_STANDARD 20)

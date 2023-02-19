@@ -24,12 +24,12 @@ namespace RT64 {
 
 			struct UpscaleParameters {
 				RT64_RECT inRect;
-				AllocatedImage& inColor;
-				AllocatedImage& inFlow;
-				AllocatedImage& inReactiveMask;
-				AllocatedImage& inLockMask;
-				AllocatedImage& inDepth;
-				AllocatedImage& outColor;
+				AllocatedImage* inColor;
+				AllocatedImage* inFlow;
+				AllocatedImage* inReactiveMask;
+				AllocatedImage* inLockMask;
+				AllocatedImage* inDepth;
+				AllocatedImage* outColor;
 				float jitterX;
 				float jitterY;
 				float sharpness;

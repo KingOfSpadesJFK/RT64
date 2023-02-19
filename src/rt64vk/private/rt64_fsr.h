@@ -12,9 +12,9 @@ namespace RT64 {
 	class FSR : public Upscaler {
         private:
             class Context;
-            Context *ctx;
+            Context* ctx;
         public:
-            FSR(Device *device);
+            FSR(Device* device);
             ~FSR();
             virtual void set(QualityMode inQuality, int renderWidth, int renderHeight, int displayWidth, int displayHeight) override;
             virtual bool getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight) override;

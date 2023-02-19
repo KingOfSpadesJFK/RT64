@@ -232,11 +232,11 @@ namespace RT64
                 NVSDK_NGX_VK_DLSS_Eval_Params VKDlssEvalParams;
                 memset(&VKDlssEvalParams, 0, sizeof(VKDlssEvalParams));
                 
-                NVSDK_NGX_Resource_VK inColor = convertToNGXResource(p.inColor);
-                NVSDK_NGX_Resource_VK outColor = convertToNGXResource(p.outColor);
-                NVSDK_NGX_Resource_VK inDepth = convertToNGXResource(p.inDepth);
-                NVSDK_NGX_Resource_VK inFlow = convertToNGXResource(p.inFlow);
-                NVSDK_NGX_Resource_VK inLockMask = convertToNGXResource(p.inLockMask);
+                NVSDK_NGX_Resource_VK inColor = convertToNGXResource(*p.inColor);
+                NVSDK_NGX_Resource_VK outColor = convertToNGXResource(*p.outColor);
+                NVSDK_NGX_Resource_VK inDepth = convertToNGXResource(*p.inDepth);
+                NVSDK_NGX_Resource_VK inFlow = convertToNGXResource(*p.inFlow);
+                NVSDK_NGX_Resource_VK inLockMask = convertToNGXResource(*p.inLockMask);
 
                 VKDlssEvalParams.Feature.pInColor = &inColor;
                 VKDlssEvalParams.Feature.pInOutput = &outColor;

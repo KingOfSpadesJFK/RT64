@@ -12,6 +12,7 @@
 
 #include "rt64_view.h"
 // #include "rt64_dlss.h"
+#include "rt64_fsr.h"
 #include "rt64_instance.h"
 #include "rt64_mesh.h"
 #include "rt64_scene.h"
@@ -47,12 +48,11 @@ namespace RT64
         rtWidth = 0;
         rtHeight = 0;
         maxReflections = 2;
-        // rtUpscaleActive = false;
-        // rtRecreateBuffers = false;
         rtSkipReprojection = false;
         resolutionScale = 1.0f;
         denoiserEnabled = false;
-        // rtUpscaleMode = UpscaleMode::Bilinear;
+        upscaleActive = false;
+        upscaleMode = UpscaleMode::Bilinear;
         perspectiveControlActive = false;
         perspectiveCanReproject = true;
         im3dVertexCount = 0;
@@ -62,6 +62,11 @@ namespace RT64
         scissorApplied = false;
         viewportApplied = false;
         device->initRTBuilder(rtBuilder);
+
+        // Try to initialize upscalers. They won't be initialized if the hardware doesn't support it.
+        // dlss = new DLSS(scene->getDevice());
+        fsr = new FSR(scene->getDevice());
+        // xess = new XeSS(scene->getDevice());
 
         // Create the sky plane sampler
 		VkSamplerCreateInfo samplerInfo { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
@@ -101,9 +106,37 @@ namespace RT64
 
         int screenWidth = scene->getDevice()->getWidth();
         int screenHeight = scene->getDevice()->getHeight();
-        
-		rtWidth = lround(screenWidth * resolutionScale);
-		rtHeight = lround(screenHeight * resolutionScale);
+
+        // Choose upscaler.
+        Upscaler* upscaler = getUpscaler(upscaleMode);
+        if ((upscaler != nullptr) && upscaler->isInitialized()) {
+            int upscalerWidth, upscalerHeight;
+            Upscaler::QualityMode setQuality = Upscaler::QualityMode::Balanced;
+            if (upscalerResolutionOverride) {
+                rtWidth = lround(screenWidth * resolutionScale);
+                rtHeight = lround(screenHeight * resolutionScale);
+            }
+            else if (upscaler->getQualityInformation(upscalerQuality, screenWidth, screenHeight, upscalerWidth, upscalerHeight)) {
+                rtWidth = upscalerWidth;
+                rtHeight = upscalerHeight;
+                setQuality = upscalerQuality;
+            }
+            else {
+                rtWidth = screenWidth;
+                rtHeight = screenHeight;
+            }
+
+            upscaler->set(setQuality, rtWidth, rtHeight, screenWidth, screenHeight);
+
+            upscaleActive = true;
+        }
+        else {
+            rtWidth = lround(screenWidth * resolutionScale);
+            rtHeight = lround(screenHeight * resolutionScale);
+            upscaleActive = false;
+        }
+
+	    rtSkipReprojection = true;
 
         globalParamsData.resolution.x = (float)(rtWidth);
         globalParamsData.resolution.y = (float)(rtHeight);
@@ -129,6 +162,7 @@ namespace RT64
         // Create buffers for raytracing output.
         imageInfo.extent.width = rtWidth;
         imageInfo.extent.height = rtHeight;
+        imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
         imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
 	    device->allocateImage(&rtOutput[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtOutput[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
@@ -202,8 +236,8 @@ namespace RT64
         device->allocateBuffer( rtFirstInstanceIdRowWidth * imageInfo.extent.height, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, allocFlags, 
             &rtFirstInstanceIdReadback );
 
-        imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        if (rtUpscaleActive) {
+        imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        if (upscaleActive) {
             imageInfo.extent.width = screenWidth;
             imageInfo.extent.height = screenHeight;
             device->allocateImage(&rtOutputUpscaled, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
@@ -254,7 +288,7 @@ namespace RT64
             VK_ACCESS_NONE, 
             VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
             nullptr);
-        if (rtUpscaleActive) {
+        if (upscaleActive) {
             device->transitionImageLayout(rtOutputUpscaled, 
                 VK_IMAGE_LAYOUT_GENERAL, 
                 VK_ACCESS_NONE, 
@@ -896,8 +930,8 @@ namespace RT64
         // Update the tonemapping descriptor set
         {
             VkDescriptorSet& descriptorSet = device->getTonemappingDescriptorSet();
-            if (rtUpscaleActive) {
-                descriptorWrites.push_back(rtOutputUpscaled.generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            if (upscaleActive) {
+                descriptorWrites.push_back(rtOutput[rtSwap ? 1 : 0].generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             } else {
                 descriptorWrites.push_back(rtOutput[rtSwap ? 1 : 0].generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             }
@@ -922,11 +956,11 @@ namespace RT64
         // Update the post process descriptor set
         {
             VkDescriptorSet& descriptorSet = device->getPostProcessDescriptorSet();
-            // if (rtUpscaleActive) {
-            //  pretend there's something here
-            // } else {
+            if (upscaleActive) {
+                descriptorWrites.push_back(rtOutputUpscaled.generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            } else {
                 descriptorWrites.push_back(rtOutputTonemapped.generateDescriptorWrite(1, 0 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
-            // }
+            }
             descriptorWrites.push_back(rtFlow.generateDescriptorWrite(1, 1 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
 
@@ -1260,6 +1294,7 @@ namespace RT64
         VkRenderPass offscreenRenderPass = scene->getDevice()->getOffscreenRenderPass();
         VkFramebuffer framebuffer = scene->getDevice()->getCurrentSwapchainFramebuffer();
         VkExtent2D swapChainExtent = scene->getDevice()->getSwapchainExtent();
+	    Upscaler* upscaler = getUpscaler(upscaleMode);
 
         // Configure the current viewport
         auto resetViewport = [this, commandBuffer, &viewport]() {
@@ -1336,11 +1371,10 @@ namespace RT64
             }
 
             // Only use jitter when an upscaler is active.
-            // bool jitterActive = rtUpscaleActive && (upscaler != nullptr);
-            bool jitterActive = false;
+            bool jitterActive = upscaleActive && (upscaler != nullptr);
             if (jitterActive) {
-                // const int phaseCount = upscaler->getJitterPhaseCount(rtWidth, lround(globalParamsData.resolution.z));
-                // globalParamsData.pixelJitter = HaltonJitter(globalParamsData.frameCount, phaseCount);
+                const int phaseCount = upscaler->getJitterPhaseCount(rtWidth, lround(globalParamsData.resolution.z));
+                globalParamsData.pixelJitter = HaltonJitter(globalParamsData.frameCount, phaseCount);
             }
             else {
                 globalParamsData.pixelJitter = { 0.0f, 0.0f };
@@ -1734,9 +1768,13 @@ namespace RT64
             vkCmdEndRenderPass(commandBuffer);
         }
 
+		// Compose the output buffer.
+		AllocatedImage& rtOutputCur = rtOutput[rtSwap ? 1 : 0];
+		VkFramebuffer& rtOutputCurFB = rtOutputFB[rtSwap ? 1 : 0];
+
         // Begin the offscreen render pass (you can't raytrace with it, so just raytrace before you render pass it up)
         renderPassInfo.renderPass = offscreenRenderPass;
-        renderPassInfo.framebuffer = rtOutputFB[rtSwap ? 1 : 0];
+        renderPassInfo.framebuffer = rtOutputCurFB;
         vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 		// Apply the scissor and viewport to the size of the output texture.
@@ -1762,6 +1800,52 @@ namespace RT64
         vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getTonemappingPipelineLayout(), 0, 1, &device->getTonemappingDescriptorSet(), 0, nullptr);
         vkCmdDraw(commandBuffer, 3, 1, 0, 0);
         vkCmdEndRenderPass(commandBuffer);
+        
+        if (upscaleActive && (upscaler != nullptr)) {
+            device->transitionImageLayout(rtOutputUpscaled,
+                VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, 
+                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, 
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+                &commandBuffer);
+                
+			std::vector<AllocatedImage*> beforeBarriers, afterBarriers;
+			AllocatedImage& rtDepthCur = rtDepth[rtSwap ? 1 : 0];
+            if (upscaler->requiresNonShaderResourceInputs()) {
+                for ( AllocatedImage* alime : {&rtOutputCur, &rtFlow, &rtReactiveMask, &rtLockMask, &rtDepthCur} ) {
+                    beforeBarriers.push_back(alime);
+                    afterBarriers.push_back(alime);
+                }
+                device->transitionImageLayout(beforeBarriers.data(), beforeBarriers.size(),
+                    VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, 
+                    VK_ACCESS_SHADER_READ_BIT, 
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    &commandBuffer);
+            }
+
+			Upscaler::UpscaleParameters params;
+			params.inRect = { 0, 0, rtWidth, rtHeight };
+			params.inColor = &rtOutputTonemapped;
+			params.inFlow = &rtFlow;
+			params.inReactiveMask = upscalerReactiveMask ? &rtReactiveMask : nullptr;
+			params.inLockMask = upscalerLockMask ? &rtLockMask : nullptr;
+			params.inDepth = &rtDepthCur;
+			params.outColor = &rtOutputUpscaled;
+			params.sharpness = upscalerSharpness;
+			params.jitterX = -globalParamsData.pixelJitter.x;
+			params.jitterY = -globalParamsData.pixelJitter.y;
+			params.deltaTime = deltaTimeMs;
+			params.nearPlane = nearDist;
+			params.farPlane = farDist;
+			params.fovY = fovRadians;
+			params.resetAccumulation = false; // TODO: Make this configurable via the API.
+			upscaler->upscale(params);
+
+            device->transitionImageLayout(rtOutputUpscaled,
+                VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, 
+                VK_ACCESS_SHADER_READ_BIT, 
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+                &commandBuffer);
+        }
 
         // Begine the on-screen render pass
         renderPassInfo.framebuffer = framebuffer;
@@ -1816,7 +1900,7 @@ namespace RT64
             &commandBuffer);
 
         AllocatedImage* postFragBarriers[] = {
-            &rtOutput[rtSwap ? 1 : 0],
+            &rtOutputCur,
             &rtDiffuse,
             &rtDirectLightAccum[rtSwap ? 1 : 0],
             &rtIndirectLightAccum[rtSwap ? 1 : 0],
@@ -1856,8 +1940,8 @@ namespace RT64
         return { rayDirection.x, rayDirection.y, rayDirection.z };
     }
 
-    void View::resize() {
-        createOutputBuffers();
+    void View::resize() { 
+        recreateRTBuffers = true;
     }
 
     int View::getWidth() const {
@@ -2064,10 +2148,106 @@ namespace RT64
     void  View::setDenoiserEnabled(bool v) { denoiserEnabled = v; }
     bool  View::getDenoiserEnabled() const { return denoiserEnabled; }
 
+    UpscaleMode View::getUpscaleMode() const {
+        return upscaleMode;
+    }
+
+    Upscaler* View::getUpscaler(UpscaleMode v) const {
+        switch (upscaleMode) {
+            // case UpscaleMode::DLSS:
+            //     return dlss;
+            case UpscaleMode::FSR:
+                return fsr;
+            // case UpscaleMode::XeSS:
+            //     return xess;
+            default:
+                return nullptr;
+        }
+    }
+
     void View::setResolutionScale(float v) {
         if (resolutionScale != v) {
             resolutionScale = v;
             recreateRTBuffers = true;
+        }
+    }
+
+    void View::setUpscaleMode(UpscaleMode v) {
+        if (upscaleMode != v) {
+            upscaleMode = v;
+            recreateRTBuffers = true;
+        }
+    }
+
+    void View::setUpscalerQualityMode(Upscaler::QualityMode v) {
+        if (upscalerQuality != v) {
+            upscalerQuality = v;
+            recreateRTBuffers = true;
+        }
+    }
+
+    Upscaler::QualityMode View::getUpscalerQualityMode() {
+        return upscalerQuality;
+    }
+
+    void View::setUpscalerSharpness(float v) {
+        upscalerSharpness = v;
+    }
+
+    float View::getUpscalerSharpness() const {
+        return upscalerSharpness;
+    }
+
+    void View::setUpscalerResolutionOverride(bool v) {
+        if (upscalerResolutionOverride != v) {
+            upscalerResolutionOverride = v;
+            recreateRTBuffers = true;
+        }
+    }
+
+    bool View::getUpscalerResolutionOverride() const {
+        return upscalerResolutionOverride;
+    }
+
+    void View::setUpscalerReactiveMask(bool v) {
+        upscalerReactiveMask = v;
+    }
+
+    bool View::getUpscalerReactiveMask() const {
+        return upscalerReactiveMask;
+    }
+
+    void View::setUpscalerLockMask(bool v) {
+        upscalerLockMask = v;
+    }
+
+    bool View::getUpscalerLockMask() const {
+        return upscalerLockMask;
+    }
+
+    bool View::getUpscalerInitialized(UpscaleMode mode) const {
+        switch (mode) {
+            // case UpscaleMode::DLSS:
+            //     return dlss->isInitialized();
+            case UpscaleMode::FSR:
+                return fsr->isInitialized();
+            // case UpscaleMode::XeSS:
+            //     return xess->isInitialized();
+            default:
+                return true;
+        }
+    }
+
+    bool View::getUpscalerAccelerated(UpscaleMode mode) const {
+        switch (mode) {
+        // case UpscaleMode::DLSS:
+        //     return getUpscalerInitialized(UpscaleMode::DLSS);
+        case UpscaleMode::FSR:
+            return true;
+        // case UpscaleMode::XeSS:
+        //     return xess->isAccelerated();
+        default:
+            return false;
         }
     }
 };
@@ -2110,63 +2290,63 @@ DLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDes
     view->setTonemappingGamma(viewDesc.tonemapGamma);
 	view->setDenoiserEnabled(viewDesc.denoiserEnabled);
 	
-	// switch (viewDesc.upscaler) {
-	// case RT64_UPSCALER_AUTO:
-	// 	// Prefer using DLSS if it's supported on NVIDIA hardware.
-	// 	if (view->getUpscalerInitialized(RT64::UpscaleMode::DLSS)) {
-	// 		view->setUpscaleMode(RT64::UpscaleMode::DLSS);
-	// 	}
-	// 	// Prefer using XeSS if it's reported to be on Intel hardware. Initialization is not enough to check for
-	// 	// this because XeSS can run on non-native platforms.
-	// 	else if (view->getUpscalerInitialized(RT64::UpscaleMode::XeSS) && view->getUpscalerAccelerated(RT64::UpscaleMode::XeSS)) {
-	// 		view->setUpscaleMode(RT64::UpscaleMode::XeSS);
-	// 	}
-	// 	else if (view->getUpscalerInitialized(RT64::UpscaleMode::FSR)) {
-	// 		view->setUpscaleMode(RT64::UpscaleMode::FSR);
-	// 	}
-	// 	else {
-	// 		view->setUpscaleMode(RT64::UpscaleMode::Bilinear);
-	// 	}
+	switch (viewDesc.upscaler) {
+	case RT64_UPSCALER_AUTO:
+		// Prefer using DLSS if it's supported on NVIDIA hardware.
+		if (view->getUpscalerInitialized(RT64::UpscaleMode::DLSS)) {
+			view->setUpscaleMode(RT64::UpscaleMode::DLSS);
+		}
+		// Prefer using XeSS if it's reported to be on Intel hardware. Initialization is not enough to check for
+		// this because XeSS can run on non-native platforms.
+		else if (view->getUpscalerInitialized(RT64::UpscaleMode::XeSS) && view->getUpscalerAccelerated(RT64::UpscaleMode::XeSS)) {
+			view->setUpscaleMode(RT64::UpscaleMode::XeSS);
+		}
+		else if (view->getUpscalerInitialized(RT64::UpscaleMode::FSR)) {
+			view->setUpscaleMode(RT64::UpscaleMode::FSR);
+		}
+		else {
+			view->setUpscaleMode(RT64::UpscaleMode::Bilinear);
+		}
 
-	// 	break;
-	// case RT64_UPSCALER_DLSS:
-	// 	view->setUpscaleMode(RT64::UpscaleMode::DLSS);
-	// 	break;
-	// case RT64_UPSCALER_FSR:
-	// 	view->setUpscaleMode(RT64::UpscaleMode::FSR);
-	// 	break;
-	// case RT64_UPSCALER_XESS:
-	// 	view->setUpscaleMode(RT64::UpscaleMode::XeSS);
-	// 	break;
-	// case RT64_UPSCALER_OFF:
-	// default:
-	// 	view->setUpscaleMode(RT64::UpscaleMode::Bilinear);
-	// 	break;
-	// }
+		break;
+	case RT64_UPSCALER_DLSS:
+		view->setUpscaleMode(RT64::UpscaleMode::DLSS);
+		break;
+	case RT64_UPSCALER_FSR:
+		view->setUpscaleMode(RT64::UpscaleMode::FSR);
+		break;
+	case RT64_UPSCALER_XESS:
+		view->setUpscaleMode(RT64::UpscaleMode::XeSS);
+		break;
+	case RT64_UPSCALER_OFF:
+	default:
+		view->setUpscaleMode(RT64::UpscaleMode::Bilinear);
+		break;
+	}
 
-	// switch (viewDesc.upscalerMode) {
-	// case RT64_UPSCALER_MODE_AUTO:
-	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Auto);
-	// 	break;
-	// case RT64_UPSCALER_MODE_ULTRA_PERFORMANCE:
-	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::UltraPerformance);
-	// 	break;
-	// case RT64_UPSCALER_MODE_PERFORMANCE:
-	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Performance);
-	// 	break;
-	// case RT64_UPSCALER_MODE_BALANCED:
-	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Balanced);
-	// 	break;
-	// case RT64_UPSCALER_MODE_QUALITY:
-	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Quality);
-	// 	break;
-	// case RT64_UPSCALER_MODE_ULTRA_QUALITY:
-	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::UltraQuality);
-	// 	break;
-	// case RT64_UPSCALER_MODE_NATIVE:
-	// 	view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Native);
-	// 	break;
-	// }
+	switch (viewDesc.upscalerMode) {
+	case RT64_UPSCALER_MODE_AUTO:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Auto);
+		break;
+	case RT64_UPSCALER_MODE_ULTRA_PERFORMANCE:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::UltraPerformance);
+		break;
+	case RT64_UPSCALER_MODE_PERFORMANCE:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Performance);
+		break;
+	case RT64_UPSCALER_MODE_BALANCED:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Balanced);
+		break;
+	case RT64_UPSCALER_MODE_QUALITY:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Quality);
+		break;
+	case RT64_UPSCALER_MODE_ULTRA_QUALITY:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::UltraQuality);
+		break;
+	case RT64_UPSCALER_MODE_NATIVE:
+		view->setUpscalerQualityMode(RT64::Upscaler::QualityMode::Native);
+		break;
+	}
 
 	// view->setUpscalerSharpness(viewDesc.upscalerSharpness);
 }
