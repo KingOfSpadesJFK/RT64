@@ -599,7 +599,7 @@ namespace RT64
     }
 
     void View::createInstanceMaterialsBuffer() {
-        uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size());
+        uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size() + rasterUiInstances.size());
         uint32_t newBufferSize = totalInstances * sizeof(RT64_MATERIAL);
         if (activeInstancesBufferMaterialsSize != newBufferSize) {
             activeInstancesBufferMaterials.destroyResource();
@@ -1045,7 +1045,7 @@ namespace RT64
             Mesh* usedMesh = nullptr;
             Texture *usedDiffuse = nullptr;
             size_t totalInstances = scene->getInstances().size();
-		    bool updateDescriptors = (totalInstances != (rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size()));
+		    bool updateDescriptors = (totalInstances != (rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size() + rasterUiInstances.size()));
             unsigned int instFlags = 0;
             unsigned int screenHeight = getHeight();
             unsigned int id = 0;
@@ -1125,9 +1125,7 @@ namespace RT64
             // Create the buffer containing the raytracing result (or atleast soon), 
             //  and create the descriptor sets referencing the resources used 
             //  by the raytracing, such as the acceleration structure
-            if (updateDescriptors) {
-                updateShaderDescriptorSets(updateDescriptors);
-            }
+            updateShaderDescriptorSets(updateDescriptors);
             
             // Create the shader binding table and indicating which shaders
             // are invoked for each instance in the AS.
@@ -1806,26 +1804,24 @@ namespace RT64
         
         if (upscaleActive && (upscaler != nullptr)) {
             device->transitionImageLayout(rtOutputUpscaled,
-                VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, 
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
                 VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, 
                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
                 &commandBuffer);
                 
 			std::vector<AllocatedImage*> beforeBarriers, afterBarriers;
 			AllocatedImage& rtDepthCur = rtDepth[rtSwap ? 1 : 0];
-            if (upscaler->requiresNonShaderResourceInputs()) {
-                for ( AllocatedImage* alime : {&rtOutputCur, &rtFlow, &rtReactiveMask, &rtLockMask, &rtDepthCur} ) {
-                    beforeBarriers.push_back(alime);
-                    afterBarriers.push_back(alime);
-                }
-                device->transitionImageLayout(beforeBarriers.data(), beforeBarriers.size(),
-                    VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, 
-                    VK_ACCESS_SHADER_READ_BIT, 
-                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                    &commandBuffer);
+            for ( AllocatedImage* alime : {&rtOutputCur, &rtFlow, &rtReactiveMask, &rtLockMask, &rtDepthCur} ) {
+                beforeBarriers.push_back(alime);
+                afterBarriers.push_back(alime);
             }
+            device->transitionImageLayout(beforeBarriers.data(), beforeBarriers.size(),
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+                VK_ACCESS_SHADER_READ_BIT, 
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                &commandBuffer);
 
-			Upscaler::UpscaleParameters params;
+			Upscaler::UpscaleParameters params {};
 			params.inRect = { 0, 0, rtWidth, rtHeight };
 			params.inColor = &rtOutputTonemapped;
 			params.inFlow = &rtFlow;
@@ -1843,10 +1839,10 @@ namespace RT64
 			params.resetAccumulation = false; // TODO: Make this configurable via the API.
 			upscaler->upscale(params);
 
-            device->transitionImageLayout(rtOutputUpscaled,
-                VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, 
+            device->transitionImageLayout(afterBarriers.data(), afterBarriers.size(),
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
                 VK_ACCESS_SHADER_READ_BIT, 
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                 &commandBuffer);
         }
 

@@ -459,7 +459,7 @@ namespace RT64 {
 				bool leftAlt = glfwGetKey(device->getGlfwWindow(), GLFW_KEY_LEFT_ALT);
 				bool leftCtrl = glfwGetKey(device->getGlfwWindow(), GLFW_KEY_LEFT_CONTROL);
 				float localX = (cursorX - prevCursorX) / (float)(view->getWidth());
-				float localY = -(cursorY - prevCursorY) / (float)(view->getHeight());
+				float localY = (cursorY - prevCursorY) / (float)(view->getHeight());
 				localX += cameraPanX;
 				localY += cameraPanY;
 				if (invertCameraX) { localX *= -1.0f; }
@@ -467,14 +467,14 @@ namespace RT64 {
 
 				if (glfwGetMouseButton(device->getGlfwWindow(), GLFW_MOUSE_BUTTON_MIDDLE)) {
 					if (leftCtrl) {
-						view->movePerspective({ 0.0f, 0.0f, (localY) * cameraSpeed });
+						view->movePerspective({ 0.0f, 0.0f, (-localY) * cameraSpeed });
 					}
 					else if (leftAlt) {
 						float cameraRotationSpeed = 5.0f;
-						view->rotatePerspective(-localX * cameraRotationSpeed, localY * cameraRotationSpeed, cameraRoll);
+						view->rotatePerspective(localX * cameraRotationSpeed, localY * cameraRotationSpeed, cameraRoll);
 					}
 					else {
-						view->movePerspective({ -localX * cameraSpeed, -localY * cameraSpeed, 0.0f });
+						view->movePerspective({ -localX * cameraSpeed, localY * cameraSpeed, 0.0f });
 					}
 				}
 			}

@@ -136,7 +136,6 @@ Texture2D<float4> gOutput : register(t0);
 SamplerState gSampler : register(s0);
 
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
-    uv.y = 1.0f - uv.y;
     float4 color = max(gOutput.SampleLevel(gSampler, uv, 0), 0.0f);
     color.rgb = Tonemapper(max(color.rgb, 0.0f), tonemapExposure);
     
