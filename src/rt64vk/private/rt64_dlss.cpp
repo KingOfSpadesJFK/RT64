@@ -31,7 +31,7 @@ namespace RT64
     NVSDK_NGX_Resource_VK convertToNGXResource(AllocatedImage& in) {
         VkImageSubresourceRange subresourceRange {};
         subresourceRange.aspectMask = in.getAccessFlags();
-        subresourceRange.levelCount = 1;
+        subresourceRange.levelCount = in.getMipLevels();
         subresourceRange.layerCount = 1;
 
         NVSDK_NGX_ImageViewInfo_VK imageView;

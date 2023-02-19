@@ -12,6 +12,7 @@
 #include "rt64_texture.h"
 #include "rt64_shader.h"
 #include "rt64_inspector.h"
+#include "rt64_mipmaps.h"
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <GLFW/glfw3.h>
@@ -83,6 +84,8 @@ namespace RT64
             VkFormat swapChainImageFormat;
             VkExtent2D swapChainExtent;
             std::vector<VkImageView> swapChainImageViews;
+            Mipmaps* mipmaps = nullptr;
+            bool disableMipmaps = false;
 
             inline void createVkInstanceNV();
             void createVKInstance();
@@ -144,7 +147,6 @@ namespace RT64
             Inspector inspector;
             bool showInspector = false;
             
-		    Mipmaps* mipmaps = nullptr;
 		    Texture* blueNoise;
             VkSampler gaussianSampler;
             VkSampler composeSampler;
@@ -316,6 +318,7 @@ namespace RT64
             uint32_t getRasterShaderCount() const;
             VkFence& getCurrentFence();
             Inspector& getInspector();
+            Mipmaps* getMipmaps();
             // Samplers
             VkSampler& getGaussianSampler();
             VkSampler& getComposeSampler();

@@ -440,6 +440,10 @@ namespace RT64
             VK_CHECK(vkCreateComputePipelines(vkDevice, VK_NULL_HANDLE, 1, &computePipelineInfo, nullptr, &gaussianFilterRGB3x3Pipeline));
         }
 
+        if (!disableMipmaps) {
+            mipmaps = new Mipmaps(this);
+        }
+
         RT64_LOG_PRINTF("Creating the Im3d descriptor set");
         {
 		    VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
@@ -1589,6 +1593,11 @@ namespace RT64
             }
         }
 
+        // Destroy the mipmap generator
+        if (!disableMipmaps) {
+            delete mipmaps;
+        }
+
         // Destroy the inspector
         inspector.destroy();
         
@@ -1733,6 +1742,7 @@ namespace RT64
     uint32_t Device::getRasterShaderCount() const { return rasterShaderCount; }
     VkFence& Device::getCurrentFence() { return inFlightFences[currentFrame]; }
     Inspector& Device::getInspector() { return inspector; }
+    Mipmaps* Device::getMipmaps() { return mipmaps; }
 
     // Shader getters
     VkPipelineShaderStageCreateInfo Device::getPrimaryShaderStage() const { return primaryRayGenStage; }
@@ -1963,7 +1973,7 @@ namespace RT64
         imageInfo.mipLevels = 1;
         imageInfo.arrayLayers = 1;
         imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
-        imageInfo.flags = 0; // Optional
+        imageInfo.flags = 0;
         return allocateImage(alre, imageInfo, memUsage, allocProperties);
     }
 

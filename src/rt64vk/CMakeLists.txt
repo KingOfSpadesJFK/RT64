@@ -45,6 +45,7 @@ add_library(rt64vk SHARED
     ${LIBRT64VK_DIR}/private/rt64_instance.cpp
     ${LIBRT64VK_DIR}/private/rt64_inspector.cpp
     ${LIBRT64VK_DIR}/private/rt64_upscaler.cpp
+    ${LIBRT64VK_DIR}/private/rt64_mipmaps.cpp
     # ${LIBRT64VK_DIR}/private/rt64_dlss.cpp
     ${LIBRT64VK_DIR}/private/rt64_fsr.cpp
     ${NVPRO_DIR}/nvp/perproject_globals.cpp

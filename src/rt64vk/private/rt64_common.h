@@ -352,6 +352,7 @@ namespace RT64 {
 			VkFormat format = VK_FORMAT_UNDEFINED;
 			VkImageType type = VK_IMAGE_TYPE_1D;
 			VkDescriptorImageInfo descriptorInfo {};
+			unsigned int mipLevels;
 			bool imageViewCreated = false;
 			
 		public:
@@ -383,6 +384,7 @@ namespace RT64 {
 				this->format = createInfo.format;
 				this->layout = createInfo.initialLayout;
 				this->type = createInfo.imageType;
+				this->mipLevels = createInfo.mipLevels;
 				
 				return res;
 			}
@@ -402,7 +404,7 @@ namespace RT64 {
 					viewInfo.format = format;
 					viewInfo.subresourceRange.aspectMask = aspectFlags;
 					viewInfo.subresourceRange.baseMipLevel = 0;
-					viewInfo.subresourceRange.levelCount = 1;
+					viewInfo.subresourceRange.levelCount = mipLevels;
 					viewInfo.subresourceRange.baseArrayLayer = 0;
 					viewInfo.subresourceRange.layerCount = 1;
 					vkCreateImageView(allocatorInfo.device, &viewInfo, nullptr, &imageView);
@@ -477,6 +479,10 @@ namespace RT64 {
 			VkAccessFlags getAccessFlags() { return accessFlags; }
 			VkAccessFlags getPieplineStage() { return pipelineStage; }
 			VkExtent3D getDimensions() { return dimensions; }
+			unsigned int getWidth() { return dimensions.width; }
+			unsigned int getHeight() { return dimensions.height; }
+			unsigned int getDepth() { return dimensions.depth; }
+			unsigned int getMipLevels() { return mipLevels; }
 			VkFormat getFormat() { return format; }
 
 			static void transitionLayouts(AllocatedImage** images, uint32_t imageCount, VkCommandBuffer* commandBuffer, VkPipelineStageFlags sourceStage, VkPipelineStageFlags destStage, VkImageMemoryBarrier* barriers, VkImageLayout newLayout) {

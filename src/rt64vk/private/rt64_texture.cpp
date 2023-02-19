@@ -32,10 +32,12 @@ namespace RT64 {
     {
         assert(pixels);
         this->format = format;
-        // Mipmaps go here
-        
-        // uint32_t rowWidth, rowPadding;
-        // CalculateTextureRowWidthPadding(rowPitch, rowWidth, rowPadding);
+        Mipmaps* mipmaps = device->getMipmaps();
+        if (mipmaps == nullptr) {
+            generateMipmaps = false;
+        }
+
+        uint32_t mipLevels = generateMipmaps ? (static_cast<uint32_t>(std::floor(std::log2(std::max(width, height)))) + 1) : 1;
 
         AllocatedBuffer stagingTexture;
 
@@ -51,18 +53,28 @@ namespace RT64 {
         // Set the data
         stagingTexture.setData(pixels, imageSize);
 
+        // Describe the real image
+        VkImageCreateInfo imageInfo{};
+        imageInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        imageInfo.imageType = VK_IMAGE_TYPE_2D;
+        imageInfo.format = format;
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        imageInfo.extent.width = width;
+        imageInfo.extent.height = height;
+        imageInfo.extent.depth = 1;             // Maybe if I were to like
+        imageInfo.mipLevels = mipLevels;
+        imageInfo.arrayLayers = 1;
+        imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;
+        imageInfo.flags = 0;
         // Allocate the real image
-        VK_CHECK(device->allocateImage(
-            width, height,
-            VK_IMAGE_TYPE_2D,
-            format,
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_LAYOUT_UNDEFINED,
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        device->allocateImage(
+            &texture, imageInfo,
             VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE,
-            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT,
-            &texture
-        ));
+            VMA_ALLOCATION_CREATE_HOST_ACCESS_SEQUENTIAL_WRITE_BIT | VMA_ALLOCATION_CREATE_HOST_ACCESS_ALLOW_TRANSFER_INSTEAD_BIT
+        );
 
         // Copy the command the buffer into the image
         VkCommandBuffer* commandBuffer = nullptr;
@@ -72,11 +84,17 @@ namespace RT64 {
             VK_PIPELINE_STAGE_TRANSFER_BIT, 
             commandBuffer);
         device->copyBufferToImage(stagingTexture.getBuffer(), texture.getImage(), static_cast<uint32_t>(width), static_cast<uint32_t>(height), commandBuffer);
-        device->transitionImageLayout(texture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-        VK_ACCESS_SHADER_READ_BIT, 
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
-        commandBuffer);
-        device->endSingleTimeCommands(commandBuffer);
+
+        if (generateMipmaps) {
+            mipmaps->generate(texture, commandBuffer);
+            device->endSingleTimeCommands(commandBuffer);
+        } else {
+            device->transitionImageLayout(texture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+            VK_ACCESS_SHADER_READ_BIT, 
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+            commandBuffer);
+            device->endSingleTimeCommands(commandBuffer);
+        }
         
         // Destroy the staged resource
         stagingTexture.destroyResource();

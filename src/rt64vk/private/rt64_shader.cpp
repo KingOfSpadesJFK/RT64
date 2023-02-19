@@ -335,7 +335,7 @@ namespace RT64
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         samplerInfo.mipLodBias = 0.0f;
         samplerInfo.minLod = 0.0f;
-        samplerInfo.maxLod = 0.0f;
+        samplerInfo.maxLod = FLT_MAX;
         vkCreateSampler(device->getVkDevice(), &samplerInfo, nullptr, &sampler);
 
 		device->addShader(this);
