@@ -876,7 +876,9 @@ namespace RT64
         updateSize(result, "failed to present swap chain image!");
         
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
+#ifdef RT64_DEBUG
         std::cout << "============================================\n";
+#endif
     }
 
     void Device::updateViewport() {

@@ -28,6 +28,13 @@ set(UAV_SHIFT 100)
 set(SRV_SHIFT 200)
 set(SAMPLER_SHIFT 300)
 
+add_compile_definitions(
+    $<$<CONFIG:Debug>:RT64_DEBUG>
+    $<$<CONFIG:Release>:RT64_RELEASE>
+    $<$<CONFIG:RelWithDebInfo>:RT64_DEBUG>
+    $<$<CONFIG:MinSizeRel>:RT64_MINIMAL>
+)
+
 if(NOT (CMAKE_SIZEOF_VOID_P EQUAL 8))
   message( FATAL_ERROR "64-bit builds are mandatory for this framework" )
 endif()

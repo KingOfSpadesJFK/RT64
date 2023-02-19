@@ -276,7 +276,7 @@ namespace RT64
             };
 
         public:
-#ifdef NDEBUG
+#ifdef RT64_DEBUG
             const bool enableValidationLayers = false;
 #else
             const bool enableValidationLayers = true;
