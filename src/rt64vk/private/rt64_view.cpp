@@ -162,7 +162,6 @@ namespace RT64
         // Create buffers for raytracing output.
         imageInfo.extent.width = rtWidth;
         imageInfo.extent.height = rtHeight;
-        imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
         imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
 	    device->allocateImage(&rtOutput[0], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtOutput[1], imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
@@ -451,6 +450,8 @@ namespace RT64
 
     View::~View() {
         scene->removeView(this);
+
+        delete fsr;
 
         destroyOutputBuffers();
         globalParamsBuffer.destroyResource();
@@ -1124,7 +1125,9 @@ namespace RT64
             // Create the buffer containing the raytracing result (or atleast soon), 
             //  and create the descriptor sets referencing the resources used 
             //  by the raytracing, such as the acceleration structure
-            updateShaderDescriptorSets(updateDescriptors);
+            if (updateDescriptors) {
+                updateShaderDescriptorSets(updateDescriptors);
+            }
             
             // Create the shader binding table and indicating which shaders
             // are invoked for each instance in the AS.

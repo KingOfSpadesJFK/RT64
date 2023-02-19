@@ -1559,17 +1559,6 @@ namespace RT64
 #ifndef RT64_MINIMAL
         vkDeviceWaitIdle(vkDevice);
 
-        cleanupSwapChain();
-        vkDestroySurfaceKHR(vkInstance, vkSurface, nullptr);
-        vkDestroyRenderPass(vkDevice, presentRenderPass, nullptr);
-        vkDestroyRenderPass(vkDevice, offscreenRenderPass, nullptr);
-        vkDestroyCommandPool(vkDevice, commandPool, nullptr);
-        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-            vkDestroySemaphore(vkDevice, imageAvailableSemaphores[i], nullptr);
-            vkDestroySemaphore(vkDevice, renderFinishedSemaphores[i], nullptr);
-            vkDestroyFence(vkDevice, inFlightFences[i], nullptr);
-        }
-
         // Destroy the scenes
         auto scenesCopy = scenes;
         for (Scene* s : scenesCopy) {
@@ -1596,6 +1585,17 @@ namespace RT64
         // Destroy the mipmap generator
         if (!disableMipmaps) {
             delete mipmaps;
+        }
+
+        cleanupSwapChain();
+        vkDestroySurfaceKHR(vkInstance, vkSurface, nullptr);
+        vkDestroyRenderPass(vkDevice, presentRenderPass, nullptr);
+        vkDestroyRenderPass(vkDevice, offscreenRenderPass, nullptr);
+        vkDestroyCommandPool(vkDevice, commandPool, nullptr);
+        for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+            vkDestroySemaphore(vkDevice, imageAvailableSemaphores[i], nullptr);
+            vkDestroySemaphore(vkDevice, renderFinishedSemaphores[i], nullptr);
+            vkDestroyFence(vkDevice, inFlightFences[i], nullptr);
         }
 
         // Destroy the inspector
