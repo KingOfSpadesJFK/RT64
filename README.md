@@ -68,7 +68,7 @@ Sponza scene created by Frank Meinl, PBR textures by Alexandre Pestana, GlTF mod
 
 Created using assets from [ambientCG.com](https://ambientcg.com/), licensed under the Creative Commons CC0 1.0 Universal License.
 
-Vulkan helper methods provided by NVIDIA in the [nvpro_core](https://github.com/nvpro-samples/nvpro_core) repository with changes made to fit the project.
+Vulkan helper methods provided by NVIDIA DesignWorks in the [nvpro_core](https://github.com/nvpro-samples/nvpro_core) repository with changes made to fit the project.
 
 ### nvpro_core changes
 #### raytraceKHR_vk additions
