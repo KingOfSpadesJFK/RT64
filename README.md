@@ -54,11 +54,17 @@ In the terminal, just type `cmake --build ./build --config Debug|Release --targe
 
 A sample is included to showcase how to use the renderer library.
 
-## Screenshot
-![Sample screenshot](/images/screen1.jpg?raw=true)
+## Screenshots
+![Sample screenshot 1](/images/Screenshot_20230220_042451.jpg?raw=true)
+![Sample screenshot 2](/images/Screenshot_20230220_042358.jpg?raw=true)
+![Sample screenshot 3](/images/Screenshot_20230220_041926.jpg?raw=true)
+![Sample screenshot 4](/images/Screenshot_20230220_041323.jpg?raw=true)
+![Sample screenshot 5](/images/Screenshot_20230220_043003.jpg?raw=true)
 
 ## Credits
 Some of the textures used in the sample projects for this repository have been sourced from the [RENDER96-HD-TEXTURE-PACK](https://github.com/pokeheadroom/RENDER96-HD-TEXTURE-PACK) repository.
+
+Sponza scene created by Frank Meinl, PBR textures by Alexandre Pestana, GlTF model provided by Khronos Group.
 
 Created using assets from [ambientCG.com](https://ambientcg.com/), licensed under the Creative Commons CC0 1.0 Universal License.
 
