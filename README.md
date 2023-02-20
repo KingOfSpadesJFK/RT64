@@ -23,7 +23,7 @@ This port is still very much a work-in-progress, only having been tested on Wind
 * Support for Vulkan 1.3
 * [DLSS SDK 3.1.0 or newer](https://developer.nvidia.com/dlss) if you wish to build with DLSS support.
 ## Windows Reqirements
-* Visual Studio 2022 and Windows SDK
+* Visual Studio 2022 and Windows SDK >=10.0.22000
 * [Vulkan SDK](https://vulkan.lunarg.com/)
     * Includes GLM headers
 ## Linux Requirements
