@@ -703,10 +703,10 @@ int main(int argc, char *argv[]) {
 	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
 
 	RT64_VIEW_DESC viewDesc {};
-	viewDesc.diSamples = 1;
-	viewDesc.giSamples = 1;
-	viewDesc.giBounces = 2;
-	viewDesc.denoiserEnabled = true;
+	viewDesc.diSamples = 0;
+	viewDesc.giSamples = 0;
+	viewDesc.giBounces = 0;
+	viewDesc.denoiserEnabled = false;
 	viewDesc.maxLights = 12;
 	viewDesc.motionBlurStrength = 0.25f;
 	viewDesc.tonemapMode = 4;
