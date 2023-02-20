@@ -561,8 +561,8 @@ namespace RT64
 
         auto storeTransforms = [this, &current](const RenderInstance& inst) {
             // Store world transform.
-            current->objectToWorld = convertNVMATHtoGLMMatrix(inst.transform);
-            current->objectToWorldPrevious = convertNVMATHtoGLMMatrix(inst.transformPrevious);
+            current->objectToWorld = inst.transform;
+            current->objectToWorldPrevious = inst.transformPrevious;
 
             // Store matrix to transform normal.
             glm::mat4 upper3x3 = current->objectToWorld;
@@ -1065,8 +1065,8 @@ namespace RT64
                 renderInstance.instance = instance;
                 renderInstance.blas = &usedMesh->getBlas();
                 // renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
-                renderInstance.transform = convertGLMtoNVMATHMatrix(instance->getTransform());
-                renderInstance.transformPrevious = convertGLMtoNVMATHMatrix(instance->getPreviousTransform());
+                renderInstance.transform = instance->getTransform();
+                renderInstance.transformPrevious = instance->getPreviousTransform();
                 renderInstance.material = instance->getMaterial();
                 renderInstance.shader = instance->getShader();
                 renderInstance.indexCount = usedMesh->getIndexCount();
@@ -1146,6 +1146,18 @@ namespace RT64
         RT64_LOG_PRINTF("Finished view update");
     }
 
+    // Taken from raytraceKHR_vk.hpp, but now it uses glm::mat4 instead of nvmath::mat4f
+    // Convert a Mat4x4 to the matrix required by acceleration structures
+    inline VkTransformMatrixKHR toTransformMatrixKHR(glm::mat4 matrix)
+    {
+        // VkTransformMatrixKHR uses a row-major memory layout, while nvmath::mat4f
+        // uses a column-major memory layout. We transpose the matrix so we can
+        // memcpy the matrix's data directly.
+        VkTransformMatrixKHR out_matrix;
+        memcpy(&out_matrix, &matrix, sizeof(VkTransformMatrixKHR));
+        return out_matrix;
+    }
+
     void View::createTopLevelAS(const std::vector<RenderInstance>& renderInstances) {
         std::vector<VkAccelerationStructureInstanceKHR> tlas;
         tlas.reserve(renderInstances.size());
@@ -1156,7 +1168,7 @@ namespace RT64
             // Build the blas of each of the render instances
             rtBuilder.emplaceBlas(r.instance->getMesh()->getBlas());
             VkAccelerationStructureInstanceKHR rayInst{};
-            rayInst.transform = nvvk::toTransformMatrixKHR(r.transform);
+            rayInst.transform = toTransformMatrixKHR(r.transform);
             rayInst.instanceCustomIndex = id;
             rayInst.accelerationStructureReference = r.instance->getMesh()->getBlasAddress();
             rayInst.flags = r.flags;

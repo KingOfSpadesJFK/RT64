@@ -2,7 +2,13 @@
 *   RT64VK
 */
 
-#pragma once
+#ifndef __RT64COMMON
+#define __RT64COMMON
+
+#ifdef _WIN32
+	#define NOMINMAX
+	#define VK_USE_PLATFORM_WIN32_KHR
+#endif
 
 #include <iostream>
 #include <fstream>
@@ -11,15 +17,15 @@
 #include <string>
 #include <vector>
 #include <stdio.h>
-#include "../contrib/nvpro_core/nvmath/nvmath.h"
 #include <glm/glm.hpp>
-#include <bits/stl_algo.h>		// Idk why I know have to throw in this include in other than it makes it compile
 #include <vulkan/vulkan.hpp>
 #define RT64_VULKAN_VERSION VK_API_VERSION_1_3
 
-// Oh hey, that dxc rly do be outputing spir-v code
 #ifndef _WIN32
-    #include "../contrib/dxc/include/linux/dxcapi.h"
+	#include <bits/stl_algo.h>
+	#include "../contrib/dxc/include/linux/dxcapi.h"
+#else
+	#include "../contrib/dxc/include/win/dxcapi.h"
 #endif
 
 #include "../contrib/VulkanMemoryAllocator/vk_mem_alloc.h"
@@ -506,48 +512,6 @@ namespace RT64 {
 			}
 	};
 
-	inline glm::mat4 convertNVMATHtoGLMMatrix(const nvmath::mat4f& b) {
-		glm::mat4 a;
-		a[0][0] = b.a00;
-		a[1][0] = b.a01;
-		a[2][0] = b.a02;
-		a[3][0] = b.a03;
-		a[0][1] = b.a10;
-		a[1][1] = b.a11;
-		a[2][1] = b.a12;
-		a[3][1] = b.a13;
-		a[0][2] = b.a20;
-		a[1][2] = b.a21;
-		a[2][2] = b.a22;
-		a[3][2] = b.a23;
-		a[0][3] = b.a30;
-		a[1][3] = b.a31;
-		a[2][3] = b.a32;
-		a[3][3] = b.a33;
-		return a;
-	}
-
-	inline nvmath::mat4f convertGLMtoNVMATHMatrix(const glm::mat4& b) {
-		nvmath::mat4f a;
-		a.a00 = b[0][0];
-		a.a01 = b[1][0];
-		a.a02 = b[2][0];
-		a.a03 = b[3][0];
-		a.a10 = b[0][1];
-		a.a11 = b[1][1];
-		a.a12 = b[2][1];
-		a.a13 = b[3][1];
-		a.a20 = b[0][2];
-		a.a21 = b[1][2];
-		a.a22 = b[2][2];
-		a.a23 = b[3][2];
-		a.a30 = b[0][3];
-		a.a31 = b[1][3];
-		a.a32 = b[2][3];
-		a.a33 = b[3][3];
-		return a;
-	}
-
 	inline void operator+=(RT64_VECTOR3 &a, const RT64_VECTOR3& b) {
 		a.x += b.x;
 		a.y += b.y;
@@ -697,3 +661,5 @@ namespace RT64 {
 #define CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT			256
 
 #define ROUND_UP(v, powerOf2Alignment) (((v) + (powerOf2Alignment)-1) & ~((powerOf2Alignment)-1))
+
+#endif

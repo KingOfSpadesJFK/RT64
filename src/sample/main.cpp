@@ -2,10 +2,6 @@
 // RT64 SAMPLE
 //
 
-#ifndef NDEBUG
-#	define RT64_DEBUG
-#endif
-
 #include "rt64.h"
 
 #define WINDOW_TITLE "RT64 Sample"
@@ -14,28 +10,28 @@
 #include <glm/ext.hpp>
 #include <chrono>
 #include <unordered_map>
+#include <iostream>
 
-#define TINYGLTF_IMPLEMENTATION
-#define STB_IMAGE_IMPLEMENTATION
-#define STB_IMAGE_WRITE_IMPLEMENTATION
+// #define TINYGLTF_IMPLEMENTATION
+// #undef TINYGLTF_INTERNAL_NOMINMAX
 // #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
-#include "contrib/tinygltf/tiny_gltf.h"
+// #include "contrib/tinygltf/tiny_gltf.h"
 
 #ifndef _WIN32
 #define _countof(array) (sizeof(array) / sizeof(array[0]))
 #endif
 
-// #ifdef _WIN32
-// #include <Windows.h>
-// static void infoMessage(HWND hWnd, const char *message) {
-// 	MessageBox(hWnd, message, WINDOW_TITLE, MB_OK | MB_ICONINFORMATION);
-// }
+#ifdef _WIN32
+#define NOMINMAX
+#include <Windows.h>
+static void infoMessage(HWND hWnd, const char *message) {
+	MessageBox(hWnd, message, WINDOW_TITLE, MB_OK | MB_ICONINFORMATION);
+}
 
-// static void errorMessage(HWND hWnd, const char *message) {
-// 	MessageBox(hWnd, message, WINDOW_TITLE " Error", MB_OK | MB_ICONERROR);
-// }
-// #else
-#include <iostream>
+static void errorMessage(HWND hWnd, const char *message) {
+	MessageBox(hWnd, message, WINDOW_TITLE " Error", MB_OK | MB_ICONERROR);
+}
+#else
 static void infoMessage(void* hWnd, const char *message) {
 	std::cout << "[INFO]: " << message << "\n";
 }
@@ -43,7 +39,7 @@ static void infoMessage(void* hWnd, const char *message) {
 static void errorMessage(void* hWnd,const char *message) {
 	std::cout << "[ERROR]: " << message << "\n";
 }
-// #endif
+#endif
 
 #ifndef RT64_MINIMAL
 
@@ -52,8 +48,8 @@ static void errorMessage(void* hWnd,const char *message) {
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-// #define STB_IMAGE_IMPLEMENTATION
-// #include "contrib/stb_image.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "contrib/stb_image.h"
 
 #define TINYOBJLOADER_IMPLEMENTATION
 #include "contrib/tiny_obj_loader.h"
@@ -90,7 +86,11 @@ struct {
 } RT64;
 
 struct {
+#ifdef _WIN32
+	std::chrono::steady_clock::time_point startTime = std::chrono::high_resolution_clock::now();;
+#else
 	std::chrono::_V2::system_clock::time_point startTime = std::chrono::high_resolution_clock::now();;
+#endif
 	bool doDaylightCycle = true;
 	float daylightCycleSpeed = 1.0f / 32.0f;
 	float daylightTime = 0.5f;
@@ -158,6 +158,10 @@ void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
 	}
 }
 
+#ifndef M_PI
+	#define M_PI  3.14159265358979323846f
+#endif
+
 // Process drawing 
 void draw(GLFWwindow* window ) {
 	int focused = glfwGetWindowAttrib(window, GLFW_FOCUSED);
@@ -171,11 +175,11 @@ void draw(GLFWwindow* window ) {
 	// Code to make the view spin around
     #define RADIUS 2.0f
     #define YOFF 5.0f
-	glm::vec3 eye = glm::vec3(sinf32(time) * glm::radians(90.0f) * 6.50 - 1.0, YOFF, cosf32(time) * glm::radians(90.0f) * 1.750 - 1.6250);
+	glm::vec3 eye = glm::vec3(sinf(time) * glm::radians(90.0f) * 6.50 - 1.0, YOFF, cosf(time) * glm::radians(90.0f) * 1.750 - 1.6250);
 	eye.x *= Sample.sceneScale;
 	eye.y *= Sample.sceneScale;
 	eye.z *= Sample.sceneScale;
-	glm::mat4 v = glm::lookAt(eye, glm::vec3(0.0f, (cosf32(time / 2.0f) * glm::radians(90.0f) * -2.00 + 3.0) * Sample.sceneScale, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	glm::mat4 v = glm::lookAt(eye, glm::vec3(0.0f, (cosf(time / 2.0f) * glm::radians(90.0f) * -2.00 + 3.0) * Sample.sceneScale, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	RT64.viewMatrix.m[0][0] =  v[0][0];
 	RT64.viewMatrix.m[1][0] =  v[1][0];
 	RT64.viewMatrix.m[2][0] =  v[2][0];
@@ -196,10 +200,10 @@ void draw(GLFWwindow* window ) {
 
 	// Day-night cycle
 
-	float daylightSin =   sinf32(Sample.daylightTime);
-	float daylightSinM = -sinf32(Sample.daylightTime);
-	float daylightCos =   cosf32(Sample.daylightTime);
-	float daylightCosM = -cosf32(Sample.daylightTime);
+	float daylightSin =   sinf(Sample.daylightTime);
+	float daylightSinM = -sinf(Sample.daylightTime);
+	float daylightCos =   cosf(Sample.daylightTime);
+	float daylightCosM = -cosf(Sample.daylightTime);
 	RT64_VECTOR3 sunColor = {10.0f, 8.75f, 7.50f};
 	RT64_VECTOR3 moonColor = {0.125f, 0.5f, 0.75f};
 	RT64.lights[0].position = { daylightSin * 1500000.0f, daylightSin * 3000000.0f, daylightCos * 3000000.0f };
@@ -579,126 +583,6 @@ void destroyRT64() {
 						- Materials
 */
 
-std::vector<RT64_INSTANCE*> gltfInstances;
-
-template <typename T>
-const T* getGlTFData(tinygltf::Model& model, tinygltf::Primitive& primitive, std::string name) {
-	const tinygltf::Accessor& accessor = model.accessors[primitive.attributes[name]];
-	const tinygltf::BufferView& bufferView = model.bufferViews[accessor.bufferView];
-	const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
-	const T* ret = reinterpret_cast<const T*>(&buffer.data[bufferView.byteOffset + accessor.byteOffset]);
-	return ret;
-}
-
-template <typename T>
-const T* getGlTFData(tinygltf::Model& model, int i) {
-	const tinygltf::Accessor& accessor = model.accessors[i];
-	const tinygltf::BufferView& bufferView = model.bufferViews[accessor.bufferView];
-	const tinygltf::Buffer& buffer = model.buffers[bufferView.buffer];
-	const T* ret = reinterpret_cast<const T*>(&buffer.data[bufferView.byteOffset + accessor.byteOffset]);
-	return ret;
-}
-
-unsigned int getGlTFAccessorCount(tinygltf::Model& model, tinygltf::Primitive& primitive, std::string name) {
-	const tinygltf::Accessor& accessor = model.accessors[primitive.attributes[name]];
-	return accessor.count;
-}
-
-unsigned int getGlTFAccessorCount(tinygltf::Model& model, int i) {
-	const tinygltf::Accessor& accessor = model.accessors[i];
-	return accessor.count;
-}
-
-void setupGlTFScene() {
-	std::string err;
-	std::string warn;
-	tinygltf::TinyGLTF loader;
-	tinygltf::Model sponza;
-	loader.LoadASCIIFromFile(&sponza, &err, &warn, "res/Sponza/glTF/Sponza.gltf");
-	
-	std::vector<RT64_MESH*> rt64meshes;
-
-	for (int i = 0; i < sponza.meshes.size(); i++) {
-		int materialCount = sponza.materials.size();
-		if (materialCount == 0) {
-			materialCount++;
-		}
-		std::vector<std::vector<VERTEX>> verticesByMaterial;
-		std::vector<std::vector<unsigned int>> indicesByMaterial;
-		std::vector<int> maxIndex(materialCount, 0);
-		verticesByMaterial.resize(materialCount);
-		indicesByMaterial.resize(materialCount);
-		maxIndex.resize(materialCount);
-		std::vector<unsigned int> indices;
-		int index = 0;
-		for (tinygltf::Primitive& primitive : sponza.meshes[i].primitives) {
-			const float* positions = getGlTFData<float>(sponza, primitive, "POSITION");
-			const float* uvCoords = getGlTFData<float>(sponza, primitive, "NORMAL");
-			const float* normals = getGlTFData<float>(sponza, primitive, "TEXCOORD_0");
-			const unsigned int* indices = getGlTFData<unsigned int>(sponza, primitive.indices);
-			int material = primitive.material >= 0 ? primitive.material : 0;
-			for (size_t k = 0; k < getGlTFAccessorCount(sponza, primitive, "POSITION"); ++k) {
-				VERTEX vert1 {
-					{ positions[k * 3 + 0], positions[k * 3 + 1], positions[k * 3 + 2], 1.0f },
-					{ normals  [k * 3 + 0], normals  [k * 3 + 1], normals  [k * 3 + 2] },
-					{ uvCoords [k * 2 + 0], uvCoords [k * 2 + 1] },
-					{ 1.0f, 1.0f, 1.0f, 1.0f }
-				};
-				// VERTEX vert2 {
-				// 	{ positions[k * 3 + 3], positions[k * 3 + 4], positions[k * 3 + 5], 1.0f },
-				// 	{ normals  [k * 3 + 3], normals  [k * 3 + 4], normals  [k * 3 + 5] },
-				// 	{ uvCoords [k * 2 + 2], uvCoords [k * 2 + 3] },
-				// 	{ 1.0f, 1.0f, 1.0f, 1.0f }
-				// };
-				// VERTEX vert3 {
-				// 	{ positions[k * 3 + 6], positions[k * 3 + 7], positions[k * 3 + 8], 1.0f },
-				// 	{ normals  [k * 3 + 6], normals  [k * 3 + 7], normals  [k * 3 + 8] },
-				// 	{ uvCoords [k * 2 + 4], uvCoords [k * 2 + 5] },
-				// 	{ 1.0f, 1.0f, 1.0f, 1.0f }
-				// };
-				verticesByMaterial[material].push_back(vert1);
-				// verticesByMaterial[material].push_back(vert2);
-				// verticesByMaterial[material].push_back(vert3);
-				maxIndex[material] += 3;
-				// std::cout << "{" << positions[k * 3 + 0] << ", " << positions[k * 3 + 1] << ", " << positions[k * 3 + 2] << "}\n";
-				// std::cout << "{" << positions[k * 3 + 3] << ", " << positions[k * 3 + 4] << ", " << positions[k * 3 + 5] << "}\n";
-				// std::cout << "{" << positions[k * 3 + 6] << ", " << positions[k * 3 + 7] << ", " << positions[k * 3 + 8] << "}\n";
-			}
-			for (size_t k = 0; k < getGlTFAccessorCount(sponza, primitive.indices) / 3; ++k) {
-				indicesByMaterial[material].push_back(k);
-			}
-		}
-
-		for (int j = 0; j < materialCount; j++) {
-			rt64meshes.push_back(RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT));
-			gltfInstances.push_back(RT64.lib.CreateInstance(RT64.scene));
-			RT64.lib.SetMesh(rt64meshes[j], verticesByMaterial[j].data(), verticesByMaterial[j].size(), sizeof(VERTEX), indicesByMaterial[j].data(), indicesByMaterial[j].size());
-			RT64_INSTANCE_DESC instDesc;
-			RT64_MATRIX4 sceneTransform {};
-			RT64_MATERIAL mat = RT64.baseMaterial;
-			sceneTransform.m[0][0] = 0.0075f;
-			sceneTransform.m[1][1] = 0.0075f;
-			sceneTransform.m[2][2] = 0.0075f;
-			sceneTransform.m[3][0] = 0.00f;
-			sceneTransform.m[3][1] = 0.00f;
-			sceneTransform.m[3][2] = 0.00f;
-			sceneTransform.m[3][3] = 1.00f;
-			instDesc.scissorRect = { 0, 0, 0, 0 };
-			instDesc.viewportRect = { 0, 0, 0, 0 };
-			instDesc.mesh = rt64meshes[j];
-			instDesc.transform = sceneTransform;
-			instDesc.previousTransform = sceneTransform;
-			instDesc.diffuseTexture = RT64.textureDif;
-			instDesc.normalTexture = RT64.textureNrm;
-			instDesc.specularTexture = RT64.textureSpc;
-			instDesc.material = mat;
-			instDesc.shader = RT64.shader;
-			instDesc.flags = 0;
-			RT64.lib.SetInstanceDescription(gltfInstances[j], instDesc);
-		}
-	}
-}
-
 void setupSponza()
 {
 	tinyobj::attrib_t attrib;
@@ -711,8 +595,10 @@ void setupSponza()
 	std::cout << warn;
 	const int matCount = materials.size();
 
-	std::vector<VERTEX> objVertices[matCount];
-	std::vector<unsigned int> objIndices[matCount];
+	std::vector<std::vector<VERTEX>> objVertices;
+	objVertices.resize(matCount);
+	std::vector<std::vector<unsigned int>> objIndices;
+	objIndices.resize(matCount);
 	for (size_t i = 0; i < shapes.size(); i++) {
 		size_t index_offset = 0;
 		for (size_t f = 0; f < shapes[i].mesh.num_face_vertices.size(); f++) {
@@ -822,7 +708,7 @@ int main(int argc, char *argv[]) {
 	viewDesc.giBounces = 2;
 	viewDesc.denoiserEnabled = true;
 	viewDesc.maxLights = 12;
-	viewDesc.motionBlurStrength = 0.0f;
+	viewDesc.motionBlurStrength = 0.25f;
 	viewDesc.tonemapMode = 4;
 	viewDesc.tonemapExposure = 2.5f;
 	viewDesc.tonemapWhite = 1.0f;

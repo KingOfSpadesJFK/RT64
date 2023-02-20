@@ -7,7 +7,8 @@
 #define RT64_H_INCLUDED
 
 #ifdef _WIN32
-    #include <Windows.h>
+	#include <iostream>
+	#include <Windows.h>
 #else
     #include <dlfcn.h>
 #endif
@@ -331,7 +332,11 @@ typedef void (*SetInspectorVisibilityPtr)(RT64_DEVICE *devicePtr, bool showInspe
 
 // Stores all the function pointers used in the RT64 library.
 typedef struct {
+#ifdef _WIN32
+	HMODULE handle;
+#else
 	void* handle;
+#endif
 	GetLastErrorPtr GetLastError;
 	CreateDevicePtr CreateDevice;
 	DestroyDevicePtr DestroyDevice;
@@ -368,9 +373,11 @@ typedef struct {
 } RT64_LIBRARY;
 
 #ifdef _WIN32
-inline FARPROC RT64_GetProcAddress(HMODULE libHandle, const char* procName) 
+inline FARPROC RT64_GetProcAddress(HMODULE libHandle, const char* procName)
 {
-    return GetProcAddress(libHandle, procName);
+    FARPROC ret = GetProcAddress(libHandle, procName);
+	std::cout << GetLastError() << std::endl;
+	return ret;
 }
 #else
 inline void* RT64_GetProcAddress(void* libHandle, const char* procName) 
@@ -385,13 +392,13 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 	RT64_LIBRARY lib;
 
 #ifdef _WIN32
-    #if defined(RT64_MINIMAL)
-        lib.handle = LoadLibrary(TEXT("librt64vkm.dll"));
-    #elif defined(RT64_DEBUG)
-        lib.handle = LoadLibrary(TEXT("librt64vkd.dll"));
-    #else
-        lib.handle = LoadLibrary(TEXT("librt64vk.dll"));
-    #endif
+    //#if defined(RT64_MINIMAL)
+    //    lib.handle = LoadLibrary(TEXT("rt64vkm.dll"));
+    //#elif defined(RT64_DEBUG)
+    //    lib.handle = LoadLibrary(TEXT("rt64vkd.dll"));
+    //#else
+        lib.handle = LoadLibraryExA(TEXT("rt64vk.dll"), NULL, 0);
+    //#endif
 #else
     // #if defined(RT64_MINIMAL)
     //     lib.handle = dlopen("./librt64vkm.so", RTLD_LAZY | RTLD_DEEPBIND);
@@ -450,7 +457,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 
 inline void RT64_UnloadLibrary(RT64_LIBRARY lib) {
 #ifdef _WIN32
-	FreeLibrary(lib.handle);
+	FreeLibrary((HMODULE)(lib.handle));
 #else
 	dlclose(lib.handle);
 #endif

@@ -1237,10 +1237,10 @@ namespace RT64
     { 
 
 #ifdef _WIN32
-        VkWin32SurfaceCreateInfoKHR createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+        VkWin32SurfaceCreateInfoKHR createInfo { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
         createInfo.hwnd = glfwGetWin32Window(window);
         createInfo.hinstance = GetModuleHandle(nullptr);
+        // vkCreateWin32SurfaceKHR(instance, &createInfo, nullptr, &vkSurface);
 #endif
 
         VK_CHECK(glfwCreateWindowSurface(vkInstance, window, nullptr, &vkSurface));

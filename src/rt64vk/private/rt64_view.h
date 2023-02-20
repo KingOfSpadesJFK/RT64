@@ -6,7 +6,6 @@
 
 #include "rt64_common.h"
 
-// Very much incomplete. Might as well just do
 #include "rt64_upscaler.h"
 #include "rt64_device.h"
 #include <nvh/alignment.hpp>
@@ -38,8 +37,8 @@ namespace RT64
                 VkBuffer* indexBuffer = nullptr;
                 int indexCount = -1;
                 nvvk::AccelKHR* blas = nullptr;
-                nvmath::mat4f transform {};
-                nvmath::mat4f transformPrevious {};
+                glm::mat4 transform {};
+                glm::mat4 transformPrevious {};
                 RT64_MATERIAL material;
                 Shader* shader;
                 VkRect2D scissorRect;

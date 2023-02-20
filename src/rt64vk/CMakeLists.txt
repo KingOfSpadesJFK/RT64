@@ -4,21 +4,29 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Include third party libraries
 if(UNIX)
-    set(DXC_HEADER_DIR ${DXC_DIR}/include/linux)
+    set(VULKAN_LIBRARY vulkan)
+    set(GLFW_LIBRARY glfw)
+
+    set(DXC_INCLUDE ${DXC_DIR}/include/linux)
     file(GLOB DXC_LIBRARIES ${DXC_DIR}/lib/libdxcompiler.so)
-    list(APPEND DLSS_LIBRARY ${DLSS_DIR}/lib/Linux_x86_64/libnvsdk_ngx.a)   
+    set(DLSS_LIBRARY ${DLSS_DIR}/lib/Linux_x86_64/libnvsdk_ngx.a)   
     list(APPEND DLSS_LIBRARY libstdc++.so)   
     list(APPEND DLSS_LIBRARY libdl.a) 
     file(GLOB FSR_LIBRARY ${FSR_DIR}/lib/libffx_fsr2_api_*x86_64.a)
-else()
-    set(DXC_HEADER_DIR ${DXC_DIR}/include/win)
-    file(GLOB DXC_LIBRARIES ${DXC_DIR}/lib/win-x64/dxcompiler.lib)
-    file(GLOB DLSS_LIBRARY ${DLSS_DIR}/lib/Windows_x86_64/x86_64/*.lib)    
-endif()
+    list(APPEND PLATFORM /usr/include/glm/simd)
+else() 
+    set(VK_SDK_HEADERS ${VK_SDK_PATH}\\Include) 
+    file(GLOB VULKAN_LIBRARY ${VK_SDK_PATH}\\Lib/*.lib)
+    file(GLOB GLFW_LIBRARY ${PROJECT_SOURCE_DIR}/src/contrib/glfw/lib/*.lib)
+    set(GLFW_INCLUDE ${PROJECT_SOURCE_DIR}/src/contrib/glfw/include)
 
-if(UNIX)
-    LIST(APPEND PLATFORM /usr/include/glm/simd)
+    set(DXC_INCLUDE ${DXC_DIR}/include/win)
+    file(GLOB DXC_LIBRARIES ${DXC_DIR}/lib/win-x64/dxcompiler.lib)
+    file(GLOB DLSS_LIBRARY ${DLSS_DIR}/lib/Windows_x86_64/x86_64/*.lib)   
+    file(GLOB FSR_LIBRARY ${FSR_DIR}/lib/ffx_fsr2_api_*x64.lib ${FSR_DIR}/lib/ffx_fsr2_api_*x64.exp)
+    list(APPEND PLATFORM ${VK_SDK_PATH}\\Include\\glm\\simd)
 endif()
+message("${FSR_LIBRARY}")
 
 include_directories(
     ${LIBRT64VK_DIR}/public/
@@ -63,19 +71,23 @@ add_library(rt64vk SHARED
     ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
 )
 target_include_directories(rt64vk PRIVATE 
+    ${MINGW64_INCLUDE}
+    ${VK_SDK_HEADERS}
+    ${GLFW_INCLUDE}
     ${LIBRT64VK_DIR}
     ${CONTRIB_DIR}
     ${VMA_DIR}
     ${IMGUI_DIR}
     ${DXC_DIR}
+    ${DXC_INCLUDE}
     ${PLATFORM}
     ${NVPRO_DIR}
     ${DLSS_DIR}/include
     ${FSR_DIR}/include
 )
 target_link_libraries(rt64vk
-    vulkan
-    glfw
+    ${VULKAN_LIBRARY}
+    ${GLFW_LIBRARY}
     ${DXC_LIBRARIES}
     ${DLSS_LIBRARY}
     ${FSR_LIBRARY}
@@ -84,24 +96,28 @@ target_link_libraries(rt64vk
 if(UNIX)
     # Copy the DLSS .so files into the build folder
     if(RT64_DEBUG)
-        add_custom_command(TARGET rt64vk POST_BUILD
-            COMMAND cp -r ${DLSS_DIR}/lib/Linux_x86_64/dev/libnvidia-ngx-dlss.so.3.1.1 ${CMAKE_BINARY_DIR}
-        )
+        #add_custom_command(TARGET rt64vk POST_BUILD
+        #    COMMAND cp -r ${DLSS_DIR}/lib/Linux_x86_64/dev/libnvidia-ngx-dlss.so.3.1.1 ${CMAKE_BINARY_DIR}
+        file(COPY ${DLSS_DIR}/lib/Linux_x86_64/dev/ DESTINATION ${CMAKE_BINARY_DIR})
+        #)
     else()
-        add_custom_command(TARGET rt64vk POST_BUILD
-            COMMAND cp -r ${DLSS_DIR}/lib/Linux_x86_64/rel/libnvidia-ngx-dlss.so.3.1.1 ${CMAKE_BINARY_DIR}
-        )
+        #add_custom_command(TARGET rt64vk POST_BUILD
+        #    COMMAND cp -r ${DLSS_DIR}/lib/Linux_x86_64/rel/libnvidia-ngx-dlss.so.3.1.1 ${CMAKE_BINARY_DIR}
+        #)
+        file(COPY ${DLSS_DIR}/lib/Linux_x86_64/dev/ DESTINATION ${CMAKE_BINARY_DIR})
     endif()
 else()
     # Copy the DLSS .dll files into the build folder
     if(RT64_DEBUG)
-        add_custom_command(TARGET rt64vk POST_BUILD
-            COMMAND cp -r ${DLSS_DIR}/lib/Windows_x86_64/dev/ ${CMAKE_BINARY_DIR}
-        )
+        #add_custom_command(TARGET rt64vk POST_BUILD
+        #    COMMAND  copy ${DLSS_DIR}/lib/Windows_x86_64/dev/ ${CMAKE_BINARY_DIR}
+        #)
+        file(COPY ${DLSS_DIR}/lib/Windows_x86_64/dev/ DESTINATION ${CMAKE_BINARY_DIR})
     else()
-        add_custom_command(TARGET rt64vk POST_BUILD
-            COMMAND cp -r ${DLSS_DIR}/lib/Windows_x86_64/rel/ ${CMAKE_BINARY_DIR}
-        )
+        #add_custom_command(TARGET rt64vk POST_BUILD
+        #    COMMAND  copy ${DLSS_DIR}/lib/Windows_x86_64/rel/ ${CMAKE_BINARY_DIR}
+        #)
+        file(COPY ${DLSS_DIR}/lib/Windows_x86_64/rel/ DESTINATION ${CMAKE_BINARY_DIR})
     endif()
 endif()
 set_property(TARGET rt64vk PROPERTY CXX_STANDARD 20)
