@@ -23,7 +23,7 @@ This port is still very much a work-in-progress, only having been tested on Wind
 * Support for Vulkan 1.3
 * [DLSS SDK 3.1.0 or newer](https://developer.nvidia.com/dlss) if you wish to build with DLSS support.
 ## Windows Reqirements
-* Visual Studio 2022 and Windows SDK
+* Visual Studio 2022 and Windows SDK >=10.0.22000
 * [Vulkan SDK](https://vulkan.lunarg.com/)
     * Includes GLM headers
 ## Linux Requirements
@@ -68,7 +68,7 @@ Sponza scene created by Frank Meinl, PBR textures by Alexandre Pestana, GlTF mod
 
 Created using assets from [ambientCG.com](https://ambientcg.com/), licensed under the Creative Commons CC0 1.0 Universal License.
 
-Vulkan helper methods provided by NVIDIA in the [nvpro_core](https://github.com/nvpro-samples/nvpro_core) repository with changes made to fit the project.
+Vulkan helper methods provided by NVIDIA DesignWorks in the [nvpro_core](https://github.com/nvpro-samples/nvpro_core) repository with changes made to fit the project.
 
 ### nvpro_core changes
 #### raytraceKHR_vk additions
