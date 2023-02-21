@@ -4,29 +4,35 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # Include third party libraries
 if(UNIX)
+    # Vulkan and GLFW
     set(VULKAN_LIBRARY vulkan)
     set(GLFW_LIBRARY glfw)
-
+    # DXC
     set(DXC_INCLUDE ${DXC_DIR}/include/linux)
-    file(GLOB DXC_LIBRARIES ${DXC_DIR}/lib/libdxcompiler.so)
-    set(DLSS_LIBRARY ${DLSS_DIR}/lib/Linux_x86_64/libnvsdk_ngx.a)   
-    list(APPEND DLSS_LIBRARY libstdc++.so)   
-    list(APPEND DLSS_LIBRARY libdl.a) 
+    file(GLOB DXC_LIBRARY ${DXC_DIR}/lib/libdxcompiler.so)
+    # DLSS 
+    file(GLOB DLSS_LIBRARY ${DLSS_DIR}/lib/Linux_x86_64/*.a)   
+    # FSR
     file(GLOB FSR_LIBRARY ${FSR_DIR}/lib/libffx_fsr2_api_*x86_64.a)
+    # GLM Platform
     list(APPEND PLATFORM /usr/include/glm/simd)
 else() 
+    # Vulkan and GLFW
     set(VK_SDK_HEADERS ${VK_SDK_PATH}\\Include) 
     file(GLOB VULKAN_LIBRARY ${VK_SDK_PATH}\\Lib/*.lib)
     file(GLOB GLFW_LIBRARY ${PROJECT_SOURCE_DIR}/src/contrib/glfw/lib/*.lib)
     set(GLFW_INCLUDE ${PROJECT_SOURCE_DIR}/src/contrib/glfw/include)
-
+    # DXC
     set(DXC_INCLUDE ${DXC_DIR}/include/win)
-    file(GLOB DXC_LIBRARIES ${DXC_DIR}/lib/win-x64/dxcompiler.lib)
+    file(GLOB DXC_LIBRARY ${DXC_DIR}/lib/win-x64/dxcompiler.lib)
+    # DLSS
     file(GLOB DLSS_LIBRARY ${DLSS_DIR}/lib/Windows_x86_64/x86_64/*.lib)   
+    # FSR
     file(GLOB FSR_LIBRARY ${FSR_DIR}/lib/ffx_fsr2_api_*x64.lib ${FSR_DIR}/lib/ffx_fsr2_api_*x64.exp)
+    # GLM Platform
     list(APPEND PLATFORM ${VK_SDK_PATH}\\Include\\glm\\simd)
 endif()
-message("${FSR_LIBRARY}")
+# message("${DLSS_LIBRARY}")
 
 include_directories(
     ${LIBRT64VK_DIR}/public/
@@ -88,7 +94,7 @@ target_include_directories(rt64vk PRIVATE
 target_link_libraries(rt64vk
     ${VULKAN_LIBRARY}
     ${GLFW_LIBRARY}
-    ${DXC_LIBRARIES}
+    ${DXC_LIBRARY}
     ${DLSS_LIBRARY}
     ${FSR_LIBRARY}
 )

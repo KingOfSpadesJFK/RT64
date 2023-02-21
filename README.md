@@ -10,7 +10,7 @@ The library is not meant to be used in the traditional way by linking it as an s
 
 This project is a port of RT64 from DX12 to Vulkan. It should do everything as mentioned above, with real-time raytracing in a library form... but with Vulkan!
 
-This port is still very much a work-in-progress, only having been tested on Windows 11 and Fedora 37. Some features from RT64 DX12 are still missing (3D Debug interfaces, DLSS and XESS, background rasterizer).
+This port is still very much a work-in-progress, only having been tested on Windows 11 and Fedora 37 with an RTX 3060Ti. Some features from RT64 DX12 are still missing (3D Debug interfaces, DLSS and XESS, background rasterizer).
 
 <!-- ## Status
 [![Build status](https://ci.appveyor.com/api/projects/status/biwo1tfvg2cndapi?svg=true)](https://ci.appveyor.com/project/DarioSamo/rt64) -->
@@ -19,7 +19,7 @@ This port is still very much a work-in-progress, only having been tested on Wind
 * Vulkan backend for Windows and Linux
 
 ## Requirements
-* CMake
+* CMake >=3.12.0
 * Support for Vulkan 1.3
 * [DLSS SDK 3.1.0 or newer](https://developer.nvidia.com/dlss) if you wish to build with DLSS support.
 ## Windows Reqirements

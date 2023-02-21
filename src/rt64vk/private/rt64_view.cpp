@@ -1526,7 +1526,7 @@ namespace RT64
                 VkDeviceSize offsets[] = {0};
                 RaygenPushConstant pushConst = { 1.0f, 1.0f };
                 for (int i = 0; i < globalParamsData.giBounces; i++) {
-                    RT64_LOG_PRINTF("Dispatching indirect light rays batch #" + (i+1));
+                    RT64_LOG_PRINTF("Dispatching indirect light rays batch #%d", (i+1));
                     vkCmdPushConstants(commandBuffer, device->getRTPipelineLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(RaygenPushConstant), &pushConst);
                     vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
                     pushConst.bounceDivisor *= 16.0f;

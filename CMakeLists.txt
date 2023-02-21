@@ -34,9 +34,12 @@ add_compile_definitions(
     $<$<CONFIG:RelWithDebInfo>:RT64_DEBUG>
     $<$<CONFIG:MinSizeRel>:RT64_MINIMAL>
 )
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_definitions("-fms-extensions")
+endif()
 
 if(NOT (CMAKE_SIZEOF_VOID_P EQUAL 8))
-  message( FATAL_ERROR "64-bit builds are mandatory for this framework" )
+    message( FATAL_ERROR "64-bit builds are mandatory for this framework" )
 endif()
 
 add_subdirectory(${LIBRT64VK_DIR})

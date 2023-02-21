@@ -864,7 +864,7 @@ namespace RT64
 		printf("\n____________________________________________\n");
 #endif
 		std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> stringConverter;		// Because DXC required wstrings for some reason
-		IDxcBlob* dxcBlob;
+		IDxcBlob* dxcBlob = nullptr;
 		IDxcBlobEncoding* textBlob = nullptr;
 		D3D12_CHECK(device->getDxcLibrary()->CreateBlobWithEncodingFromPinned((LPBYTE)shaderCode.c_str(), (uint32_t)shaderCode.size(), 0, &textBlob));
 
@@ -898,13 +898,13 @@ namespace RT64
 		arguments.push_back(__setIndexStr);
 		arguments.push_back(L"-Qstrip_debug");
 
-		IDxcOperationResult *result = nullptr;
+		IDxcOperationResult* result = nullptr;
 		D3D12_CHECK(device->getDxcCompiler()->Compile(textBlob, L"", stringConverter.from_bytes(entryName).c_str(), profile.c_str(), arguments.data(), (UINT32)(arguments.size()), nullptr, 0, nullptr, &result));
 
 		HRESULT resultCode;
 		D3D12_CHECK(result->GetStatus(&resultCode));
 		if (FAILED(resultCode)) {
-			IDxcBlobEncoding *error;
+			IDxcBlobEncoding* error;
 			HRESULT hr = result->GetErrorBuffer(&error);
 			if (FAILED(hr)) {
 				throw std::runtime_error("Failed to get shader compiler error");
