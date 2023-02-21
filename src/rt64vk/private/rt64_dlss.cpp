@@ -1,14 +1,14 @@
 /*
 *  RT64VK
 */
-#ifdef _WIN32
 #include "rt64_dlss.h"
-
-#include <DLSS/include/nvsdk_ngx_helpers.h>
-#include <DLSS/include/nvsdk_ngx_helpers_vk.h>
 
 #include "rt64_common.h"
 #include "rt64_device.h"
+
+#ifdef _WIN32
+#include <DLSS/include/nvsdk_ngx_helpers.h>
+#include <DLSS/include/nvsdk_ngx_helpers_vk.h>
 
 // TODO: Get a unique app id
 #define APP_ID 0x4D4152494F3634
@@ -304,5 +304,48 @@ namespace RT64
 };
 #else
 // I still can't build DLSS on Linux
-void RT64::DLSS::upscale(const UpscaleParameters& p) { }
+namespace RT64 {
+    class DLSS::Context {
+        private:
+            Device* device = nullptr;
+            void* ngxParameters = nullptr;
+            void* dlssFeature = nullptr;
+            bool initialized = false;
+        public:
+            Context(Device* d) { this->device = d; }
+
+            ~Context() { device = nullptr; }
+
+            void toNGXQuality(QualityMode q) {}
+
+            bool set(QualityMode quality, int renderWidth, int renderHeight, int displayWidth, int displayHeight) {
+                return false;
+            }
+
+            void release() {}
+
+            bool getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight) {
+                return false;
+            }
+
+            int getJitterPhaseCount(int renderWidth, int displayWidth) {
+                return 0;
+            }
+
+            void upscale(const UpscaleParameters& p) { }
+
+            bool isInitialized() const {
+                return false;
+            }
+    };
+
+    DLSS::DLSS(Device* d) { this->ctx = new Context(d); }
+    DLSS::~DLSS() { delete ctx; }
+    void DLSS::upscale(const UpscaleParameters& p) { }
+    void DLSS::set(QualityMode inQuality, int renderWidth, int renderHeight, int displayWidth, int displayHeight) { }
+    bool DLSS::getQualityInformation(QualityMode quality, int displayWidth, int displayHeight, int &renderWidth, int &renderHeight) { return false; }
+    int DLSS::getJitterPhaseCount(int renderWidth, int displayWidth) { return 0;}
+    bool DLSS::isInitialized() const { return false; }
+    bool DLSS::requiresNonShaderResourceInputs() const { return false; }
+};
 #endif

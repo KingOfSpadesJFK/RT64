@@ -52,7 +52,7 @@ On Arch Linux and derivatives such as Manjaro, Endeavour, SteamOS:
 ## Building
 On Windows, it can be as easy as running Visual Studio 2022 and clicking on Build -> Build All like you would any Visual Studio project.
 
-On Linux, you can build in the terminal. First, you can generate the build files with `cmake -S ./ -B ./build -T all` and then type `cmake --build ./build --config Debug|Release --target all|rt64vk|sample --` to fully build the target.
+On Linux, you can build in the terminal. First, you can generate the build files with `cmake --no-warn-unused-cli -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DCMAKE_BUILD_TYPE:STRING=Release|MinSizeRel|RelWithDebInfo|Debug -DCMAKE_C_COMPILER:FILEPATH=gcc|clang -DCMAKE_CXX_COMPILER:FILEPATH=g++|clang++ -S ./ -B ./build -G Ninja` and then type `cmake --build ./build --config Debug|Release --target all|rt64vk|sample --` to fully build the target.
 
 ## Screenshots
 ![Sample screenshot 1](/images/Screenshot_20230220_042451.jpg?raw=true)

@@ -50,7 +50,7 @@
 namespace RT64
 {
 
-    Device::Device(WINDOW* inWindow) {
+    Device::Device(RT64_WINDOW* inWindow) {
 	    RT64_LOG_OPEN("rt64.log");
 
 #ifndef RT64_MINIMAL
