@@ -50,9 +50,9 @@ On Arch Linux and derivatives such as Manjaro, Endeavour, SteamOS:
         sudo pacman -S glm
 
 ## Building
-In the terminal, just type `cmake --build ./build --config Debug|Release --target all|rt64vk|sample --`
+On Windows, it can be as easy as running Visual Studio 2022 and clicking on Build -> Build All like you would any Visual Studio project.
 
-A sample is included to showcase how to use the renderer library.
+On Linux, you can build in the terminal. First, you can generate the build files with `cmake -S ./ -B ./build -T all` and then type `cmake --build ./build --config Debug|Release --target all|rt64vk|sample --` to fully build the target.
 
 ## Screenshots
 ![Sample screenshot 1](/images/Screenshot_20230220_042451.jpg?raw=true)

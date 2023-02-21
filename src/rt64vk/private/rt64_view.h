@@ -13,9 +13,6 @@
 #include <glm/gtx/euler_angles.hpp>
 #include <nvvk/sbtwrapper_vk.hpp>
 #include <unordered_map>
-// #include "rt64_dlss.h"
-// #include "rt64_fsr.h"
-// #include "rt64_xess.h"
 
 #define MAX_QUERIES (16 + 1)
 namespace RT64 
@@ -135,7 +132,7 @@ namespace RT64
             bool denoiserEnabled = false;
 
             // Upscalers
-            // DLSS* dlss;
+            DLSS* dlss;
             FSR* fsr;
             // XeSS* xess;
             Upscaler::QualityMode upscalerQuality;

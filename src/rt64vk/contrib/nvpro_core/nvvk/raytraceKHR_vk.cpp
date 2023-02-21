@@ -60,6 +60,7 @@ void nvvk::RaytracingBuilderKHR::destroyTlas() {
 // (KoS) Get the first BLAS of the builder
 //
 nvvk::AccelKHR& nvvk::RaytracingBuilderKHR::getFirstBlas() {
+  assert(m_blas.size());
   return m_blas[0];
 }
 

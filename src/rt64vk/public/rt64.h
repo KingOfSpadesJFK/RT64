@@ -298,7 +298,7 @@ typedef unsigned int WPARAM;
 
 // Internal function pointer types.
 typedef const char *(*GetLastErrorPtr)();
-typedef RT64_DEVICE* (*CreateDevicePtr)(void* glfwWindow);
+typedef RT64_DEVICE* (*CreateDevicePtr)(void* window);
 typedef void (*DestroyDevicePtr)(RT64_DEVICE* device);
 typedef void (*DrawDevicePtr)(RT64_DEVICE *device, int vsyncInterval, double delta);
 typedef RT64_VIEW* (*CreateViewPtr)(RT64_SCENE* scenePtr);
@@ -397,7 +397,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
     //#elif defined(RT64_DEBUG)
     //    lib.handle = LoadLibrary(TEXT("rt64vkd.dll"));
     //#else
-        lib.handle = LoadLibraryExA(TEXT("rt64vk.dll"), NULL, 0);
+        lib.handle = LoadLibrary(TEXT("rt64vk.dll"));
     //#endif
 #else
     // #if defined(RT64_MINIMAL)

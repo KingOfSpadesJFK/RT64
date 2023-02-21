@@ -114,7 +114,7 @@ namespace RT64 {
 		Bilinear,
 		FSR,
 		DLSS,
-		XeSS
+		XeSS,
 	};
 
 	// Some shared shader constants.

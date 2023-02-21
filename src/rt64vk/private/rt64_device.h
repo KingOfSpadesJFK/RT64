@@ -40,6 +40,13 @@
 #define GS_ENTRY    "GSMain"
 #define CS_ENTRY    "mainCS"
 
+#ifdef _WIN32
+//  #define WINDOW HWND
+#define WINDOW  GLFWwindow
+#else
+#define WINDOW  GlfwWindow
+#endif
+
 namespace RT64
 {
 	class Scene;
@@ -122,7 +129,6 @@ namespace RT64
             void loadAssets();
 
             void initRayTracing();
-            void recordCommandBuffer(VkCommandBuffer& commandBuffer, uint32_t imageIndex);
             void recreateSwapChain();
             bool updateSize(VkResult result, const char* error);
             void updateViewport();
@@ -131,7 +137,7 @@ namespace RT64
             void generateRayGenDescriptorSetLayout();
             void loadBlueNoise();
 
-            GLFWwindow* window;
+            WINDOW* window;
             VkSurfaceKHR vkSurface;
             int width;
             int height;
@@ -282,7 +288,7 @@ namespace RT64
             const bool enableValidationLayers = true;
 #endif
 
-            Device(GLFWwindow* window);
+            Device(WINDOW* window);
 		    virtual ~Device();
 
 #ifndef RT64_MINIMAL

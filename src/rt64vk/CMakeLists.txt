@@ -20,19 +20,22 @@ else()
     # Vulkan and GLFW
     set(VK_SDK_HEADERS ${VK_SDK_PATH}\\Include) 
     file(GLOB VULKAN_LIBRARY ${VK_SDK_PATH}\\Lib/*.lib)
-    file(GLOB GLFW_LIBRARY ${PROJECT_SOURCE_DIR}/src/contrib/glfw/lib/*.lib)
+    set(GLFW_LIBRARY ${PROJECT_SOURCE_DIR}/src/contrib/glfw/lib/glfw3dll.lib)
     set(GLFW_INCLUDE ${PROJECT_SOURCE_DIR}/src/contrib/glfw/include)
     # DXC
     set(DXC_INCLUDE ${DXC_DIR}/include/win)
     file(GLOB DXC_LIBRARY ${DXC_DIR}/lib/win-x64/dxcompiler.lib)
     # DLSS
-    file(GLOB DLSS_LIBRARY ${DLSS_DIR}/lib/Windows_x86_64/x86_64/*.lib)   
+    if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
+        file(GLOB DLSS_LIBRARY ${DLSS_DIR}/lib/Windows_x86_64/x86_64/nvsdk_ngx_d_dbg.lib)   
+    else()
+        list(APPEND DLSS_LIBRARY ${DLSS_DIR}/lib/Windows_x86_64/x86_64/nvsdk_ngx_d.lib)
+    endif()
     # FSR
     file(GLOB FSR_LIBRARY ${FSR_DIR}/lib/ffx_fsr2_api_*x64.lib ${FSR_DIR}/lib/ffx_fsr2_api_*x64.exp)
     # GLM Platform
     set(PLATFORM ${VK_SDK_PATH}\\Include\\glm\\simd)
 endif()
-# message("${PLATFORM}")
 
 include_directories(
     ${LIBRT64VK_DIR}/public/
@@ -60,7 +63,7 @@ add_library(rt64vk SHARED
     ${LIBRT64VK_DIR}/private/rt64_inspector.cpp
     ${LIBRT64VK_DIR}/private/rt64_upscaler.cpp
     ${LIBRT64VK_DIR}/private/rt64_mipmaps.cpp
-    # ${LIBRT64VK_DIR}/private/rt64_dlss.cpp
+    ${LIBRT64VK_DIR}/private/rt64_dlss.cpp
     ${LIBRT64VK_DIR}/private/rt64_fsr.cpp
     ${NVPRO_DIR}/nvp/perproject_globals.cpp
     ${SHADER_HEADERS}
@@ -101,20 +104,21 @@ target_link_libraries(rt64vk
 
 if(UNIX)
     # Copy the DLSS .so files into the build folder
-    if(RT64_DEBUG)
-        file(COPY ${DLSS_DIR}/lib/Linux_x86_64/dev/libnvidia-ngx-dlss.so.${DLSS_VERSION} DESTINATION ${CMAKE_BINARY_DIR})
+    if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
+        file(COPY ${DLSS_DIR}/lib/Linux_x86_64/dev/libnvidia-ngx-dlss.so.${DLSS_VERSION} DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
     else()
-        file(COPY ${DLSS_DIR}/lib/Linux_x86_64/rel/libnvidia-ngx-dlss.so.${DLSS_VERSION} DESTINATION ${CMAKE_BINARY_DIR})
+        file(COPY ${DLSS_DIR}/lib/Linux_x86_64/rel/libnvidia-ngx-dlss.so.${DLSS_VERSION} DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
     endif()
 else()
     # Copy the DLSS .dll files into the build folder
-    if(RT64_DEBUG)
-        file(COPY ${DLSS_DIR}/lib/Windows_x86_64/dev/nvngx_dlss.dll DESTINATION ${CMAKE_BINARY_DIR})
+    if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
+        file(COPY ${DLSS_DIR}/lib/Windows_x86_64/dev/nvngx_dlss.dll DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
     else()
-        file(COPY ${DLSS_DIR}/lib/Windows_x86_64/rel/nvngx_dlss.dll DESTINATION ${CMAKE_BINARY_DIR})
+        file(COPY ${DLSS_DIR}/lib/Windows_x86_64/rel/nvngx_dlss.dll DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
     endif()
     # Copy the FSR .dll files into the build folder
-    file(COPY ${FSR_DIR}/lib/ffx_fsr2_api_x64.dll ${FSR_DIR}/lib/ffx_fsr2_api_vk_x64.dll DESTINATION ${CMAKE_BINARY_DIR})
+    file(COPY ${FSR_DIR}/lib/ffx_fsr2_api_x64.dll ${FSR_DIR}/lib/ffx_fsr2_api_vk_x64.dll DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+    file(COPY ${PROJECT_SOURCE_DIR}/src/contrib/glfw/lib/glfw3.dll DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
 endif()
 
 set_property(TARGET rt64vk PROPERTY CXX_STANDARD 20)

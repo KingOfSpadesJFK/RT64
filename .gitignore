@@ -4,6 +4,7 @@
 /install
 /.vscode
 /.ignore
+/out
 *.vs
 *.db
 *.log

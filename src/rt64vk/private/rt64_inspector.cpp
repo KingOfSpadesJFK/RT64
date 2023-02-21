@@ -147,8 +147,7 @@ namespace RT64 {
 		// TODO: Finish implementing this
 		// activeView->renderInspector(this);
 
-		// Send the commands to D3D12.
-		// device->getD3D12CommandList()->SetDescriptorHeaps(1, &d3dSrvDescHeap);
+		// Get the current command buffer and then render inspector
 		ImGui::Render();
 		ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), device->getCurrentCommandBuffer());
 	}
@@ -185,7 +184,11 @@ namespace RT64 {
 				"Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0"
 				"Reflection\0Refraction\0Transparent\0Motion vectors\0Reactive mask\0Lock mask\0Depth\0");
 
-			ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FSR 2\0"/* \0NVIDIA DLSS\0Intel XeSS\0" */);
+#ifdef _WIN32
+			ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FSR 2\0NVIDIA DLSS\0"/* Intel XeSS\0" */);
+#else
+			ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FSR 2\0"/* NVIDIA DLSS\0Intel XeSS\0" */);
+#endif
 
 			const UpscaleMode eUpscaleMode = static_cast<UpscaleMode>(upscaleMode);
 			if (view->getUpscalerInitialized(eUpscaleMode)) {

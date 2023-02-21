@@ -37,6 +37,15 @@ add_compile_definitions(
     $<$<CONFIG:MinSizeRel>:RT64_MINIMAL>
 )
 
+# Get the Vulkan SDK Path
+if(WIN32)
+  if (NOT "$ENV{VK_SDK_PATH}" STREQUAL "")
+      set(VK_SDK_PATH "$ENV{VK_SDK_PATH}" CACHE INTERNAL "Copied from environment variable")
+  endif()
+  message("-- VK_SDK_PATH = ${VK_SDK_PATH}")
+  set(VK_USE_PLATFORM_WIN32_KHR ON)
+endif()
+
 # Makes it so the DX files can compile with Clang
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     add_definitions("-fms-extensions")
@@ -51,10 +60,11 @@ add_subdirectory(${SAMPLE_DIR})
 
 set_target_properties( rt64vk sample
     PROPERTIES
-    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
-    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}"
+    ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}"
+    LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}"
+    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}"
 )
+message("${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}")
 
 ##########################################################
 

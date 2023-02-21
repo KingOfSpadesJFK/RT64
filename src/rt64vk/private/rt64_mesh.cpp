@@ -185,6 +185,7 @@ namespace RT64
     int Mesh::getIndexCount() const { return indexCount; }
     int Mesh::getVertexCount() const { return vertexCount; }
     nvvk::AccelKHR& Mesh::getBlas() { return builder.getFirstBlas(); }
+    bool Mesh::blasBuilderActive() const { return builderActive; }
     VkDeviceAddress Mesh::getBlasAddress() const { return blasAddress; }
 
     void Mesh::updateBottomLevelAS() {

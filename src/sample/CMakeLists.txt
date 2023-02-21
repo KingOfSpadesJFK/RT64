@@ -18,7 +18,7 @@ if (UNIX)
     )
 else()
     file(GLOB VULKAN_LIBRARY ${VK_SDK_PATH}\\Lib/*.lib)
-    file(GLOB GLFW_LIBRARY ${PROJECT_SOURCE_DIR}/src/contrib/glfw/lib/*.lib)
+    set(GLFW_LIBRARY ${PROJECT_SOURCE_DIR}/src/contrib/glfw/lib/glfw3dll.lib)
     target_link_libraries(sample 
         ${VULKAN_LIBRARY}
         ${GLFW_LIBRARY}
@@ -31,6 +31,6 @@ target_include_directories(sample PRIVATE
     ${LIBRT64VK_DIR}/public
 )
 # Copy the res files into the build folder
-file(COPY ${SAMPLE_DIR}/res DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY ${SAMPLE_DIR}/res DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
 
 set_property(TARGET sample PROPERTY CXX_STANDARD 20)

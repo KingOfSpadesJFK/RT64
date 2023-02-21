@@ -11,8 +11,6 @@
 #include <chrono>
 
 #include "rt64_view.h"
-// #include "rt64_dlss.h"
-#include "rt64_fsr.h"
 #include "rt64_instance.h"
 #include "rt64_mesh.h"
 #include "rt64_scene.h"
@@ -21,6 +19,10 @@
 
 #include "im3d/im3d.h"
 // #include "xxhash/xxhash32.h"
+
+#include "rt64_dlss.h"
+#include "rt64_fsr.h"
+// #include "rt64_xess.h"
 
 namespace RT64
 {
@@ -64,7 +66,7 @@ namespace RT64
         device->initRTBuilder(rtBuilder);
 
         // Try to initialize upscalers. They won't be initialized if the hardware doesn't support it.
-        // dlss = new DLSS(scene->getDevice());
+        dlss = new DLSS(scene->getDevice());
         fsr = new FSR(scene->getDevice());
         // xess = new XeSS(scene->getDevice());
 
@@ -452,6 +454,7 @@ namespace RT64
         scene->removeView(this);
 
         delete fsr;
+        delete dlss;
 
         destroyOutputBuffers();
         globalParamsBuffer.destroyResource();
@@ -1064,7 +1067,9 @@ namespace RT64
                 instFlags = instance->getFlags();
                 usedMesh = instance->getMesh();
                 renderInstance.instance = instance;
-                renderInstance.blas = &usedMesh->getBlas();
+                if (usedMesh->blasBuilderActive())  {
+                    renderInstance.blas = &usedMesh->getBlas();
+                }
                 // renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
                 renderInstance.transform = instance->getTransform();
                 renderInstance.transformPrevious = instance->getPreviousTransform();
@@ -2166,10 +2171,10 @@ namespace RT64
 
     Upscaler* View::getUpscaler(UpscaleMode v) const {
         switch (upscaleMode) {
-            // case UpscaleMode::DLSS:
-            //     return dlss;
             case UpscaleMode::FSR:
                 return fsr;
+            case UpscaleMode::DLSS:
+                return dlss;
             // case UpscaleMode::XeSS:
             //     return xess;
             default:
@@ -2239,10 +2244,10 @@ namespace RT64
 
     bool View::getUpscalerInitialized(UpscaleMode mode) const {
         switch (mode) {
-            // case UpscaleMode::DLSS:
-            //     return dlss->isInitialized();
             case UpscaleMode::FSR:
                 return fsr->isInitialized();
+            case UpscaleMode::DLSS:
+                 return dlss->isInitialized();
             // case UpscaleMode::XeSS:
             //     return xess->isInitialized();
             default:
@@ -2252,10 +2257,10 @@ namespace RT64
 
     bool View::getUpscalerAccelerated(UpscaleMode mode) const {
         switch (mode) {
-        // case UpscaleMode::DLSS:
-        //     return getUpscalerInitialized(UpscaleMode::DLSS);
         case UpscaleMode::FSR:
             return true;
+        case UpscaleMode::DLSS:
+            return getUpscalerInitialized(UpscaleMode::DLSS);
         // case UpscaleMode::XeSS:
         //     return xess->isAccelerated();
         default:

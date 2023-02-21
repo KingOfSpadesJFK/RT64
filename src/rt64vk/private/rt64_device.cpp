@@ -28,7 +28,6 @@
 
 // Vertex shaders
 #include "shaders/FullScreenVS.hlsl.h"
-#include "shaders/HelloTriangleVS.hlsl.h"
 #include "shaders/Im3DVS.hlsl.h"
 
 // Pixel shaders
@@ -51,11 +50,11 @@
 namespace RT64
 {
 
-    Device::Device(GLFWwindow* glfwWindow) {
+    Device::Device(WINDOW* inWindow) {
 	    RT64_LOG_OPEN("rt64.log");
 
 #ifndef RT64_MINIMAL
-        window = glfwWindow;
+        window = inWindow;
         glfwSetWindowUserPointer(window, this);
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
 #endif
@@ -1240,10 +1239,10 @@ namespace RT64
         VkWin32SurfaceCreateInfoKHR createInfo { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
         createInfo.hwnd = glfwGetWin32Window(window);
         createInfo.hinstance = GetModuleHandle(nullptr);
-        // vkCreateWin32SurfaceKHR(instance, &createInfo, nullptr, &vkSurface);
-#endif
-
+        vkCreateWin32SurfaceKHR(vkInstance, &createInfo, nullptr, &vkSurface);
+#else
         VK_CHECK(glfwCreateWindowSurface(vkInstance, window, nullptr, &vkSurface));
+#endif
     }
 #endif
 

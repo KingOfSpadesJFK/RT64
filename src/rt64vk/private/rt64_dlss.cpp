@@ -1,7 +1,7 @@
 /*
 *  RT64VK
 */
-
+#ifdef _WIN32
 #include "rt64_dlss.h"
 
 #include <DLSS/include/nvsdk_ngx_helpers.h>
@@ -269,6 +269,11 @@ namespace RT64
             }
     };
 
+    DLSS::DLSS(Device* device) {
+        ctx = new Context(device);
+    }
+
+
     DLSS::~DLSS() {
         delete ctx;
     }
@@ -297,3 +302,7 @@ namespace RT64
         return false;
     }
 };
+#else
+// I still can't build DLSS on Linux
+void RT64::DLSS::upscale(const UpscaleParameters& p) { }
+#endif

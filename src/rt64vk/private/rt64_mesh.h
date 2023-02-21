@@ -43,6 +43,7 @@ namespace RT64
             int getIndexCount() const;
             nvvk::AccelKHR& getBlas();
             VkDeviceAddress getBlasAddress() const;
+            bool blasBuilderActive() const;
             void updateBottomLevelAS();
 	};
 };
