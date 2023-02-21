@@ -228,8 +228,8 @@ void draw(GLFWwindow* window ) {
 	};
 	RT64.sceneDesc.ambientBaseColor = { 
 		0.00125f + glm::clamp(daylightSin * daylightSin * daylightSin * 0.125f, 0.0f, 1.0f), 
-		0.0015f + glm::clamp(daylightSin * daylightSin * daylightSin * 0.15f, 0.0f, 1.0f),  
-		0.0025f + glm::clamp(daylightSin * daylightSin * daylightSin * 0.25f, 0.0f, 1.0f), 
+		0.0015f + glm::clamp(daylightSin * daylightSin * daylightSin * 0.175f, 0.0f, 1.0f),  
+		0.015f + glm::clamp(daylightSin * daylightSin * daylightSin * 0.5f, 0.0f, 1.0f), 
 	};
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 	
@@ -708,7 +708,7 @@ int main(int argc, char *argv[]) {
 	viewDesc.giBounces = 0;
 	viewDesc.denoiserEnabled = false;
 	viewDesc.maxLights = 12;
-	viewDesc.motionBlurStrength = 0.25f;
+	viewDesc.motionBlurStrength = 0.0f;
 	viewDesc.tonemapMode = 4;
 	viewDesc.tonemapExposure = 2.5f;
 	viewDesc.tonemapWhite = 1.0f;
