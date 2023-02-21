@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.12.0)
 project(rt64 VERSION 0.1.0)
 
+set(DLSS_VERSION 3.1.1)
+
 include(CTest)
 enable_testing()
 
@@ -34,6 +36,8 @@ add_compile_definitions(
     $<$<CONFIG:RelWithDebInfo>:RT64_DEBUG>
     $<$<CONFIG:MinSizeRel>:RT64_MINIMAL>
 )
+
+# Makes it so the DX files can compile with Clang
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     add_definitions("-fms-extensions")
 endif()

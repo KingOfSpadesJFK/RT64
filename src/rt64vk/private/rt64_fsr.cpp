@@ -6,8 +6,8 @@
 
 #include "rt64_fsr.h"
 
-#include "fsr/include/ffx_fsr2.h"
-#include "fsr/include/vk/ffx_fsr2_vk.h"
+#include <fsr/include/ffx_fsr2.h>
+#include <fsr/include/vk/ffx_fsr2_vk.h>
 
 #include "rt64_device.h"
 

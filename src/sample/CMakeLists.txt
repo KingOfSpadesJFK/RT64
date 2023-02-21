@@ -31,6 +31,6 @@ target_include_directories(sample PRIVATE
     ${LIBRT64VK_DIR}/public
 )
 # Copy the res files into the build folder
-file(COPY ${SAMPLE_DIR}/res DESTINATION ${CMAKE_BINARY_DIR}/res)
+file(COPY ${SAMPLE_DIR}/res DESTINATION ${CMAKE_BINARY_DIR})
 
 set_property(TARGET sample PROPERTY CXX_STANDARD 20)

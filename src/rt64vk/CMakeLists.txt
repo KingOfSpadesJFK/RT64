@@ -15,7 +15,7 @@ if(UNIX)
     # FSR
     file(GLOB FSR_LIBRARY ${FSR_DIR}/lib/libffx_fsr2_api_*x86_64.a)
     # GLM Platform
-    list(APPEND PLATFORM /usr/include/glm/simd)
+    set(PLATFORM /usr/include/glm/simd)
 else() 
     # Vulkan and GLFW
     set(VK_SDK_HEADERS ${VK_SDK_PATH}\\Include) 
@@ -30,9 +30,9 @@ else()
     # FSR
     file(GLOB FSR_LIBRARY ${FSR_DIR}/lib/ffx_fsr2_api_*x64.lib ${FSR_DIR}/lib/ffx_fsr2_api_*x64.exp)
     # GLM Platform
-    list(APPEND PLATFORM ${VK_SDK_PATH}\\Include\\glm\\simd)
+    set(PLATFORM ${VK_SDK_PATH}\\Include\\glm\\simd)
 endif()
-# message("${DLSS_LIBRARY}")
+# message("${PLATFORM}")
 
 include_directories(
     ${LIBRT64VK_DIR}/public/
@@ -102,28 +102,19 @@ target_link_libraries(rt64vk
 if(UNIX)
     # Copy the DLSS .so files into the build folder
     if(RT64_DEBUG)
-        #add_custom_command(TARGET rt64vk POST_BUILD
-        #    COMMAND cp -r ${DLSS_DIR}/lib/Linux_x86_64/dev/libnvidia-ngx-dlss.so.3.1.1 ${CMAKE_BINARY_DIR}
-        file(COPY ${DLSS_DIR}/lib/Linux_x86_64/dev/ DESTINATION ${CMAKE_BINARY_DIR})
-        #)
+        file(COPY ${DLSS_DIR}/lib/Linux_x86_64/dev/libnvidia-ngx-dlss.so.${DLSS_VERSION} DESTINATION ${CMAKE_BINARY_DIR})
     else()
-        #add_custom_command(TARGET rt64vk POST_BUILD
-        #    COMMAND cp -r ${DLSS_DIR}/lib/Linux_x86_64/rel/libnvidia-ngx-dlss.so.3.1.1 ${CMAKE_BINARY_DIR}
-        #)
-        file(COPY ${DLSS_DIR}/lib/Linux_x86_64/dev/ DESTINATION ${CMAKE_BINARY_DIR})
+        file(COPY ${DLSS_DIR}/lib/Linux_x86_64/rel/libnvidia-ngx-dlss.so.${DLSS_VERSION} DESTINATION ${CMAKE_BINARY_DIR})
     endif()
 else()
     # Copy the DLSS .dll files into the build folder
     if(RT64_DEBUG)
-        #add_custom_command(TARGET rt64vk POST_BUILD
-        #    COMMAND  copy ${DLSS_DIR}/lib/Windows_x86_64/dev/ ${CMAKE_BINARY_DIR}
-        #)
-        file(COPY ${DLSS_DIR}/lib/Windows_x86_64/dev/ DESTINATION ${CMAKE_BINARY_DIR})
+        file(COPY ${DLSS_DIR}/lib/Windows_x86_64/dev/nvngx_dlss.dll DESTINATION ${CMAKE_BINARY_DIR})
     else()
-        #add_custom_command(TARGET rt64vk POST_BUILD
-        #    COMMAND  copy ${DLSS_DIR}/lib/Windows_x86_64/rel/ ${CMAKE_BINARY_DIR}
-        #)
-        file(COPY ${DLSS_DIR}/lib/Windows_x86_64/rel/ DESTINATION ${CMAKE_BINARY_DIR})
+        file(COPY ${DLSS_DIR}/lib/Windows_x86_64/rel/nvngx_dlss.dll DESTINATION ${CMAKE_BINARY_DIR})
     endif()
+    # Copy the FSR .dll files into the build folder
+    file(COPY ${FSR_DIR}/lib/ffx_fsr2_api_x64.dll ${FSR_DIR}/lib/ffx_fsr2_api_vk_x64.dll DESTINATION ${CMAKE_BINARY_DIR})
 endif()
+
 set_property(TARGET rt64vk PROPERTY CXX_STANDARD 20)

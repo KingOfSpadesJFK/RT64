@@ -24,11 +24,15 @@
 #include <stdint.h>
 
 #if defined (FFX_GCC)
-/// FidelityFX exported functions
-#define FFX_API
+    /// FidelityFX exported functions
+    #define FFX_API
 #else
-/// FidelityFX exported functions
-#define FFX_API __declspec(dllexport)
+    /// FidelityFX exported functions
+    #if defined (_WIN32)
+        #define FFX_API __declspec(dllexport)
+    #else
+        #define FFX_API __attribute__((visibility("default")))
+    #endif
 #endif // #if defined (FFX_GCC)
 
 /// Maximum supported number of simultaneously bound SRVs.

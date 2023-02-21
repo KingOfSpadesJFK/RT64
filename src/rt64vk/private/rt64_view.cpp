@@ -524,14 +524,14 @@ namespace RT64
         globalParamsData.cameraV = ToVector4(cameraV, 0.0f);
         globalParamsData.cameraW = ToVector4(cameraW, 0.0f);
 
-	// Enable light reprojection if denoising is enabled.
+	    // Enable light reprojection if denoising is enabled.
 #ifdef DI_REPROJECTION_SUPPORT
 	    globalParamsData.diReproject = !rtSkipReprojection && denoiserEnabled && (globalParamsBufferData.diSamples > 0) ? 1 : 0;
 #else
 	    globalParamsData.diReproject = 0;
 #endif
         globalParamsData.giReproject = !rtSkipReprojection && denoiserEnabled && (globalParamsData.giSamples > 0) ? 1 : 0;
-        // globalParamsData.binaryLockMask = (rtUpscaleMode != UpscaleMode::FSR);
+        globalParamsData.binaryLockMask = (upscaleMode != UpscaleMode::FSR);
 
         // Use the total frame count as the random seed.
         globalParamsData.randomSeed = globalParamsData.frameCount;
@@ -1017,6 +1017,7 @@ namespace RT64
         // Recreate buffers if necessary for next frame.
         if (recreateRTBuffers) {
             createOutputBuffers();
+            globalParamsData.projection = glm::perspective(this->fovRadians, (float)this->scene->getDevice()->getAspectRatio(), this->nearDist, this->farDist);
             recreateRTBuffers = false;
         }
 
