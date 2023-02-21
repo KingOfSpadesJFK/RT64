@@ -15,7 +15,6 @@
 #include "rt64_mipmaps.h"
 
 #include <glm/gtc/matrix_transform.hpp>
-#include <GLFW/glfw3.h>
 #include <vector>
 #include <optional>
 #include <vulkan/vulkan.h>
@@ -25,12 +24,8 @@
 #include <nvvk/resourceallocator_vk.hpp>
 #include <unordered_map>
 #include <imgui/backends/imgui_impl_vulkan.h>
-#include <imgui/backends/imgui_impl_glfw.h>
 
 #ifdef _WIN32
-    #define VK_USE_PLATFORM_WIN32_KHR
-    #define GLFW_EXPOSE_NATIVE_WIN32
-    #include <GLFW/glfw3native.h>
 #endif
 
 #define MAX_FRAMES_IN_FLIGHT    2
@@ -40,10 +35,13 @@
 #define GS_ENTRY    "GSMain"
 #define CS_ENTRY    "mainCS"
 
+// The windows
 #ifdef _WIN32
 //  #define RT64_WINDOW HWND
 #define RT64_WINDOW  GLFWwindow
 #else
+#include <GLFW/glfw3.h>
+#include <imgui/backends/imgui_impl_glfw.h>
 #define RT64_WINDOW GLFWwindow
 #endif
 
@@ -111,7 +109,7 @@ namespace RT64
             VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
             VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
-            static void framebufferResizeCallback(GLFWwindow* glfwWindow, int width, int height);
+            static void framebufferResizeCallback(RT64_WINDOW* window, int width, int height);
 
 #ifndef RT64_MINIMAL
             void createDxcCompiler();
@@ -294,7 +292,7 @@ namespace RT64
 #ifndef RT64_MINIMAL
 
             /********************** Getters **********************/
-            GLFWwindow* getGlfwWindow() const;
+            RT64_WINDOW* getWindow() const;
 		    VkInstance& getVkInstance();
 		    VkDevice& getVkDevice();
 		    VkPhysicalDevice& getPhysicalDevice();

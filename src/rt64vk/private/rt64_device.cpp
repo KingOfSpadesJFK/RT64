@@ -90,14 +90,15 @@ namespace RT64
     }
 
     void Device::createVkInstanceNV() {
+        nvvk::ContextCreateInfo contextInfo;
+        contextInfo.setVersion(1, 3);               
+
         // Vulkan required extensions
         assert(glfwVulkanSupported() == 1);
         uint32_t count{0};
         auto     reqExtensions = glfwGetRequiredInstanceExtensions(&count);
 
-        // Requesting Vulkan extensions and layers
-        nvvk::ContextCreateInfo contextInfo;
-        contextInfo.setVersion(1, 3);                       // Using Vulkan 1.2
+        // Requesting Vulkan extensions and layers        // Using Vulkan 1.3
         for(uint32_t ext_id = 0; ext_id < count; ext_id++)  // Adding required extensions (surface, win32, linux, ..)
             contextInfo.addInstanceExtension(reqExtensions[ext_id]);
         contextInfo.addInstanceLayer("VK_LAYER_LUNARG_monitor", true);              // FPS in titlebar
@@ -1237,7 +1238,7 @@ namespace RT64
 
 #ifdef _WIN32
         VkWin32SurfaceCreateInfoKHR createInfo { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
-        createInfo.hwnd = glfwGetWin32Window(window);
+        createInfo.hwnd = window;
         createInfo.hinstance = GetModuleHandle(nullptr);
         vkCreateWin32SurfaceKHR(vkInstance, &createInfo, nullptr, &vkSurface);
 #else
@@ -1541,12 +1542,14 @@ namespace RT64
     }
 
 #ifndef RT64_MINIMAL
+#ifndef _WIN32
     void Device::framebufferResizeCallback(GLFWwindow* glfwWindow, int width, int height) {
-        auto rt64Device = reinterpret_cast<Device *>(glfwGetWindowUserPointer(glfwWindow));
+        auto rt64Device = reinterpret_cast<Device*>(glfwGetWindowUserPointer(glfwWindow));
         rt64Device->framebufferResized = true;
         rt64Device->width = width;
         rt64Device->height = height;
     }
+#endif
 #endif
 
     void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
@@ -1669,8 +1672,10 @@ namespace RT64
         }
         vkctx.deinit();
         // Destroy the window
+// #ifndef _WIN32
         glfwDestroyWindow(window);
         glfwTerminate();
+// #endif
         RT64_LOG_CLOSE();
     }
 
@@ -1679,8 +1684,8 @@ namespace RT64
 #ifndef RT64_MINIMAL
 
     /********************** Getters **********************/
-    // Returns GLFW Window
-    GLFWwindow* Device::getGlfwWindow() const { return window; }
+    // Returns the device's Window
+    RT64_WINDOW* Device::getWindow() const { return window; }
     // Returns Vulkan instance
     VkInstance& Device::getVkInstance() { return vkInstance; }
     // Returns Vulkan device
@@ -2324,9 +2329,9 @@ namespace RT64
 
 // Library exports
 
-DLEXPORT RT64_DEVICE* RT64_CreateDevice(void* glfwWindow) {
+DLEXPORT RT64_DEVICE* RT64_CreateDevice(void* window) {
 	try {
-		return (RT64_DEVICE*)(new RT64::Device(static_cast<GLFWwindow*>(glfwWindow)));
+		return (RT64_DEVICE*)(new RT64::Device(static_cast<RT64_WINDOW*>(window)));
 	}
 	RT64_CATCH_EXCEPTION();
 	return nullptr;

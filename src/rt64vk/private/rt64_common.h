@@ -18,8 +18,8 @@
 #include <vector>
 #include <stdio.h>
 #include <glm/glm.hpp>
-#include <vulkan/vulkan.hpp>
 #define RT64_VULKAN_VERSION VK_API_VERSION_1_3
+#include <vulkan/vulkan.hpp>
 
 #ifndef _WIN32
 	#include <bits/stl_algo.h>

@@ -85,7 +85,7 @@ namespace RT64 {
 
 		ImGui_ImplVulkan_InitInfo initInfo = device->generateImguiInitInfo();
         initInfo.DescriptorPool = descPool;
-		ImGui_ImplGlfw_InitForVulkan(device->getGlfwWindow(), true);
+		ImGui_ImplGlfw_InitForVulkan(device->getWindow(), true);
 		ImGui_ImplVulkan_Init(&initInfo, device->getPresentRenderPass());
 
 		ImGui_ImplVulkan_CreateDeviceObjects();
@@ -459,8 +459,8 @@ namespace RT64 {
 			}
 			else if (!ImGui::GetIO().WantCaptureMouse) {
 				float cameraSpeed = (view->getFarDistance() - view->getNearDistance()) / 5.0f * cameraPanSpeed;
-				bool leftAlt = glfwGetKey(device->getGlfwWindow(), GLFW_KEY_LEFT_ALT);
-				bool leftCtrl = glfwGetKey(device->getGlfwWindow(), GLFW_KEY_LEFT_CONTROL);
+				bool leftAlt = glfwGetKey(device->getWindow(), GLFW_KEY_LEFT_ALT);
+				bool leftCtrl = glfwGetKey(device->getWindow(), GLFW_KEY_LEFT_CONTROL);
 				float localX = (cursorX - prevCursorX) / (float)(view->getWidth());
 				float localY = (cursorY - prevCursorY) / (float)(view->getHeight());
 				localX += cameraPanX;
@@ -468,7 +468,7 @@ namespace RT64 {
 				if (invertCameraX) { localX *= -1.0f; }
 				if (invertCameraY) { localY *= -1.0f; }
 
-				if (glfwGetMouseButton(device->getGlfwWindow(), GLFW_MOUSE_BUTTON_MIDDLE)) {
+				if (glfwGetMouseButton(device->getWindow(), GLFW_MOUSE_BUTTON_MIDDLE)) {
 					if (leftCtrl) {
 						view->movePerspective({ 0.0f, 0.0f, (-localY) * cameraSpeed });
 					}
@@ -538,7 +538,7 @@ namespace RT64 {
 		appData.m_snapScale = 0.0f;
 		appData.m_cursorRayOrigin = Im3d::Vec3(viewPos.x, viewPos.y, viewPos.z);
 		appData.m_cursorRayDirection = Im3d::Vec3(rayDir.x, rayDir.y, rayDir.z);
-		appData.m_keyDown[Im3d::Mouse_Left] = (glfwGetMouseButton(device->getGlfwWindow(), GLFW_MOUSE_BUTTON_LEFT)) != 0;
+		appData.m_keyDown[Im3d::Mouse_Left] = (glfwGetMouseButton(device->getWindow(), GLFW_MOUSE_BUTTON_LEFT)) != 0;
 	}
 
 	void Inspector::setSceneDescription(RT64_SCENE_DESC* sceneDesc) {
