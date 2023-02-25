@@ -105,8 +105,8 @@ namespace RT64
         for(uint32_t ext_id = 0; ext_id < count; ext_id++)  // Adding required extensions (surface, win32, linux, ..)
             contextInfo.addInstanceExtension(reqExtensions[ext_id]);
 #else
-        contextInfo.addDeviceExtension(VK_KHR_SURFACE_EXTENSION_NAME);              // Extension for surfaces
-        contextInfo.addDeviceExtension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);        // Extension for win32 surfaces
+        contextInfo.addInstanceExtension(VK_KHR_SURFACE_EXTENSION_NAME);              // Extension for surfaces
+        contextInfo.addInstanceExtension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);        // Extension for win32 surfaces
 
 #endif
         contextInfo.addInstanceLayer("VK_LAYER_LUNARG_monitor", true);              // FPS in titlebar
@@ -1724,7 +1724,7 @@ namespace RT64
 
     /********************** Getters **********************/
     // Returns the device's Window
-    RT64_WINDOW& Device::getWindow() { return window; }
+    RT64_WINDOW Device::getWindow() { return window; }
     // Returns Vulkan instance
     VkInstance& Device::getVkInstance() { return vkInstance; }
     // Returns Vulkan device

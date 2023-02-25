@@ -289,13 +289,6 @@ inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src)
 	}
 }
 
-// This is meant for HandleMessageInspectorPtr, as it has some Windows only stuff
-#ifndef _WIN32
-typedef unsigned int UINT;
-typedef unsigned int LPARAM;
-typedef unsigned int WPARAM;
-#endif
-
 // Internal function pointer types.
 typedef const char *(*GetLastErrorPtr)();
 typedef RT64_DEVICE* (*CreateDevicePtr)(void* window);
@@ -322,7 +315,9 @@ typedef void (*SetInstanceDescriptionPtr)(RT64_INSTANCE* instancePtr, RT64_INSTA
 typedef void (*DestroyInstancePtr)(RT64_INSTANCE* instancePtr);
 typedef RT64_TEXTURE* (*CreateTexturePtr)(RT64_DEVICE* devicePtr, RT64_TEXTURE_DESC textureDesc);
 typedef void (*DestroyTexturePtr)(RT64_TEXTURE* texture);
+#ifdef _WIN32
 typedef bool (*HandleMessageInspectorPtr)(RT64_DEVICE* devicePtr, UINT msg, WPARAM wParam, LPARAM lParam);
+#endif
 typedef void (*SetSceneInspectorPtr)(RT64_DEVICE *devicePtr, RT64_SCENE_DESC* sceneDesc);
 typedef void (*SetMaterialInspectorPtr)(RT64_DEVICE *devicePtr, RT64_MATERIAL* material, const char *materialName);
 typedef void (*SetLightsInspectorPtr)(RT64_DEVICE *devicePtr, RT64_LIGHT* lights, int *lightCount, int maxLightCount);
@@ -364,7 +359,9 @@ typedef struct {
 	DestroyInstancePtr DestroyInstance;
 	CreateTexturePtr CreateTexture;
 	DestroyTexturePtr DestroyTexture;
+#ifdef _WIN32
 	HandleMessageInspectorPtr HandleMessageInspector;
+#endif
 	PrintClearInspectorPtr PrintClearInspector;
 	PrintMessageInspectorPtr PrintMessageInspector;
 	SetSceneInspectorPtr SetSceneInspector;
@@ -436,7 +433,9 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.DestroyInstance = (DestroyInstancePtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyInstance"));
 		lib.CreateTexture = (CreateTexturePtr)(RT64_GetProcAddress(lib.handle, "RT64_CreateTexture"));
 		lib.DestroyTexture = (DestroyTexturePtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyTexture"));
+#ifdef _WIN32
 		lib.HandleMessageInspector = (HandleMessageInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_HandleMessageInspector"));
+#endif
 		lib.SetSceneInspector = (SetSceneInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetSceneInspector"));
 		lib.SetMaterialInspector = (SetMaterialInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetMaterialInspector"));
 		lib.SetLightsInspector = (SetLightsInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetLightsInspector"));

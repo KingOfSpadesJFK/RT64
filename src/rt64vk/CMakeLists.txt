@@ -42,6 +42,7 @@ else()
     list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp)
     list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_win32.cpp)
 endif()
+message("${IMGUI_SOURCES}")
 
 include_directories(
     ${LIBRT64VK_DIR}/public/

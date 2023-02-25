@@ -25,9 +25,6 @@
 #include <unordered_map>
 #include <imgui/backends/imgui_impl_vulkan.h>
 
-#ifdef _WIN32
-#endif
-
 #define MAX_FRAMES_IN_FLIGHT    2
 
 #define PS_ENTRY    "PSMain"
@@ -41,7 +38,7 @@
 #else
 #include <GLFW/glfw3.h>
 #include <imgui/backends/imgui_impl_glfw.h>
-#define RT64_WINDOW GLFWwindow
+#define RT64_WINDOW GLFWwindow*
 #endif
 
 namespace RT64
@@ -108,7 +105,7 @@ namespace RT64
             VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
             VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
-            static void framebufferResizeCallback(RT64_WINDOW* window, int width, int height);
+            static void framebufferResizeCallback(RT64_WINDOW window, int width, int height);
 
 #ifndef RT64_MINIMAL
             void createDxcCompiler();
@@ -291,7 +288,7 @@ namespace RT64
 #ifndef RT64_MINIMAL
 
             /********************** Getters **********************/
-            RT64_WINDOW& getWindow();
+            RT64_WINDOW getWindow();
 		    VkInstance& getVkInstance();
 		    VkDevice& getVkDevice();
 		    VkPhysicalDevice& getPhysicalDevice();

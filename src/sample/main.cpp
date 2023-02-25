@@ -5,7 +5,9 @@
 #include "rt64.h"
 
 #define WINDOW_TITLE "RT64 Sample"
+#ifndef _WIN32
 #include <GLFW/glfw3.h>
+#endif
 #include <glm/glm.hpp>
 #include <glm/ext.hpp>
 #include <chrono>
@@ -108,6 +110,7 @@ struct {
 // 		fprintf(stdout, "GetViewRaytracedInstanceAt: %p\n", instance);
 // 		break;
 
+#ifndef _WIN32
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	if (action == GLFW_PRESS) {
 		switch (key)
@@ -156,6 +159,7 @@ void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
 		glfwGetCursorPos(window, &xpos, &ypos);
 	}
 }
+#endif
 
 #ifndef M_PI
 	#define M_PI  3.14159265358979323846f
@@ -314,11 +318,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 			break;
 		}
 		break;
-	}
-	case WM_PAINT: {
-		if (RT64.view != nullptr) {
-			draw();
-		}
 	}
 	default:
 		return DefWindowProc(hWnd, message, wParam, lParam);
@@ -813,7 +812,6 @@ int main(int argc, char *argv[]) {
 		// Process any poll evenets.
 #ifndef _WIN32
         glfwPollEvents();
-		draw();
 #else
 		// Process any messages in the queue.
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
@@ -821,11 +819,14 @@ int main(int argc, char *argv[]) {
 			DispatchMessage(&msg);
 		}
 #endif
+		draw();
 	}
 
 	destroyRT64();
 
-	// return static_cast<char>(msg.wParam);
+#ifdef _WIN32
+	return static_cast<char>(msg.wParam);
+#endif
 }
 
 #else
