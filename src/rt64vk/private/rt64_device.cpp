@@ -1581,12 +1581,14 @@ namespace RT64
     }
 
 #ifndef RT64_MINIMAL
+#ifndef _WIN32
     void Device::framebufferResizeCallback(GLFWwindow* glfwWindow, int width, int height) {
         auto rt64Device = reinterpret_cast<Device*>(glfwGetWindowUserPointer(glfwWindow));
         rt64Device->framebufferResized = true;
         rt64Device->width = width;
         rt64Device->height = height;
     }
+#endif
 #endif
 
     void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
