@@ -50,13 +50,15 @@
 namespace RT64
 {
 
-    Device::Device(RT64_WINDOW* inWindow) {
+    Device::Device(RT64_WINDOW inWindow) {
 	    RT64_LOG_OPEN("rt64.log");
 
 #ifndef RT64_MINIMAL
         window = inWindow;
+    #ifndef _WIN32
         glfwSetWindowUserPointer(window, this);
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+    #endif
 #endif
 
         createVkInstanceNV();
@@ -94,6 +96,7 @@ namespace RT64
         contextInfo.setVersion(1, 3);               
 
         // Vulkan required extensions
+#ifndef _WIN32
         assert(glfwVulkanSupported() == 1);
         uint32_t count{0};
         auto     reqExtensions = glfwGetRequiredInstanceExtensions(&count);
@@ -101,6 +104,11 @@ namespace RT64
         // Requesting Vulkan extensions and layers        // Using Vulkan 1.3
         for(uint32_t ext_id = 0; ext_id < count; ext_id++)  // Adding required extensions (surface, win32, linux, ..)
             contextInfo.addInstanceExtension(reqExtensions[ext_id]);
+#else
+        contextInfo.addDeviceExtension(VK_KHR_SURFACE_EXTENSION_NAME);              // Extension for surfaces
+        contextInfo.addDeviceExtension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);        // Extension for win32 surfaces
+
+#endif
         contextInfo.addInstanceLayer("VK_LAYER_LUNARG_monitor", true);              // FPS in titlebar
         contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true);  // Allow debug names
         contextInfo.addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);            // Enabling ability to present rendering
@@ -829,9 +837,18 @@ namespace RT64
             s->render(delta);
         }
 
+        // Get the cursor position
         double mouseX, mouseY;
         activeView = scenes[0]->getViews()[0];
+#ifndef _WIN32
         glfwGetCursorPos(window, &mouseX, &mouseY);
+#else
+        POINT cursorPos = {};
+        GetCursorPos(&cursorPos);
+        ScreenToClient(window, &cursorPos);
+        mouseX = cursorPos.x;
+        mouseY = cursorPos.y;
+#endif
         if (inspector.init(this) && showInspector) {
             inspector.render(activeView, mouseX, mouseY);
         }
@@ -1138,12 +1155,26 @@ namespace RT64
 
     // Y'know, if u ever wanna like resize ur window
     void Device::recreateSwapChain() {
+        RT64_LOG_PRINTF("Starting device size update");
+#ifndef _WIN32
         int w, h = 0;
-        glfwGetFramebufferSize(window, &w, &h);
+        glfwGetFramebufferSize(&window, &w, &h);
         while (w == 0 || h == 0) {
-            glfwGetFramebufferSize(window, &w, &h);
+            glfwGetFramebufferSize(&window, &w, &h);
             glfwWaitEvents();
         }
+#else
+
+        RECT rect;
+        GetClientRect(window, &rect);
+        int w = rect.right - rect.left;
+        int h = rect.bottom - rect.top;
+        while (w == 0 || h == 0) {
+            GetClientRect(window, &rect);
+            w = rect.right - rect.left;
+            h = rect.bottom - rect.top;
+        }
+#endif
 
         vkDeviceWaitIdle(vkDevice);
 
@@ -1156,6 +1187,7 @@ namespace RT64
         if (inspector.init(this) && showInspector) {
             inspector.resize();
         }
+        RT64_LOG_PRINTF("Finished device size update");
     }
 
     void Device::updateScenes() {
@@ -1368,7 +1400,14 @@ namespace RT64
             return capabilities.currentExtent;
         } else {
             int width, height;
+#ifndef _WIN32
             glfwGetFramebufferSize(window, &width, &height);
+#else
+            RECT rect;
+            GetClientRect(window, &rect);
+            width = rect.right - rect.left;
+            height = rect.bottom - rect.top;
+#endif
 
             VkExtent2D actualExtent = {
                 static_cast<uint32_t>(width),
@@ -1506,7 +1545,7 @@ namespace RT64
     {
         uint32_t glfwExtensionCount = 0;
         const char** glfwExtensions;
-        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+        // glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
         std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
 
@@ -1672,10 +1711,10 @@ namespace RT64
         }
         vkctx.deinit();
         // Destroy the window
-// #ifndef _WIN32
+#ifndef _WIN32
         glfwDestroyWindow(window);
         glfwTerminate();
-// #endif
+#endif
         RT64_LOG_CLOSE();
     }
 
@@ -1685,7 +1724,7 @@ namespace RT64
 
     /********************** Getters **********************/
     // Returns the device's Window
-    RT64_WINDOW* Device::getWindow() const { return window; }
+    RT64_WINDOW& Device::getWindow() { return window; }
     // Returns Vulkan instance
     VkInstance& Device::getVkInstance() { return vkInstance; }
     // Returns Vulkan device
@@ -2331,7 +2370,7 @@ namespace RT64
 
 DLEXPORT RT64_DEVICE* RT64_CreateDevice(void* window) {
 	try {
-		return (RT64_DEVICE*)(new RT64::Device(static_cast<RT64_WINDOW*>(window)));
+		return (RT64_DEVICE*)(new RT64::Device(static_cast<RT64_WINDOW>(window)));
 	}
 	RT64_CATCH_EXCEPTION();
 	return nullptr;
@@ -2357,10 +2396,11 @@ DLEXPORT void RT64_DrawDevice(RT64_DEVICE* devicePtr, int vsyncInterval, double 
 }
 
 #ifdef _WIN32
-DLEXPORT bool RT64_HandleMessageInspector(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam) {
-    assert(inspectorPtr != nullptr);
-    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
-    return inspector->handleMessage(msg, wParam, lParam);
+DLEXPORT bool RT64_HandleMessageInspector(RT64_DEVICE* devicePtr, UINT msg, WPARAM wParam, LPARAM lParam) {
+    assert(devicePtr != nullptr);
+    RT64::Device* device = (RT64::Device*)(devicePtr);
+    RT64::Inspector& inspector = device->getInspector();
+    return inspector.handleMessage(msg, wParam, lParam);
 }
 #endif
 

@@ -10,12 +10,12 @@
 	#include <iostream>
 	#include <Windows.h>
 #else
+	// This version of RT64 will rely on GLFW for the window
+	#define GLFW_INCLUDE_VULKAN
     #include <dlfcn.h>
 #endif
 #include <stdio.h>
 
-// This version of RT64 will rely on GLFW for the window
-#define GLFW_INCLUDE_VULKAN
 
 // Material constants.
 #define RT64_MATERIAL_FILTER_POINT				0
@@ -322,7 +322,7 @@ typedef void (*SetInstanceDescriptionPtr)(RT64_INSTANCE* instancePtr, RT64_INSTA
 typedef void (*DestroyInstancePtr)(RT64_INSTANCE* instancePtr);
 typedef RT64_TEXTURE* (*CreateTexturePtr)(RT64_DEVICE* devicePtr, RT64_TEXTURE_DESC textureDesc);
 typedef void (*DestroyTexturePtr)(RT64_TEXTURE* texture);
-typedef bool (*HandleMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam);
+typedef bool (*HandleMessageInspectorPtr)(RT64_DEVICE* devicePtr, UINT msg, WPARAM wParam, LPARAM lParam);
 typedef void (*SetSceneInspectorPtr)(RT64_DEVICE *devicePtr, RT64_SCENE_DESC* sceneDesc);
 typedef void (*SetMaterialInspectorPtr)(RT64_DEVICE *devicePtr, RT64_MATERIAL* material, const char *materialName);
 typedef void (*SetLightsInspectorPtr)(RT64_DEVICE *devicePtr, RT64_LIGHT* lights, int *lightCount, int maxLightCount);

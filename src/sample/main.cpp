@@ -100,7 +100,6 @@ struct {
 	RT64_SHADER* uiShader = nullptr;
 } Sample;
 
-
 // 	case WM_RBUTTONDOWN: {
 // 		POINT cursorPos = {};
 // 		GetCursorPos(&cursorPos);
@@ -163,11 +162,7 @@ void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
 #endif
 
 // Process drawing 
-void draw(GLFWwindow* window ) {
-	int focused = glfwGetWindowAttrib(window, GLFW_FOCUSED);
-	// if (!focused) {
-	// 	return;
-	// }
+void draw() {
 	
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - Sample.startTime).count() / 4.0f;
@@ -272,7 +267,68 @@ void draw(GLFWwindow* window ) {
 	}
 }
 
-bool createRT64(GLFWwindow* glfwWindow) {
+
+#ifdef _WIN32
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+	if (RT64.device != nullptr && RT64.lib.HandleMessageInspector(RT64.device, message, wParam, lParam)) {
+		return true;
+	}
+
+	switch (message) {
+	case WM_CLOSE:
+		PostQuitMessage(0);
+		break;
+	case WM_RBUTTONDOWN: {
+		//POINT cursorPos = {};
+		//GetCursorPos(&cursorPos);
+		//ScreenToClient(hWnd, &cursorPos);
+		//RT64_INSTANCE* instance = RT64.lib.GetViewRaytracedInstanceAt(RT64.view, cursorPos.x, cursorPos.y);
+		//fprintf(stdout, "GetViewRaytracedInstanceAt: %p\n", instance);
+		break;
+	}
+	case WM_KEYDOWN: {
+		switch (wParam) {
+		case VK_F1:
+			RT64.showInspector = !RT64.showInspector;
+			RT64.lib.SetInspectorVisibility(RT64.device, RT64.showInspector);
+			break;
+		case VK_F3:
+			Sample.daylightTime = 0.0f;
+			break;
+		case VK_F4:
+			Sample.doDaylightCycle = !Sample.doDaylightCycle;
+			break;
+		case VK_UP:
+			Sample.daylightCycleSpeed *= 2.0f;
+			break;
+		case VK_DOWN:
+			if (Sample.daylightCycleSpeed / 2.0f > FLT_EPSILON) {
+				Sample.daylightCycleSpeed /= 2.0f;
+			}
+			break;
+		case VK_LEFT:
+			Sample.daylightTime -= 0.125f;
+			break;
+		case VK_RIGHT:
+			Sample.daylightTime += 0.125f;
+			break;
+		}
+		break;
+	}
+	case WM_PAINT: {
+		if (RT64.view != nullptr) {
+			draw();
+		}
+	}
+	default:
+		return DefWindowProc(hWnd, message, wParam, lParam);
+	}
+
+	return 0;
+}
+#endif
+
+bool createRT64(void* window) {
 	// Setup library.
 	RT64.lib = RT64_LoadLibrary();
 	if (RT64.lib.handle == 0) {
@@ -281,7 +337,7 @@ bool createRT64(GLFWwindow* glfwWindow) {
 	}
 
 	// Setup device.
-	RT64.device = RT64.lib.CreateDevice(glfwWindow);
+	RT64.device = RT64.lib.CreateDevice(window);
 	if (RT64.device == nullptr) {
 		errorMessage(nullptr, RT64.lib.GetLastError());
 		return false;
@@ -667,10 +723,13 @@ void setupSponza()
 
 int main(int argc, char *argv[]) {
 	// Show a basic message to the user so they know what the sample is meant to do.
-	// infoMessage(NULL, 
-	// 	"This sample application will test if your system has the required hardware to run RT64.\n"
-	// 	"If you see some shapes on the screen after clicking the Enter key, then you're good to go!");
-	// std::cin.get();
+#ifdef _WIN32
+	infoMessage(NULL, 
+		"This sample application will test if your system has the required hardware to run RT64.\n"
+	 	"If you see some shapes on the screen after clicking the Enter key, then you're good to go!");
+#endif
+
+#ifndef _WIN32
 	// Set-up window.
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -680,12 +739,35 @@ int main(int argc, char *argv[]) {
 	const int Width = 800;
 	const int Height = 600;
     GLFWwindow* window = glfwCreateWindow(Width, Height, "RT64VK Sample", nullptr, nullptr);
+#else
+	// Register window class.
+	WNDCLASS wc;
+	memset(&wc, 0, sizeof(WNDCLASS));
+	wc.hInstance = GetModuleHandle(0);
+	wc.lpfnWndProc = WndProc;
+	wc.hbrBackground = (HBRUSH)(COLOR_BACKGROUND);
+	wc.lpszClassName = "RT64VKSample";
+	RegisterClass(&wc);
+
+	// Create window.
+	const int Width = 1280;
+	const int Height = 720;
+	RECT rect;
+	UINT dwStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+	rect.left = (GetSystemMetrics(SM_CXSCREEN) - Width) / 2;
+	rect.top = (GetSystemMetrics(SM_CYSCREEN) - Height) / 2;
+	rect.right = rect.left + Width;
+	rect.bottom = rect.top + Height;
+	AdjustWindowRectEx(&rect, dwStyle, 0, 0);
+
+	HWND window = CreateWindow(wc.lpszClassName, WINDOW_TITLE, dwStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, 0, 0, wc.hInstance, NULL);
+#endif
 
 	// Create RT64.
 	if (!createRT64(window)) {
 		errorMessage(nullptr,
 			"Failed to initialize RT64! \n"
-			"Please make sure your GPU drivers are up to date and the driver supports Vulkan 1.2 \n"
+			"Please make sure your GPU drivers are up to date and the driver supports Vulkan 1.3 \n"
 #ifdef _WIN32
 			"Windows 10 version 2004 or newer is also required for this feature level to work properly\n"
 #else
@@ -699,8 +781,10 @@ int main(int argc, char *argv[]) {
 	setupRT64Scene();
 	setupSponza();
 
+#ifndef _WIN32
 	glfwSetKeyCallback(window, keyCallback);
 	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
+#endif
 
 	RT64_VIEW_DESC viewDesc {};
 	viewDesc.diSamples = 0;
@@ -717,11 +801,26 @@ int main(int argc, char *argv[]) {
 	viewDesc.resolutionScale = 1.0f;
 	RT64.lib.SetViewDescription(RT64.view, viewDesc);
 
-	// GLFW Window loop.
-	while (!glfwWindowShouldClose(window)) {
+#ifndef _WIN32
+#define LOOP_CASE	!glfwWindowShouldClose(window)
+#else
+	MSG msg = {};
+#define LOOP_CASE	msg.message != WM_QUIT
+#endif
+
+	// Window loop.
+	while (LOOP_CASE) {
 		// Process any poll evenets.
+#ifndef _WIN32
         glfwPollEvents();
-		draw(window);
+		draw();
+#else
+		// Process any messages in the queue.
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+#endif
 	}
 
 	destroyRT64();

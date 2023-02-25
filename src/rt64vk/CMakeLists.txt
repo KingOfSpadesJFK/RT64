@@ -16,6 +16,9 @@ if(UNIX)
     file(GLOB FSR_LIBRARY ${FSR_DIR}/lib/libffx_fsr2_api_*x86_64.a)
     # GLM Platform
     set(PLATFORM /usr/include/glm/simd)
+    # ImGui
+    list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp)
+    list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp)
 else() 
     # Vulkan and GLFW
     set(VK_SDK_HEADERS ${VK_SDK_PATH}\\Include) 
@@ -35,6 +38,9 @@ else()
     file(GLOB FSR_LIBRARY ${FSR_DIR}/lib/ffx_fsr2_api_*x64.lib ${FSR_DIR}/lib/ffx_fsr2_api_*x64.exp)
     # GLM Platform
     set(PLATFORM ${VK_SDK_PATH}\\Include\\glm\\simd)
+    # ImGui
+    list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp)
+    list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_win32.cpp)
 endif()
 
 include_directories(
@@ -76,8 +82,7 @@ add_library(rt64vk SHARED
     ${IMGUI_DIR}/imgui_draw.cpp
     ${IMGUI_DIR}/imgui_tables.cpp
     ${IMGUI_DIR}/imgui_widgets.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp
-    ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_SOURCES}
 )
 target_include_directories(rt64vk PRIVATE 
     ${MINGW64_INCLUDE}

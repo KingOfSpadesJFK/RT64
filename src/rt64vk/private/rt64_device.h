@@ -37,8 +37,7 @@
 
 // The windows
 #ifdef _WIN32
-//  #define RT64_WINDOW HWND
-#define RT64_WINDOW  GLFWwindow
+#define RT64_WINDOW  HWND
 #else
 #include <GLFW/glfw3.h>
 #include <imgui/backends/imgui_impl_glfw.h>
@@ -135,7 +134,7 @@ namespace RT64
             void generateRayGenDescriptorSetLayout();
             void loadBlueNoise();
 
-            RT64_WINDOW* window;
+            RT64_WINDOW window;
             VkSurfaceKHR vkSurface;
             int width;
             int height;
@@ -286,13 +285,13 @@ namespace RT64
             const bool enableValidationLayers = true;
 #endif
 
-            Device(RT64_WINDOW* window);
+            Device(RT64_WINDOW window);
 		    virtual ~Device();
 
 #ifndef RT64_MINIMAL
 
             /********************** Getters **********************/
-            RT64_WINDOW* getWindow() const;
+            RT64_WINDOW& getWindow();
 		    VkInstance& getVkInstance();
 		    VkDevice& getVkDevice();
 		    VkPhysicalDevice& getPhysicalDevice();
