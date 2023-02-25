@@ -42,6 +42,8 @@ namespace RT64 {
 		invertCameraY = false;
 		cameraPanX = 0.0f;
 		cameraPanY = 0.0f;
+		cameraRoll = 0.0f;
+		cameraPanSpeed = 1.0f;
 		dumpFrameCount = 0;
 		sceneDesc = nullptr;
 		material = nullptr;
@@ -563,14 +565,6 @@ namespace RT64 {
 	void Inspector::printMessage(const std::string& message) {
 		printMessages.push_back(message);
 	}
-
-#ifdef _WIN32
-	// extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
-	// bool Inspector::handleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
-	// 	return ImGui_ImplWin32_WndProcHandler(device->getHwnd(), msg, wParam, lParam);
-	// }
-#endif
 };
 
 #endif

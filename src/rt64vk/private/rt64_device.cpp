@@ -1233,17 +1233,8 @@ namespace RT64
     }
 
 #ifndef RT64_MINIMAL
-    void Device::createSurface() 
-    { 
-
-#ifdef _WIN32
-        VkWin32SurfaceCreateInfoKHR createInfo { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
-        createInfo.hwnd = window;
-        createInfo.hinstance = GetModuleHandle(nullptr);
-        vkCreateWin32SurfaceKHR(vkInstance, &createInfo, nullptr, &vkSurface);
-#else
+    void Device::createSurface() { 
         VK_CHECK(glfwCreateWindowSurface(vkInstance, window, nullptr, &vkSurface));
-#endif
     }
 #endif
 
@@ -1542,14 +1533,12 @@ namespace RT64
     }
 
 #ifndef RT64_MINIMAL
-#ifndef _WIN32
     void Device::framebufferResizeCallback(GLFWwindow* glfwWindow, int width, int height) {
         auto rt64Device = reinterpret_cast<Device*>(glfwGetWindowUserPointer(glfwWindow));
         rt64Device->framebufferResized = true;
         rt64Device->width = width;
         rt64Device->height = height;
     }
-#endif
 #endif
 
     void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
@@ -2355,14 +2344,6 @@ DLEXPORT void RT64_DrawDevice(RT64_DEVICE* devicePtr, int vsyncInterval, double 
 	}
 	RT64_CATCH_EXCEPTION();
 }
-
-#ifdef _WIN32
-DLEXPORT bool RT64_HandleMessageInspector(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam) {
-    assert(inspectorPtr != nullptr);
-    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
-    return inspector->handleMessage(msg, wParam, lParam);
-}
-#endif
 
 DLEXPORT void RT64_SetSceneInspector(RT64_DEVICE* devicePtr, RT64_SCENE_DESC* sceneDesc) {
     assert(devicePtr != nullptr);

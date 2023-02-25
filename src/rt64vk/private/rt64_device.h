@@ -23,6 +23,8 @@
 #include <nvvk/raytraceKHR_vk.hpp>
 #include <nvvk/resourceallocator_vk.hpp>
 #include <unordered_map>
+#include <GLFW/glfw3.h>
+#include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_vulkan.h>
 
 #ifdef _WIN32
@@ -40,8 +42,6 @@
 //  #define RT64_WINDOW HWND
 #define RT64_WINDOW  GLFWwindow
 #else
-#include <GLFW/glfw3.h>
-#include <imgui/backends/imgui_impl_glfw.h>
 #define RT64_WINDOW GLFWwindow
 #endif
 
