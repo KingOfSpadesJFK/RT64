@@ -2356,6 +2356,14 @@ DLEXPORT void RT64_DrawDevice(RT64_DEVICE* devicePtr, int vsyncInterval, double 
 	RT64_CATCH_EXCEPTION();
 }
 
+#ifdef _WIN32
+DLEXPORT bool RT64_HandleMessageInspector(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam) {
+    assert(inspectorPtr != nullptr);
+    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
+    return inspector->handleMessage(msg, wParam, lParam);
+}
+#endif
+
 DLEXPORT void RT64_SetSceneInspector(RT64_DEVICE* devicePtr, RT64_SCENE_DESC* sceneDesc) {
     assert(devicePtr != nullptr);
 	RT64::Device* device = (RT64::Device*)(devicePtr);

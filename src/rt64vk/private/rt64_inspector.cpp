@@ -343,10 +343,10 @@ namespace RT64 {
 				ImGui::SameLine();
 
 				if (checkboxValue) {
-					ImGui::Text(name);
+					ImGui::Text("%s", name);
 				}
 				else {
-					ImGui::TextDisabled(name);
+					ImGui::TextDisabled("%s", name);
 				}
 
 				return checkboxValue;
@@ -564,11 +564,13 @@ namespace RT64 {
 		printMessages.push_back(message);
 	}
 
+#ifdef _WIN32
 	// extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	// bool Inspector::handleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
 	// 	return ImGui_ImplWin32_WndProcHandler(device->getHwnd(), msg, wParam, lParam);
 	// }
+#endif
 };
 
 #endif
