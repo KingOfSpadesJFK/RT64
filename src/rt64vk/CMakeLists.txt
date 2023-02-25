@@ -30,7 +30,7 @@ else()
     file(GLOB DXC_LIBRARY ${DXC_DIR}/lib/win-x64/dxcompiler.lib)
     # DLSS
     if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
-        file(GLOB DLSS_LIBRARY ${DLSS_DIR}/lib/Windows_x86_64/x86_64/nvsdk_ngx_d_dbg.lib)   
+        list(APPEND DLSS_LIBRARY ${DLSS_DIR}/lib/Windows_x86_64/x86_64/nvsdk_ngx_d_dbg.lib)   
     else()
         list(APPEND DLSS_LIBRARY ${DLSS_DIR}/lib/Windows_x86_64/x86_64/nvsdk_ngx_d.lib)
     endif()
@@ -42,7 +42,7 @@ else()
     list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp)
     list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_win32.cpp)
 endif()
-message("${IMGUI_SOURCES}")
+message("${DLSS_LIBRARY}")
 
 include_directories(
     ${LIBRT64VK_DIR}/public/

@@ -88,6 +88,7 @@ namespace RT64
         initRayTracing();
         createDescriptorPool();
         createRayTracingPipeline();
+        inspector.init(this);
 #endif
     }
 
@@ -796,7 +797,6 @@ namespace RT64
 #ifndef RT64_MINIMAL
     void Device::draw(int vsyncInterval, double delta) {
         RT64_LOG_PRINTF("Device drawing started");
-        inspector.init(this);
 
         if (descPoolDirty) {
             vkDestroyDescriptorPool(vkDevice, descriptorPool, nullptr);

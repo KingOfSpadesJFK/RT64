@@ -17,6 +17,7 @@
 #include "../contrib/imgui/backends/imgui_impl_vulkan.h"
 #ifdef _WIN32
 #include "../contrib/imgui/backends/imgui_impl_win32.h"
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #else
 #include "../contrib/imgui/backends/imgui_impl_glfw.h"
 #endif
@@ -35,7 +36,23 @@ std::string dateAsFilename() {
 }
 
 namespace RT64 {
-	Inspector::Inspector() {}
+	Inspector::Inspector() {
+		device = nullptr;
+		prevCursorX = prevCursorY = 0;
+		cameraControl = false;
+		invertCameraX = false;
+		invertCameraY = false;
+		cameraPanX = 0.0f;
+		cameraPanY = 0.0f;
+		cameraPanSpeed = 1.0f;
+		cameraRoll = 0.f;
+		dumpFrameCount = 0;
+		sceneDesc = nullptr;
+		material = nullptr;
+		lights = nullptr;
+		lightCount = 0;
+		maxLightCount = 0;
+	}
 
 	bool Inspector::init(Device* device) {
 		if (initialized) { return true; }
@@ -46,6 +63,8 @@ namespace RT64 {
 		invertCameraY = false;
 		cameraPanX = 0.0f;
 		cameraPanY = 0.0f;
+		cameraPanSpeed = 1.0f;
+		cameraRoll = 0.f;
 		dumpFrameCount = 0;
 		sceneDesc = nullptr;
 		material = nullptr;
@@ -598,10 +617,8 @@ namespace RT64 {
 	}
 
 #ifdef _WIN32
-	extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-
 	bool Inspector::handleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
-		return false; //ImGui_ImplWin32_WndProcHandler(device->getWindow(), msg, wParam, lParam);
+		return ImGui_ImplWin32_WndProcHandler(device->getWindow(), msg, wParam, lParam);
 	}
 #endif
 };
