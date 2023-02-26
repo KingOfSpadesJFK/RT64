@@ -100,6 +100,7 @@ struct {
 	float sceneScale = 10.0f;
 	float runtime = 0.0f;
 	RT64_SHADER* uiShader = nullptr;
+	std::vector<RT64_SHADER*> sceneShaders;
 } Sample;
 
 // 	case WM_RBUTTONDOWN: {
@@ -675,6 +676,7 @@ void setupSponza()
 		}
 	}
 
+	Sample.sceneShaders.resize(matCount);
 	for (int i = 0; i < matCount; i++) {
 		// Create mesh
 		RT64_MESH* mesh = RT64.lib.CreateMesh(RT64.device, RT64_MESH_RAYTRACE_ENABLED | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT);
@@ -692,6 +694,8 @@ void setupSponza()
 		RT64_INSTANCE_DESC instDesc;
 		RT64_INSTANCE* instance = RT64.lib.CreateInstance(RT64.scene);
 		RT64_MATRIX4 sceneTransform {};
+		int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RASTER_TRANSFORMS_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
+		Sample.sceneShaders[i] = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 		RT64_MATERIAL mat = RT64.baseMaterial;
 		// if (i % 5 == 0) {
 		// 	mat.reflectionFactor = 0.250f;
@@ -713,7 +717,7 @@ void setupSponza()
 		instDesc.normalTexture = normalTex;
 		instDesc.specularTexture = specTex;
 		instDesc.material = mat;
-		instDesc.shader = RT64.shader;
+		instDesc.shader = Sample.sceneShaders[i];
 		instDesc.flags = 0;
 		RT64.lib.SetInstanceDescription(instance, instDesc);
 	}
