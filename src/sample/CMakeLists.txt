@@ -22,7 +22,6 @@ else()
     )
 endif()
 target_include_directories(sample PRIVATE 
-    ${GLFW_INCLUDE}
     ${VULKAN_INCLUDE}
     ${SAMPLE_DIR}/contrib/tinygltf
     ${LIBRT64VK_DIR}/public

@@ -20,11 +20,9 @@ if(UNIX)
     list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp)
     list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_glfw.cpp)
 else() 
-    # Vulkan and GLFW
+    # Vulkan
     set(VK_SDK_HEADERS ${VK_SDK_PATH}\\Include) 
     file(GLOB VULKAN_LIBRARY ${VK_SDK_PATH}\\Lib/*.lib)
-    set(GLFW_LIBRARY ${PROJECT_SOURCE_DIR}/src/contrib/glfw/lib/glfw3dll.lib)
-    set(GLFW_INCLUDE ${PROJECT_SOURCE_DIR}/src/contrib/glfw/include)
     # DXC
     set(DXC_INCLUDE ${DXC_DIR}/include/win)
     file(GLOB DXC_LIBRARY ${DXC_DIR}/lib/win-x64/dxcompiler.lib)
@@ -124,7 +122,6 @@ else()
     endif()
     # Copy the FSR .dll files into the build folder
     file(COPY ${FSR_DIR}/lib/ffx_fsr2_api_x64.dll ${FSR_DIR}/lib/ffx_fsr2_api_vk_x64.dll DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
-    file(COPY ${PROJECT_SOURCE_DIR}/src/contrib/glfw/lib/glfw3.dll DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
 endif()
 
 set_property(TARGET rt64vk PROPERTY CXX_STANDARD 20)
