@@ -419,7 +419,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.SetViewDescription = (SetViewDescriptionPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetViewDescription"));
 		lib.SetViewSkyPlane = (SetViewSkyPlanePtr)(RT64_GetProcAddress(lib.handle, "RT64_SetViewSkyPlane"));
 		lib.GetViewRaytracedInstanceAt = (GetViewRaytracedInstanceAtPtr)(RT64_GetProcAddress(lib.handle, "RT64_GetViewRaytracedInstanceAt"));
-		lib.GetViewUpscalerSupport = (GetViewUpscalerSupportPtr)(GetProcAddress(lib.handle, "RT64_GetViewUpscalerSupport"));
+		lib.GetViewUpscalerSupport = (GetViewUpscalerSupportPtr)(RT64_GetProcAddress(lib.handle, "RT64_GetViewUpscalerSupport"));
 		lib.GetViewFeatureSupport = (GetViewFeatureSupportPtr)(RT64_GetProcAddress(lib.handle, "RT64_GetViewFeatureSupport"));
 		lib.DestroyView = (DestroyViewPtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyView"));
 		lib.CreateScene = (CreateScenePtr)(RT64_GetProcAddress(lib.handle, "RT64_CreateScene"));
