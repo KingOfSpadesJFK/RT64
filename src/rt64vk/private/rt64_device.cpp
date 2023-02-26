@@ -617,8 +617,7 @@ namespace RT64
         rtDescriptorSetLayouts.push_back(raygenDescriptorSetLayout);
         for (int i = 0; i < shaders.size(); i++) {
             Shader* s = shaders[i];
-            if (s == nullptr) { continue; }
-            if (s->hasHitGroups()) {
+            if (s != nullptr && s->hasHitGroups()) {
                 rtDescriptorSetLayouts.push_back(s->getRTDescriptorSetLayout());
             } else {
                 // Push the empty descriptor set 
@@ -1894,11 +1893,7 @@ namespace RT64
             if (shaders[i] == nullptr) {
                 break;
             } else {
-                if (shaders[i]->hasHitGroups()) {
-                    index++;
-                } else {
-                    break;
-                }
+                index++;
             }
         }
         return index;
