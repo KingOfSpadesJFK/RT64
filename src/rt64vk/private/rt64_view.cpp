@@ -2244,6 +2244,8 @@ namespace RT64
 
     bool View::getUpscalerInitialized(UpscaleMode mode) const {
         switch (mode) {
+            case UpscaleMode::Bilinear:
+                return true;
             case UpscaleMode::FSR:
                 return fsr->isInitialized();
             case UpscaleMode::DLSS:
@@ -2251,7 +2253,7 @@ namespace RT64
             // case UpscaleMode::XeSS:
             //     return xess->isInitialized();
             default:
-                return true;
+                return false;
         }
     }
 
@@ -2365,7 +2367,23 @@ DLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDes
 		break;
 	}
 
-	// view->setUpscalerSharpness(viewDesc.upscalerSharpness);
+	view->setUpscalerSharpness(viewDesc.upscalerSharpness);
+}
+
+DLEXPORT bool RT64_GetViewUpscalerSupport(RT64_VIEW* viewPtr, int upscaler) {
+    assert(viewPtr != nullptr);
+    RT64::View* view = (RT64::View*)(viewPtr);
+    switch (upscaler) {
+    case RT64_UPSCALER_DLSS:
+        return view->getUpscalerInitialized(RT64::UpscaleMode::DLSS);
+    case RT64_UPSCALER_FSR:
+        return view->getUpscalerInitialized(RT64::UpscaleMode::FSR);
+    case RT64_UPSCALER_XESS:
+        return view->getUpscalerInitialized(RT64::UpscaleMode::XeSS);
+    case 0:
+    default:
+        return false;
+    }
 }
 
 DLEXPORT void RT64_DestroyView(RT64_VIEW* viewPtr) {
