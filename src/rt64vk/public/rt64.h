@@ -299,6 +299,7 @@ typedef void (*SetViewPerspectivePtr)(RT64_VIEW *viewPtr, RT64_MATRIX4 viewMatri
 typedef void (*SetViewDescriptionPtr)(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc);
 typedef void (*SetViewSkyPlanePtr)(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr);
 typedef RT64_INSTANCE* (*GetViewRaytracedInstanceAtPtr)(RT64_VIEW *viewPtr, int x, int y);
+typedef bool (*GetViewUpscalerSupportPtr)(RT64_VIEW* viewPtr, char upscaler);
 typedef bool (*GetViewFeatureSupportPtr)(RT64_VIEW *viewPtr, int feature);
 typedef void (*DestroyViewPtr)(RT64_VIEW* viewPtr);
 typedef RT64_SCENE* (*CreateScenePtr)(RT64_DEVICE* devicePtr);
@@ -340,6 +341,7 @@ typedef struct {
 	SetViewDescriptionPtr SetViewDescription;
 	SetViewSkyPlanePtr SetViewSkyPlane;
 	GetViewRaytracedInstanceAtPtr GetViewRaytracedInstanceAt;
+	GetViewUpscalerSupportPtr GetViewUpscalerSupport;
 	GetViewFeatureSupportPtr GetViewFeatureSupport;
 	DestroyViewPtr DestroyView;
 	CreateScenePtr CreateScene;
@@ -411,6 +413,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.SetViewDescription = (SetViewDescriptionPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetViewDescription"));
 		lib.SetViewSkyPlane = (SetViewSkyPlanePtr)(RT64_GetProcAddress(lib.handle, "RT64_SetViewSkyPlane"));
 		lib.GetViewRaytracedInstanceAt = (GetViewRaytracedInstanceAtPtr)(RT64_GetProcAddress(lib.handle, "RT64_GetViewRaytracedInstanceAt"));
+		lib.GetViewUpscalerSupport = (GetViewUpscalerSupportPtr)(GetProcAddress(lib.handle, "RT64_GetViewUpscalerSupport"));
 		lib.GetViewFeatureSupport = (GetViewFeatureSupportPtr)(RT64_GetProcAddress(lib.handle, "RT64_GetViewFeatureSupport"));
 		lib.DestroyView = (DestroyViewPtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyView"));
 		lib.CreateScene = (CreateScenePtr)(RT64_GetProcAddress(lib.handle, "RT64_CreateScene"));
