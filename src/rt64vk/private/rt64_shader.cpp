@@ -726,7 +726,7 @@ namespace RT64
 		// Compile shader.
 		std::string shaderCode = ss.str();
 		surfaceHitGroup.id = device->getFirstAvailableHitShaderID();
-		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", surfaceHitGroup.shaderInfo, surfaceHitGroup.shaderModule, descriptorSetIndex);
+		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", surfaceHitGroup.shaderInfo, surfaceHitGroup.shaderModule, 0);
 		surfaceHitGroup.hitGroupName = hitGroupName;
 		surfaceHitGroup.closestHitName = closestHitName;
 		surfaceHitGroup.anyHitName = anyHitName;
@@ -809,7 +809,7 @@ namespace RT64
 		// Compile shader.
 		std::string shaderCode = ss.str();
 		shadowHitGroup.id = device->getFirstAvailableHitShaderID() + 1;
-		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", shadowHitGroup.shaderInfo, shadowHitGroup.shaderModule, descriptorSetIndex);
+		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", shadowHitGroup.shaderInfo, shadowHitGroup.shaderModule, 0);
 		shadowHitGroup.hitGroupName = hitGroupName;
 		shadowHitGroup.closestHitName = closestHitName;
 		shadowHitGroup.anyHitName = anyHitName;
@@ -949,6 +949,7 @@ namespace RT64
 	VkSampler& Shader::getSampler() { return sampler; }
 	bool Shader::hasHitGroups() const { return hitGroupInit; }
 	uint32_t Shader::hitGroupCount() const { return (surfaceHitGroup.shaderModule != VK_NULL_HANDLE) + (shadowHitGroup.shaderModule != VK_NULL_HANDLE); };
+	bool Shader::hasRTDescriptorSet() const { return rtDescriptorSet != VK_NULL_HANDLE; };
 	uint32_t Shader::getFlags() const { return flags; }
 	bool Shader::has3DRaster() const { return flags & RT64_SHADER_RASTER_TRANSFORMS_ENABLED; }
 	unsigned int Shader::getSamplerRegisterIndex() const { return samplerRegisterIndex; }

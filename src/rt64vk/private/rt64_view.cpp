@@ -1435,7 +1435,7 @@ namespace RT64
         }
 
         // Now raytrace!
-        if (rtEnabled)
+        if (rtEnabled && !rtInstances.empty())
         {
             // Make sure the images are usable
             AllocatedImage* primaryTranslation[] = {
@@ -1761,7 +1761,7 @@ namespace RT64
                 }
             }
         }
-        else        // Or don't raytrace.
+        else if (!rasterFgInstances.empty())    // Or don't raytrace.
         {
             // Make sure the images are usable
             AllocatedImage* primaryTranslation[] = {
@@ -1787,149 +1787,154 @@ namespace RT64
             vkCmdEndRenderPass(commandBuffer);
         }
 
-		// Compose the output buffer.
-		AllocatedImage& rtOutputCur = rtOutput[rtSwap ? 1 : 0];
-		VkFramebuffer& rtOutputCurFB = rtOutputFB[rtSwap ? 1 : 0];
+        // Everything else
+        if (!rtInstances.empty() || !rasterFgInstances.empty())
+        {
+            // Compose the output buffer.
+            AllocatedImage& rtOutputCur = rtOutput[rtSwap ? 1 : 0];
+            VkFramebuffer& rtOutputCurFB = rtOutputFB[rtSwap ? 1 : 0];
 
-        // Begin the offscreen render pass (you can't raytrace with it, so just raytrace before you render pass it up)
-        renderPassInfo.renderPass = offscreenRenderPass;
-        renderPassInfo.framebuffer = rtOutputCurFB;
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            // Begin the offscreen render pass (you can't raytrace with it, so just raytrace before you render pass it up)
+            renderPassInfo.renderPass = offscreenRenderPass;
+            renderPassInfo.framebuffer = rtOutputCurFB;
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-		// Apply the scissor and viewport to the size of the output texture.
-        applyScissor({rtWidth, rtHeight});
-        VkViewport v = {0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f};
-        applyViewport(v);
+            // Apply the scissor and viewport to the size of the output texture.
+            applyScissor({ rtWidth, rtHeight });
+            VkViewport v = { 0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f };
+            applyViewport(v);
 
-        // Now compose!
-		RT64_LOG_PRINTF("Composing the raytracing output");
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipeline());
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipelineLayout(), 0, 1, &device->getComposeDescriptorSet(), 0, nullptr);
-        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+            // Now compose!
+            RT64_LOG_PRINTF("Composing the raytracing output");
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipeline());
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getComposePipelineLayout(), 0, 1, &device->getComposeDescriptorSet(), 0, nullptr);
+            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
-        vkCmdEndRenderPass(commandBuffer);
+            vkCmdEndRenderPass(commandBuffer);
 
-        // Begin tonemapping 
-        renderPassInfo.framebuffer = rtOutputTonemappedFB;
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-        
-        // Now tonemap!
-		RT64_LOG_PRINTF("Tonemapping the raytracing output");
-        vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getTonemappingPipeline());
-        vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getTonemappingPipelineLayout(), 0, 1, &device->getTonemappingDescriptorSet(), 0, nullptr);
-        vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-        vkCmdEndRenderPass(commandBuffer);
-        
-        if (upscaleActive && (upscaler != nullptr)) {
-            device->transitionImageLayout(rtOutputUpscaled,
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-                VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT, 
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
-                &commandBuffer);
-                
-			std::vector<AllocatedImage*> beforeBarriers, afterBarriers;
-			AllocatedImage& rtDepthCur = rtDepth[rtSwap ? 1 : 0];
-            for ( AllocatedImage* alime : {&rtOutputCur, &rtFlow, &rtReactiveMask, &rtLockMask, &rtDepthCur} ) {
-                beforeBarriers.push_back(alime);
-                afterBarriers.push_back(alime);
+            // Begin tonemapping 
+            renderPassInfo.framebuffer = rtOutputTonemappedFB;
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            // Now tonemap!
+            RT64_LOG_PRINTF("Tonemapping the raytracing output");
+            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getTonemappingPipeline());
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getTonemappingPipelineLayout(), 0, 1, &device->getTonemappingDescriptorSet(), 0, nullptr);
+            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+            vkCmdEndRenderPass(commandBuffer);
+
+            if (upscaleActive && (upscaler != nullptr)) {
+                device->transitionImageLayout(rtOutputUpscaled,
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    &commandBuffer);
+
+                std::vector<AllocatedImage*> beforeBarriers, afterBarriers;
+                AllocatedImage& rtDepthCur = rtDepth[rtSwap ? 1 : 0];
+                for (AllocatedImage* alime : { &rtOutputCur, &rtFlow, &rtReactiveMask, &rtLockMask, &rtDepthCur }) {
+                    beforeBarriers.push_back(alime);
+                    afterBarriers.push_back(alime);
+                }
+                device->transitionImageLayout(beforeBarriers.data(), beforeBarriers.size(),
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    VK_ACCESS_SHADER_READ_BIT,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    &commandBuffer);
+
+                Upscaler::UpscaleParameters params{};
+                params.inRect = { 0, 0, rtWidth, rtHeight };
+                params.inColor = &rtOutputTonemapped;
+                params.inFlow = &rtFlow;
+                params.inReactiveMask = upscalerReactiveMask ? &rtReactiveMask : nullptr;
+                params.inLockMask = upscalerLockMask ? &rtLockMask : nullptr;
+                params.inDepth = &rtDepthCur;
+                params.outColor = &rtOutputUpscaled;
+                params.sharpness = upscalerSharpness;
+                params.jitterX = -globalParamsData.pixelJitter.x;
+                params.jitterY = -globalParamsData.pixelJitter.y;
+                params.deltaTime = deltaTimeMs;
+                params.nearPlane = nearDist;
+                params.farPlane = farDist;
+                params.fovY = fovRadians;
+                params.resetAccumulation = false; // TODO: Make this configurable via the API.
+                upscaler->upscale(params);
+
+                device->transitionImageLayout(afterBarriers.data(), afterBarriers.size(),
+                    VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    VK_ACCESS_SHADER_READ_BIT,
+                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    &commandBuffer);
             }
-            device->transitionImageLayout(beforeBarriers.data(), beforeBarriers.size(),
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-                VK_ACCESS_SHADER_READ_BIT, 
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+
+            // Begine the on-screen render pass
+            renderPassInfo.framebuffer = framebuffer;
+            renderPassInfo.renderArea.extent = swapChainExtent;
+            renderPassInfo.renderPass = presentRenderPass;
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            // Apply the same scissor and viewport that was determined for the raytracing step.
+            applyScissor(rtScissorRect);
+            applyViewport(rtViewport);
+
+            // The final output
+            if (globalParamsData.visualizationMode == VisualizationModeFinal) {
+                RT64_LOG_PRINTF("Drawing the final output!");
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getPostProcessPipeline());
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getPostProcessPipelineLayout(), 0, 1, &device->getPostProcessDescriptorSet(), 0, nullptr);
+                vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+            }
+            else {
+                RT64_LOG_PRINTF("Drawing the debug image");
+                vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getDebugPipeline());
+                vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getDebugPipelineLayout(), 0, 1, &device->getDebugDescriptorSet(), 0, nullptr);
+                vkCmdDraw(commandBuffer, 3, 1, 0, 0);
+            }
+
+            // Draw the UI images
+            RT64_LOG_PRINTF("Drawing UI instances");
+            resetScissor();
+            resetViewport();
+            // drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
+            drawInstances(rasterUiInstances, rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size(), true);
+
+            vkCmdEndRenderPass(commandBuffer);
+
+            // Barriers for shading buffers after the whole render process is finished
+            AllocatedImage* postRTBarriers[] = {
+                &rasterBg,
+                &rtViewDirection,
+                &rtShadingPosition,
+                &rtShadingNormal,
+                &rtShadingSpecular,
+                &rtInstanceId,
+                &rtFlow,
+                &rtReactiveMask,
+                &rtLockMask,
+                &rtNormal[rtSwap ? 1 : 0],
+                &rtDepth[rtSwap ? 1 : 0]
+            };
+            device->transitionImageLayout(postRTBarriers, sizeof(postRTBarriers) / sizeof(AllocatedImage*),
+                VK_IMAGE_LAYOUT_GENERAL,
+                VK_ACCESS_NONE,
+                VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                 &commandBuffer);
 
-			Upscaler::UpscaleParameters params {};
-			params.inRect = { 0, 0, rtWidth, rtHeight };
-			params.inColor = &rtOutputTonemapped;
-			params.inFlow = &rtFlow;
-			params.inReactiveMask = upscalerReactiveMask ? &rtReactiveMask : nullptr;
-			params.inLockMask = upscalerLockMask ? &rtLockMask : nullptr;
-			params.inDepth = &rtDepthCur;
-			params.outColor = &rtOutputUpscaled;
-			params.sharpness = upscalerSharpness;
-			params.jitterX = -globalParamsData.pixelJitter.x;
-			params.jitterY = -globalParamsData.pixelJitter.y;
-			params.deltaTime = deltaTimeMs;
-			params.nearPlane = nearDist;
-			params.farPlane = farDist;
-			params.fovY = fovRadians;
-			params.resetAccumulation = false; // TODO: Make this configurable via the API.
-			upscaler->upscale(params);
-
-            device->transitionImageLayout(afterBarriers.data(), afterBarriers.size(),
-                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
-                VK_ACCESS_SHADER_READ_BIT, 
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            AllocatedImage* postFragBarriers[] = {
+                &rtOutputCur,
+                &rtDiffuse,
+                &rtDirectLightAccum[rtSwap ? 1 : 0],
+                &rtIndirectLightAccum[rtSwap ? 1 : 0],
+                &rtReflection,
+                &rtRefraction,
+                &rtTransparent
+            };
+            device->transitionImageLayout(postFragBarriers, sizeof(postFragBarriers) / sizeof(AllocatedImage*),
+                VK_IMAGE_LAYOUT_GENERAL,
+                VK_ACCESS_NONE,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                 &commandBuffer);
         }
-
-        // Begine the on-screen render pass
-        renderPassInfo.framebuffer = framebuffer;
-        renderPassInfo.renderArea.extent = swapChainExtent;
-        renderPassInfo.renderPass = presentRenderPass;
-        vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-        // Apply the same scissor and viewport that was determined for the raytracing step.
-		applyScissor(rtScissorRect);
-		applyViewport(rtViewport);
-
-        // The final output
-        if (globalParamsData.visualizationMode == VisualizationModeFinal) {
-            RT64_LOG_PRINTF("Drawing the final output!");
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getPostProcessPipeline());
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getPostProcessPipelineLayout(), 0, 1, &device->getPostProcessDescriptorSet(), 0, nullptr);
-            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-        } else {
-            RT64_LOG_PRINTF("Drawing the debug image");
-            vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getDebugPipeline());
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, device->getDebugPipelineLayout(), 0, 1, &device->getDebugDescriptorSet(), 0, nullptr);
-            vkCmdDraw(commandBuffer, 3, 1, 0, 0);
-        }
-
-        // Draw the UI images
-        RT64_LOG_PRINTF("Drawing UI instances");
-        resetScissor();
-        resetViewport();
-	        // drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
-	    drawInstances(rasterUiInstances, rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size(), true);
-
-        vkCmdEndRenderPass(commandBuffer);
-        
-	    // Barriers for shading buffers after the whole render process is finished
-        AllocatedImage* postRTBarriers[] = {
-            &rasterBg,
-            &rtViewDirection,
-            &rtShadingPosition,
-            &rtShadingNormal,
-            &rtShadingSpecular,
-            &rtInstanceId,
-            &rtFlow,
-            &rtReactiveMask,
-            &rtLockMask,
-            &rtNormal[rtSwap ? 1 : 0],
-            &rtDepth[rtSwap ? 1 : 0]
-        };
-        device->transitionImageLayout(postRTBarriers, sizeof(postRTBarriers) / sizeof(AllocatedImage*), 
-            VK_IMAGE_LAYOUT_GENERAL,
-            VK_ACCESS_NONE, 
-            VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
-            &commandBuffer);
-
-        AllocatedImage* postFragBarriers[] = {
-            &rtOutputCur,
-            &rtDiffuse,
-            &rtDirectLightAccum[rtSwap ? 1 : 0],
-            &rtIndirectLightAccum[rtSwap ? 1 : 0],
-            &rtReflection,
-            &rtRefraction,
-            &rtTransparent
-        };
-        device->transitionImageLayout(postFragBarriers, sizeof(postFragBarriers) / sizeof(AllocatedImage*), 
-            VK_IMAGE_LAYOUT_GENERAL,
-            VK_ACCESS_NONE, 
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, 
-            &commandBuffer);
 
         rtSwap = !rtSwap;
         rtSkipReprojection = false;

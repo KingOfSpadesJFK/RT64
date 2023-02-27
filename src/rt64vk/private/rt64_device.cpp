@@ -614,10 +614,8 @@ namespace RT64
 	    RT64_LOG_PRINTF("Gathering the descriptor set layouts...");        
         // Push the main RT descriptor set layout into the layouts vector
         rtDescriptorSetLayouts.clear();
+        rtDescriptorSetLayouts.reserve(shaders.size() + 1);
         rtDescriptorSetLayouts.push_back(rtDescriptorSetLayout);
-        for (int i = 0; i < shaders.size(); i++) {
-            rtDescriptorSetLayouts.push_back(rtDescriptorSetLayout);
-        }
         
 	    RT64_LOG_PRINTF("Creating the RT pipeline...");
 		// Set up the push constnants
@@ -627,8 +625,8 @@ namespace RT64
 		pushConstant.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
         // Create the pipeline layout create info
         VkPipelineLayoutCreateInfo layoutInfo {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-        layoutInfo.setLayoutCount = rtDescriptorSetLayouts.size();
-        layoutInfo.pSetLayouts = rtDescriptorSetLayouts.data();
+        layoutInfo.setLayoutCount = 1;
+        layoutInfo.pSetLayouts = &rtDescriptorSetLayout;
         layoutInfo.pushConstantRangeCount = 1;
         layoutInfo.pPushConstantRanges = &pushConstant;
         vkCreatePipelineLayout(vkDevice, &layoutInfo, nullptr, &rtPipelineLayout);
@@ -649,14 +647,6 @@ namespace RT64
 
         rtDescriptorSets.clear();
         rtDescriptorSets.push_back(raygenDescriptorSet);
-        for (Shader* s : shaders) {
-            if (s != nullptr && s->hasHitGroups()) {
-                rtDescriptorSets.push_back(s->getRTDescriptorSet());
-            } else {
-                // Use the raygen descriptor set as filler
-                rtDescriptorSets.push_back(raygenDescriptorSet);
-            }
-        }
 
 	    RT64_LOG_PRINTF("Raytracing pipeline created!");
     }
