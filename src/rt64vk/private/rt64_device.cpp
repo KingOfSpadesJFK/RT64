@@ -253,7 +253,7 @@ namespace RT64
             createShaderModule(RefractionRayGen_SPIRV,  sizeof(RefractionRayGen_SPIRV), "RefractionRayGen", VK_SHADER_STAGE_RAYGEN_BIT_KHR, refractionRayGenStage,      refractionRayGenModule, nullptr);
             createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "SurfaceMiss",      VK_SHADER_STAGE_MISS_BIT_KHR, surfaceMissStage,             surfaceMissModule, nullptr);
             createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "ShadowMiss",       VK_SHADER_STAGE_MISS_BIT_KHR, shadowMissStage,              shadowMissModule, nullptr);
-            generateRayGenDescriptorSetLayout();
+            generateRTDescriptorSetLayout();
         }
 
 	    RT64_LOG_PRINTF("Creating the composition descriptor set layout");
@@ -623,15 +623,9 @@ namespace RT64
 	    RT64_LOG_PRINTF("Gathering the descriptor set layouts...");        
         // Push the main RT descriptor set layout into the layouts vector
         rtDescriptorSetLayouts.clear();
-        rtDescriptorSetLayouts.push_back(raygenDescriptorSetLayout);
+        rtDescriptorSetLayouts.push_back(rtDescriptorSetLayout);
         for (int i = 0; i < shaders.size(); i++) {
-            Shader* s = shaders[i];
-            if (s != nullptr && s->hasHitGroups()) {
-                rtDescriptorSetLayouts.push_back(s->getRTDescriptorSetLayout());
-            } else {
-                // Push the empty descriptor set 
-                rtDescriptorSetLayouts.push_back(emptyDescriptorSetLayout);
-            }
+            rtDescriptorSetLayouts.push_back(rtDescriptorSetLayout);
         }
         
 	    RT64_LOG_PRINTF("Creating the RT pipeline...");
@@ -665,18 +659,20 @@ namespace RT64
         rtDescriptorSets.clear();
         rtDescriptorSets.push_back(raygenDescriptorSet);
         for (Shader* s : shaders) {
-            if (s == nullptr) { continue; }
-            if (s->hasHitGroups()) {
+            if (s != nullptr && s->hasHitGroups()) {
                 rtDescriptorSets.push_back(s->getRTDescriptorSet());
+            } else {
+                // Use the raygen descriptor set as filler
+                rtDescriptorSets.push_back(raygenDescriptorSet);
             }
         }
 
 	    RT64_LOG_PRINTF("Raytracing pipeline created!");
     }
 
-    void Device::generateRayGenDescriptorSetLayout() {
+    void Device::generateRTDescriptorSetLayout() {
 		VkDescriptorBindingFlags flags = VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT;
-        VkShaderStageFlags defaultStageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR;
+        VkShaderStageFlags defaultStageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR | VK_SHADER_STAGE_ANY_HIT_BIT_KHR | VK_SHADER_STAGE_CLOSEST_HIT_BIT_KHR | VK_SHADER_STAGE_MISS_BIT_KHR;
         std::vector<VkDescriptorSetLayoutBinding> bindings = {
             {UAV_INDEX(gViewDirection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
             {UAV_INDEX(gShadingPosition) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, defaultStageFlags, nullptr},
@@ -716,10 +712,11 @@ namespace RT64
 
             {CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, defaultStageFlags, nullptr},
             {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr},
-            {1 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr}
+            {1 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr},
+            {2 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr}
         };
 
-		generateDescriptorSetLayout(bindings, flags, raygenDescriptorSetLayout);
+		generateDescriptorSetLayout(bindings, flags, rtDescriptorSetLayout);
     }
 
     // Creates the descriptor pool and allocates the descriptor sets to the pool
@@ -738,7 +735,7 @@ namespace RT64
 		VK_CHECK(vkCreateDescriptorPool(vkDevice, &poolInfo, nullptr, &descriptorPool));
 
 	    RT64_LOG_PRINTF("Allocating the descriptor sets to the pool...");
-        allocateDescriptorSet(raygenDescriptorSetLayout, raygenDescriptorSet);
+        allocateDescriptorSet(rtDescriptorSetLayout, raygenDescriptorSet);
         allocateDescriptorSet(composeDescriptorSetLayout, composeDescriptorSet);
         allocateDescriptorSet(tonemappingDescriptorSetLayout, tonemappingDescriptorSet);
         allocateDescriptorSet(postProcessDescriptorSetLayout, postProcessDescriptorSet);
@@ -1675,7 +1672,7 @@ namespace RT64
         // Destroy RT pipeline and descriptor set
         vkDestroyPipeline(vkDevice, rtPipeline, nullptr);
         vkDestroyPipelineLayout(vkDevice, rtPipelineLayout, nullptr);
-        vkDestroyDescriptorSetLayout(vkDevice, raygenDescriptorSetLayout, nullptr);
+        vkDestroyDescriptorSetLayout(vkDevice, rtDescriptorSetLayout, nullptr);
         // Destroy compose pipeline and descriptor set
         vkDestroyPipeline(vkDevice, composePipeline, nullptr);
         vkDestroyPipelineLayout(vkDevice, composePipelineLayout, nullptr);
@@ -1753,6 +1750,7 @@ namespace RT64
     VkPipeline& Device::getRTPipeline() { return rtPipeline; }
     VkPipelineLayout&   Device::getRTPipelineLayout() { return rtPipelineLayout; }
     VkDescriptorSet&    Device::getRayGenDescriptorSet() { return raygenDescriptorSet; }
+    VkDescriptorSetLayout& Device::getRTDescriptorSetLayout() { return rtDescriptorSetLayout; }
     std::vector<VkDescriptorSet>& Device::getRTDescriptorSets() { return rtDescriptorSets; }
     VkPipeline&             Device::getComposePipeline()                            { return composePipeline; }
     VkPipelineLayout&       Device::getComposePipelineLayout()                      { return composePipelineLayout; }
