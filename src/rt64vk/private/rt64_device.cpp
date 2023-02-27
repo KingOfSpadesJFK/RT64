@@ -913,6 +913,9 @@ namespace RT64
 #ifdef RT64_DEBUG
         std::cout << "============================================\n";
 #endif
+#ifdef _WIN32
+        RedrawWindow(window, NULL, NULL, RDW_INVALIDATE);
+#endif
     }
 
     void Device::updateViewport() {

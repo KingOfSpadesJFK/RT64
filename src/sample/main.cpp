@@ -291,6 +291,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		//fprintf(stdout, "GetViewRaytracedInstanceAt: %p\n", instance);
 		break;
 	}
+	case WM_PAINT: {
+		draw();
+	}
 	case WM_KEYDOWN: {
 		switch (wParam) {
 		case VK_F1:
@@ -814,6 +817,7 @@ int main(int argc, char *argv[]) {
 		// Process any poll evenets.
 #ifndef _WIN32
         glfwPollEvents();
+		draw();
 #else
 		// Process any messages in the queue.
 		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
@@ -821,7 +825,6 @@ int main(int argc, char *argv[]) {
 			DispatchMessage(&msg);
 		}
 #endif
-		draw();
 	}
 
 	destroyRT64();
