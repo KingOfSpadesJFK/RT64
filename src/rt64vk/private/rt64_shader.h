@@ -53,7 +53,6 @@ namespace RT64 {
             uint32_t flags;
             bool descriptorBound = false;
             unsigned int samplerRegisterIndex = 0;
-            VkDescriptorSetLayout rtDescriptorSetLayout {};
             VkDescriptorSet rtDescriptorSet {};
             unsigned int descriptorSetIndex = 0;
             VkSampler sampler;
@@ -79,7 +78,6 @@ namespace RT64 {
             RasterGroup& getRasterGroup();
             HitGroup getSurfaceHitGroup();
             HitGroup getShadowHitGroup();
-            VkDescriptorSetLayout& getRTDescriptorSetLayout();
             VkDescriptorSet& getRTDescriptorSet();
             VkSampler& getSampler();
             uint32_t getFlags() const;

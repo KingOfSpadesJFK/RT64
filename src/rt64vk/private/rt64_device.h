@@ -132,7 +132,7 @@ namespace RT64
             void updateViewport();
             void updateScenes();
             void resizeScenes();
-            void generateRayGenDescriptorSetLayout();
+            void generateRTDescriptorSetLayout();
             void loadBlueNoise();
 
             RT64_WINDOW* window;
@@ -251,7 +251,7 @@ namespace RT64
             VkPipelineLayout        gaussianFilterRGB3x3PipelineLayout;
             VkPipeline              gaussianFilterRGB3x3Pipeline;
             // Did I mention the descriptors?
-            VkDescriptorSetLayout   raygenDescriptorSetLayout;
+            VkDescriptorSetLayout   rtDescriptorSetLayout;
             VkDescriptorSet         raygenDescriptorSet;
             VkDescriptorSetLayout   composeDescriptorSetLayout;
             VkDescriptorSet         composeDescriptorSet;
@@ -316,6 +316,7 @@ namespace RT64
             VkPipeline& getRTPipeline();
             VkPipelineLayout& getRTPipelineLayout();
             VkDescriptorSet& getRayGenDescriptorSet();
+            VkDescriptorSetLayout& getRTDescriptorSetLayout();
             std::vector<VkDescriptorSet>& getRTDescriptorSets();
             Texture* getBlueNoise() const;
             uint32_t getHitShaderCount() const;

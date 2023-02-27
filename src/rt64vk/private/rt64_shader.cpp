@@ -292,7 +292,7 @@ namespace RT64
 		assert(device != nullptr);
 		this->device = device;
 		this->flags = flags;
-		this->samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
+		this->samplerRegisterIndex = 2; //uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 		this->descriptorSetIndex = device->getFirstAvailableHitDescriptorSetIndex();
 
 		bool normalMapEnabled = flags & RT64_SHADER_NORMAL_MAP_ENABLED;
@@ -300,7 +300,7 @@ namespace RT64
 		const std::string baseName =
 			"Shader_" +
 			std::to_string(shaderId) +
-			"_" + std::to_string(uniqueSamplerRegisterIndex(filter, hAddr, vAddr)) +
+			//"_" + std::to_string(uniqueSamplerRegisterIndex(filter, hAddr, vAddr)) +
 			(normalMapEnabled ? "_Nrm" : "") +
 			(specularMapEnabled ? "_Spc" : "");
 
@@ -352,7 +352,6 @@ namespace RT64
 
 		vkDestroyShaderModule(device->getVkDevice(), surfaceHitGroup.shaderModule, nullptr);
 		vkDestroyShaderModule(device->getVkDevice(), shadowHitGroup.shaderModule, nullptr);
-		vkDestroyDescriptorSetLayout(device->getVkDevice(), rtDescriptorSetLayout, nullptr);
 		vkDestroySampler(device->getVkDevice(), sampler, nullptr);
 	}
 
@@ -376,7 +375,7 @@ namespace RT64
 		SS("struct PushConstant { int instanceId; };");
 		SS("[[vk::push_constant]] PushConstant pc;");
 
-		unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
+		unsigned int samplerRegisterIndex = 2; //uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 		if (cc.useTextures[0]) {
 			SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
 			SS(INCLUDE_HLSLI(TexturesHLSLI));
@@ -593,7 +592,7 @@ namespace RT64
 		SS(INCLUDE_HLSLI(RandomHLSLI));
 		SS(INCLUDE_HLSLI(GlobalParamsHLSLI));
 
-		unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
+		unsigned int samplerRegisterIndex = 2; //uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 		if (cc.useTextures[0]) {
 			SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
 			SS(INCLUDE_HLSLI(TexturesHLSLI));
@@ -726,9 +725,6 @@ namespace RT64
 		std::string shaderCode = ss.str();
 		surfaceHitGroup.id = device->getFirstAvailableHitShaderID();
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", surfaceHitGroup.shaderInfo, surfaceHitGroup.shaderModule, descriptorSetIndex);
-		if (rtDescriptorSetLayout == nullptr) {
-			generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, true, rtDescriptorSetLayout, rtDescriptorSet);
-		}
 		surfaceHitGroup.hitGroupName = hitGroupName;
 		surfaceHitGroup.closestHitName = closestHitName;
 		surfaceHitGroup.anyHitName = anyHitName;
@@ -746,7 +742,7 @@ namespace RT64
 		SS(INCLUDE_HLSLI(RandomHLSLI));
 		SS(INCLUDE_HLSLI(GlobalParamsHLSLI));
 
-		unsigned int samplerRegisterIndex = uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
+		unsigned int samplerRegisterIndex = 2; //uniqueSamplerRegisterIndex(filter, hAddr, vAddr);
 		if (cc.useTextures[0]) {
 			SS("SamplerState gTextureSampler : register(s" + std::to_string(samplerRegisterIndex) + ");");
 			SS(INCLUDE_HLSLI(TexturesHLSLI));
@@ -812,9 +808,6 @@ namespace RT64
 		std::string shaderCode = ss.str();
 		shadowHitGroup.id = device->getFirstAvailableHitShaderID() + 1;
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", shadowHitGroup.shaderInfo, shadowHitGroup.shaderModule, descriptorSetIndex);
-		if (rtDescriptorSetLayout == nullptr) {
-			generateHitDescriptorSetLayout(filter, hAddr, vAddr, samplerRegisterIndex, false, rtDescriptorSetLayout, rtDescriptorSet);
-		}
 		shadowHitGroup.hitGroupName = hitGroupName;
 		shadowHitGroup.closestHitName = closestHitName;
 		shadowHitGroup.anyHitName = anyHitName;
@@ -950,7 +943,6 @@ namespace RT64
 	bool Shader::hasRasterGroup() const { return (rasterGroup.vertexModule != nullptr) || (rasterGroup.fragmentModule != nullptr); }
 	Shader::HitGroup Shader::getSurfaceHitGroup() { return surfaceHitGroup; }
 	Shader::HitGroup Shader::getShadowHitGroup() { return shadowHitGroup; }
-	VkDescriptorSetLayout& Shader::getRTDescriptorSetLayout() { return rtDescriptorSetLayout; }
 	VkDescriptorSet& Shader::getRTDescriptorSet() { return rtDescriptorSet; }
 	VkSampler& Shader::getSampler() { return sampler; }
 	bool Shader::hasHitGroups() const { return (surfaceHitGroup.shaderModule != nullptr) || (shadowHitGroup.shaderModule != nullptr); }
@@ -964,7 +956,7 @@ namespace RT64
 	}
 
 	void Shader::allocateRTDescriptorSet() {
-		device->allocateDescriptorSet(rtDescriptorSetLayout, rtDescriptorSet);
+		device->allocateDescriptorSet(device->getRTDescriptorSetLayout(), rtDescriptorSet);
 	}
 };
 
