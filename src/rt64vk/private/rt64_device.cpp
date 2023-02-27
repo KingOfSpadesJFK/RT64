@@ -81,6 +81,7 @@ namespace RT64
 
         createDxcCompiler();
 
+        generateSamplers();
         loadAssets();
 
         initRayTracing();
@@ -126,11 +127,43 @@ namespace RT64
         vkctx.initDevice(compatibleDevices[0], contextInfo);
     }
 
+    void Device::generateSamplers() {
+        RT64_LOG_PRINTF("Creating the samplers...");
+        float samplerAnisotropy = std::min(anisotropy, physDeviceProperties.limits.maxSamplerAnisotropy);
+        VkSamplerCreateInfo samplerInfo { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
+        samplerInfo.anisotropyEnable = samplerAnisotropy > 1.0f ? VK_TRUE : VK_FALSE;
+        samplerInfo.maxAnisotropy = samplerAnisotropy;
+        samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE;
+        samplerInfo.compareEnable = VK_FALSE;
+        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+        samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        samplerInfo.mipLodBias = 0.0f;
+        samplerInfo.minLod = 0.0f;
+        samplerInfo.maxLod = FLT_MAX;
+
+        for (int filter = 0; filter < 2; filter++) {
+            samplerInfo.magFilter = filter ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+            samplerInfo.minFilter = filter ? VK_FILTER_LINEAR : VK_FILTER_NEAREST;
+            for (int hAddr = 0; hAddr < 3; hAddr++) {
+                for (int vAddr = 0; vAddr < 3; vAddr++) {
+                    samplerInfo.addressModeU = (VkSamplerAddressMode)hAddr;
+                    samplerInfo.addressModeV = (VkSamplerAddressMode)vAddr;
+                    VkSampler sampler;
+                    vkCreateSampler(vkDevice, &samplerInfo, nullptr, &sampler);
+                    samplers.emplace(uniqueSamplerRegisterIndex(filter, hAddr, vAddr), sampler);
+                }
+            }
+        }
+        RT64_LOG_PRINTF("Sampler creation finished!");
+    }
+
     // Loads the appropriate assets for rendering, such as the 
     //  the statically loaded shader modules and descriptor set
     //  layouts and blue noise
     void Device::loadAssets() {
 	    RT64_LOG_PRINTF("Asset loading started");
+        vkGetPhysicalDeviceProperties(physicalDevice, &physDeviceProperties);
 
         // Create the off-screen render pass
         RT64_LOG_PRINTF("Creating offscreen render pass");
@@ -201,16 +234,6 @@ namespace RT64
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.subpass = 0;
 
-        // Can't believe I can do this
-        RT64_LOG_PRINTF("Creating the empty descriptor set layout");
-        {
-            VkDescriptorSetLayoutCreateInfo layoutInfo{};
-            layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-            layoutInfo.bindingCount = 0;
-            layoutInfo.flags = 0;
-            VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &emptyDescriptorSetLayout));
-        }
-
         RT64_LOG_PRINTF("Creating a generic image sampler for the fragment/compute shaders");
         {
             VkSamplerCreateInfo samplerInfo { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
@@ -235,7 +258,7 @@ namespace RT64
             vkCreateSampler(vkDevice, &samplerInfo, nullptr, &gaussianSampler);
         }
 
-        RT64_LOG_PRINTF("Creating the raygen/miss modules and descriptor set layout"); 
+        RT64_LOG_PRINTF("Creating the raygen/miss modules"); 
         {
             createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "PrimaryRayGen",    VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryRayGenStage,         primaryRayGenModule, nullptr);
             createShaderModule(DirectRayGen_SPIRV,      sizeof(DirectRayGen_SPIRV),     "DirectRayGen",     VK_SHADER_STAGE_RAYGEN_BIT_KHR, directRayGenStage,          directRayGenModule, nullptr);
@@ -646,7 +669,7 @@ namespace RT64
         vkCreateRayTracingPipelinesKHR(vkDevice, {}, {}, 1, &rayPipelineInfo, nullptr, &rtPipeline);
 
         rtDescriptorSets.clear();
-        rtDescriptorSets.push_back(raygenDescriptorSet);
+        rtDescriptorSets.push_back(rtDescriptorSet);
 
 	    RT64_LOG_PRINTF("Raytracing pipeline created!");
     }
@@ -692,10 +715,12 @@ namespace RT64
             {SRV_INDEX(gTextures) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX, defaultStageFlags, nullptr},
 
             {CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, defaultStageFlags, nullptr},
-            {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr},
-            {1 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr},
-            {2 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr}
+            {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr}
         };
+
+        for (std::pair<unsigned int, VkSampler> samplerPair : samplers) {
+            bindings.push_back({samplerPair.first + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr});
+        }
 
 		generateDescriptorSetLayout(bindings, flags, rtDescriptorSetLayout);
     }
@@ -716,7 +741,7 @@ namespace RT64
 		VK_CHECK(vkCreateDescriptorPool(vkDevice, &poolInfo, nullptr, &descriptorPool));
 
 	    RT64_LOG_PRINTF("Allocating the descriptor sets to the pool...");
-        allocateDescriptorSet(rtDescriptorSetLayout, raygenDescriptorSet);
+        allocateDescriptorSet(rtDescriptorSetLayout, rtDescriptorSet);
         allocateDescriptorSet(composeDescriptorSetLayout, composeDescriptorSet);
         allocateDescriptorSet(tonemappingDescriptorSetLayout, tonemappingDescriptorSet);
         allocateDescriptorSet(postProcessDescriptorSetLayout, postProcessDescriptorSet);
@@ -735,9 +760,6 @@ namespace RT64
             if (s == nullptr) { continue; }
             if (s->hasRasterGroup()) {
                 s->allocateRasterDescriptorSet();
-            }
-            if (s->hasHitGroups()) {
-                s->allocateRTDescriptorSet();
             }
         }
     }
@@ -776,6 +798,15 @@ namespace RT64
         RT64_LOG_PRINTF("Device drawing started");
         inspector.init(this);
 
+        // Recreate the samplers if the anisotropy level were to change
+        if (recreateSamplers) {
+            for (auto sampler : samplers) {
+                vkDestroySampler(vkDevice, sampler.second, nullptr);
+            }
+            samplers.clear();
+            generateSamplers();
+            recreateSamplers = false;
+        }
         if (descPoolDirty) {
             vkDestroyDescriptorPool(vkDevice, descriptorPool, nullptr);
             createDescriptorPool();
@@ -1560,6 +1591,10 @@ namespace RT64
                 delete sh;
             }
         }
+        // Destroy the samplers
+        for (auto sampler : samplers) {
+            vkDestroySampler(vkDevice, sampler.second, nullptr);
+        }
 
         // Destroy the mipmap generator
         if (!disableMipmaps) {
@@ -1606,7 +1641,6 @@ namespace RT64
         vkDestroySampler(vkDevice, postProcessSampler, nullptr);
         vkDestroySampler(vkDevice, tonemappingSampler, nullptr);
 
-        vkDestroyDescriptorSetLayout(vkDevice, emptyDescriptorSetLayout, nullptr);
         // Destroy the descriptor pool
         vkDestroyDescriptorPool(vkDevice, descriptorPool, nullptr);
         // Destroy RT pipeline and descriptor set
@@ -1647,10 +1681,8 @@ namespace RT64
         }
         vkctx.deinit();
         // Destroy the window
-// #ifndef _WIN32
         glfwDestroyWindow(window);
         glfwTerminate();
-// #endif
         RT64_LOG_CLOSE();
     }
 
@@ -1689,7 +1721,7 @@ namespace RT64
     IDxcLibrary* Device::getDxcLibrary() { return d3dDxcLibrary; }
     VkPipeline& Device::getRTPipeline() { return rtPipeline; }
     VkPipelineLayout&   Device::getRTPipelineLayout() { return rtPipelineLayout; }
-    VkDescriptorSet&    Device::getRayGenDescriptorSet() { return raygenDescriptorSet; }
+    VkDescriptorSet&    Device::getRTDescriptorSet() { return rtDescriptorSet; }
     VkDescriptorSetLayout& Device::getRTDescriptorSetLayout() { return rtDescriptorSetLayout; }
     std::vector<VkDescriptorSet>& Device::getRTDescriptorSets() { return rtDescriptorSets; }
     VkPipeline&             Device::getComposePipeline()                            { return composePipeline; }
@@ -1725,6 +1757,15 @@ namespace RT64
     VkFence& Device::getCurrentFence() { return inFlightFences[currentFrame]; }
     Inspector& Device::getInspector() { return inspector; }
     Mipmaps* Device::getMipmaps() { return mipmaps; }
+    float Device::getAnisotropyLevel() { return anisotropy; }
+    VkPhysicalDeviceProperties Device::getPhysicalDeviceProperties() { return physDeviceProperties; }
+
+    void Device::setAnisotropyLevel(float level) {
+        if (level != anisotropy) {
+            anisotropy = level;
+            recreateSamplers = true;
+        }
+    }
 
     // Shader getters
     VkPipelineShaderStageCreateInfo Device::getPrimaryShaderStage() const { return primaryRayGenStage; }
@@ -1813,6 +1854,9 @@ namespace RT64
         }
         descPoolDirty = true;
     }
+
+    std::unordered_map<unsigned int, VkSampler>& Device::getSamplerMap() { return samplers; } 
+    VkSampler& Device::getSampler(unsigned int index) { return samplers[index]; }
 
     // Removes a shader from the device
     void Device::removeShader(Shader* shader) {

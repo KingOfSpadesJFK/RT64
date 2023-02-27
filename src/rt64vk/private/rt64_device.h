@@ -134,11 +134,13 @@ namespace RT64
             void resizeScenes();
             void generateRTDescriptorSetLayout();
             void loadBlueNoise();
+            void generateSamplers();
 
             RT64_WINDOW* window;
             VkSurfaceKHR vkSurface;
             int width;
             int height;
+            float anisotropy = 1.0f;
             float aspectRatio;
             bool framebufferCreated = false;
             bool framebufferResized = false;
@@ -147,6 +149,7 @@ namespace RT64
             std::vector<Shader*> shaders;
             std::vector<Mesh*> meshes;
             std::vector<Texture*> textures;
+            std::unordered_map<unsigned int, VkSampler> samplers;
 
             Inspector inspector;
             bool showInspector = false;
@@ -157,6 +160,7 @@ namespace RT64
             VkSampler tonemappingSampler;
             VkSampler postProcessSampler;
 
+            VkPhysicalDeviceProperties physDeviceProperties {};   // Properties of the physical device
             VmaAllocator allocator;
             VkRenderPass presentRenderPass;         // The render pass for presenting to the screen
             VkRenderPass offscreenRenderPass;       // The render pass for rendering to an r32g32b32a32 image
@@ -172,6 +176,7 @@ namespace RT64
 
             bool rtStateDirty = false;
             bool descPoolDirty = false;
+            bool recreateSamplers = false;
             VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
             nvvk::RaytracingBuilderKHR rtBlasBuilder;
             nvvk::ResourceAllocatorDma rtAllocator;
@@ -252,7 +257,7 @@ namespace RT64
             VkPipeline              gaussianFilterRGB3x3Pipeline;
             // Did I mention the descriptors?
             VkDescriptorSetLayout   rtDescriptorSetLayout;
-            VkDescriptorSet         raygenDescriptorSet;
+            VkDescriptorSet         rtDescriptorSet;
             VkDescriptorSetLayout   composeDescriptorSetLayout;
             VkDescriptorSet         composeDescriptorSet;
             VkDescriptorSetLayout   tonemappingDescriptorSetLayout;
@@ -264,7 +269,6 @@ namespace RT64
             VkDescriptorSetLayout   im3dDescriptorSetLayout;
             VkDescriptorSet         im3dDescriptorSet;
             VkDescriptorSetLayout   gaussianFilterRGB3x3DescriptorSetLayout;
-            VkDescriptorSetLayout   emptyDescriptorSetLayout;
 #endif
 
             const std::vector<const char *> validationLayers = {"VK_LAYER_KHRONOS_validation"};
@@ -315,7 +319,7 @@ namespace RT64
             VkPhysicalDeviceRayTracingPipelinePropertiesKHR getRTProperties() const;
             VkPipeline& getRTPipeline();
             VkPipelineLayout& getRTPipelineLayout();
-            VkDescriptorSet& getRayGenDescriptorSet();
+            VkDescriptorSet& getRTDescriptorSet();
             VkDescriptorSetLayout& getRTDescriptorSetLayout();
             std::vector<VkDescriptorSet>& getRTDescriptorSets();
             Texture* getBlueNoise() const;
@@ -324,6 +328,9 @@ namespace RT64
             VkFence& getCurrentFence();
             Inspector& getInspector();
             Mipmaps* getMipmaps();
+            float getAnisotropyLevel();
+            void setAnisotropyLevel(float level);
+            VkPhysicalDeviceProperties getPhysicalDeviceProperties();
             // Samplers
             VkSampler& getGaussianSampler();
             VkSampler& getComposeSampler();
@@ -387,6 +394,8 @@ namespace RT64
 		    void removeTexture(Texture* texture);
             void addShader(Shader* shader);
             void removeShader(Shader* shader);
+            std::unordered_map<unsigned int, VkSampler>& getSamplerMap();
+            VkSampler& getSampler(unsigned int index);
             ImGui_ImplVulkan_InitInfo generateImguiInitInfo();
             void addDepthImageView(VkImageView* depthImageView);
             void dirtyDescriptorPool();

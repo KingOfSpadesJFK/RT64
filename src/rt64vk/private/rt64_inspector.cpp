@@ -167,6 +167,7 @@ namespace RT64 {
 			int giSamples = view->getGISamples();
 			int giBounces = view->getGIBounces();
 			int maxLights = view->getMaxLights();
+			int anisotropicLevels = device->getAnisotropyLevel();
 			int maxReflections = view->getMaxReflections();
 			float motionBlurStrength = view->getMotionBlurStrength();
 			int motionBlurSamples = view->getMotionBlurSamples();
@@ -178,6 +179,7 @@ namespace RT64 {
 			ImGui::DragInt("DI samples", &diSamples, 0.1f, 0, 32);
 			ImGui::DragInt("GI samples", &giSamples, 0.1f, 0, 32);
 			ImGui::DragInt("GI bounces", &giBounces, 0.1f, 0, 32);
+			ImGui::DragInt("Anisotropic Filtering", &anisotropicLevels, 0.1f, 1, 16);
 			ImGui::DragInt("Max lights", &maxLights, 0.1f, 0, 16);
 			ImGui::DragInt("Max reflections", &maxReflections, 0.1f, 0, 32);
 			ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
@@ -250,6 +252,7 @@ namespace RT64 {
 			view->setDISamples(diSamples);
 			view->setGISamples(giSamples);
 			view->setGIBounces(giBounces);
+			device->setAnisotropyLevel(std::clamp(anisotropicLevels, 1, (int)device->getPhysicalDeviceProperties().limits.maxSamplerAnisotropy));
 			view->setMaxLights(maxLights);
 			view->setMaxReflections(maxReflections);
 			view->setMotionBlurStrength(motionBlurStrength);

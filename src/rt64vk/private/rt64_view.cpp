@@ -682,7 +682,7 @@ namespace RT64
 
         // Update the descriptor sets for the raygen shaders
         {
-            VkDescriptorSet& descriptorSet = device->getRayGenDescriptorSet();
+            VkDescriptorSet& descriptorSet = device->getRTDescriptorSet();
             // The "UAVs"
             VkWriteDescriptorSet write {};
             descriptorWrites.push_back(rtViewDirection.generateDescriptorWrite(1, UAV_INDEX(gViewDirection) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
@@ -747,17 +747,30 @@ namespace RT64
             descriptorWrites.push_back(textureWrite);
 
             // Add the background samplers
-            VkDescriptorImageInfo samplerInfo { };
-            samplerInfo.sampler = skyPlaneSampler;
+            VkDescriptorImageInfo skySamplerInfo { };
+            skySamplerInfo.sampler = skyPlaneSampler;
             VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
             samplerWrite.descriptorCount = 1;
             samplerWrite.dstSet = descriptorSet;
             samplerWrite.dstBinding = 0 + SAMPLER_SHIFT;
             samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-            samplerWrite.pImageInfo = &samplerInfo;
+            samplerWrite.pImageInfo = &skySamplerInfo;
             descriptorWrites.push_back(samplerWrite);
-            samplerWrite.dstBinding = 1 + SAMPLER_SHIFT;
-            descriptorWrites.push_back(samplerWrite);
+
+            auto samplers = device->getSamplerMap();
+            std::vector<VkDescriptorImageInfo> samplerInfos;
+            samplerInfos.resize(samplers.size());
+            int i = 0;
+            for (auto samplerPair : samplers) {
+                VkDescriptorImageInfo samplerInfo {};
+                samplerInfo.sampler = samplerPair.second;
+                samplerInfos[i] = samplerInfo;
+
+                samplerWrite.dstBinding = samplerPair.first + SAMPLER_SHIFT;
+                samplerWrite.pImageInfo = &samplerInfos[i];
+                descriptorWrites.push_back(samplerWrite);
+                i++;
+            }
 
             // Add the globalParamsBuffer
             descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
@@ -790,7 +803,7 @@ namespace RT64
 
             // Add the texture sampler
             VkDescriptorImageInfo samplerInfo { };
-            samplerInfo.sampler = shader->getSampler();
+            samplerInfo.sampler = device->getSampler(shader->getSamplerRegisterIndex());
             VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
             samplerWrite.descriptorCount = 1;
             samplerWrite.dstSet = descriptorSet;
@@ -829,51 +842,6 @@ namespace RT64
             Shader* shader = rasterUiInstances[i].shader;
             if (usedShaders.contains(shader)) { continue; }
             writeRasterDescriptors(shader, shader->getRasterGroup().descriptorSet, descriptorWrites);
-            usedShaders.emplace(shader);
-        }
-        usedShaders.clear();
-
-        // And the RT Instances' descriptor sets
-        for (int i = 0; i < rtInstances.size(); i++) {
-            Shader* shader = rtInstances[i].shader;
-            if (usedShaders.contains(shader)) {
-                continue;
-            }
-
-            VkDescriptorSet& descriptorSet = shader->getRTDescriptorSet();
-            if (shader->getSurfaceHitGroup().shaderModule != nullptr) {
-                descriptorWrites.push_back(rtHitDistAndFlow.generateDescriptorWrite(1, UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
-                descriptorWrites.push_back(rtHitColor.generateDescriptorWrite(1, UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
-                descriptorWrites.push_back(rtHitNormal.generateDescriptorWrite(1, UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
-                descriptorWrites.push_back(rtHitSpecular.generateDescriptorWrite(1, UAV_INDEX(gHitSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
-                descriptorWrites.push_back(rtHitInstanceId.generateDescriptorWrite(1, UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
-            }
-            descriptorWrites.push_back(activeInstancesBufferTransforms.generateDescriptorWrite(1, SRV_INDEX(instanceTransforms) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
-            descriptorWrites.push_back(activeInstancesBufferMaterials.generateDescriptorWrite(1, SRV_INDEX(instanceMaterials) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, descriptorSet));
-
-            // Add the textures
-            VkWriteDescriptorSet textureWrite {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET};
-            textureWrite.descriptorCount = texture_infos.size();
-            textureWrite.dstBinding = SRV_INDEX(gTextures) + SRV_SHIFT;
-            textureWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE;
-            textureWrite.pImageInfo = texture_infos.data();
-            textureWrite.dstSet = descriptorSet;
-            descriptorWrites.push_back(textureWrite);
-
-            // Add the texture sampler
-            VkDescriptorImageInfo samplerInfo { };
-            samplerInfo.sampler = shader->getSampler();
-            VkWriteDescriptorSet samplerWrite { VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET };
-            samplerWrite.descriptorCount = 1;
-            samplerWrite.dstSet = descriptorSet;
-            samplerWrite.dstBinding = shader->getSamplerRegisterIndex() + SAMPLER_SHIFT;
-            samplerWrite.descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER;
-            samplerWrite.pImageInfo = &samplerInfo;
-            descriptorWrites.push_back(samplerWrite);
-
-            // Write to the instances' descriptor sets
-            vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
-            descriptorWrites.clear();
             usedShaders.emplace(shader);
         }
         usedShaders.clear();
