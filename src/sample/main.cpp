@@ -685,6 +685,9 @@ int main(int argc, char *argv[]) {
 	const int Height = 600;
     GLFWwindow* window = glfwCreateWindow(Width, Height, "RT64VK Sample", nullptr, nullptr);
 
+	glfwSetKeyCallback(window, keyCallback);
+	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
+
 	// Create RT64.
 	if (!createRT64(window)) {
 		errorMessage(nullptr,
@@ -699,13 +702,11 @@ int main(int argc, char *argv[]) {
 
 		return 1;
 	}
+	RT64.lib.DrawDevice(RT64.device, 1, Sample.deltaTime);
 
 	// Setup scene in RT64.
 	setupRT64Scene();
 	setupSponza();
-
-	glfwSetKeyCallback(window, keyCallback);
-	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
 
 	RT64_VIEW_DESC viewDesc {};
 	viewDesc.diSamples = 0;

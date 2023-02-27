@@ -87,6 +87,7 @@ namespace RT64
         initRayTracing();
         createDescriptorPool();
         createRayTracingPipeline();
+        inspector.init(this);
 #endif
     }
 
@@ -799,7 +800,6 @@ namespace RT64
 #ifndef RT64_MINIMAL
     void Device::draw(int vsyncInterval, double delta) {
         RT64_LOG_PRINTF("Device drawing started");
-        inspector.init(this);
 
         // Recreate the samplers if the anisotropy level were to change
         if (recreateSamplers) {
@@ -827,8 +827,6 @@ namespace RT64
             framebufferCreated = true;
         }
 
-        waitForGPU();
-
         VkResult result = vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
 
         // Handle resizing
@@ -849,48 +847,47 @@ namespace RT64
             s->render(delta);
         }
 
-        double mouseX, mouseY;
-        activeView = scenes[0]->getViews()[0];
-        glfwGetCursorPos(window, &mouseX, &mouseY);
-        if (inspector.init(this) && showInspector) {
-            inspector.render(activeView, mouseX, mouseY);
+        if (commandBufferActive) {
+            double mouseX, mouseY;
+            activeView = scenes[0]->getViews()[0];
+            glfwGetCursorPos(window, &mouseX, &mouseY);
+            if (inspector.init(this) && showInspector) {
+                inspector.render(activeView, mouseX, mouseY);
+            }
+            inspector.controlCamera(activeView, mouseX, mouseY);
+
+            // End the command buffer
+            endCommandBuffer();
+
+            VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
+            VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
+            VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+            VkSubmitInfo submitInfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+            submitInfo.waitSemaphoreCount = 1;
+            submitInfo.pWaitSemaphores = waitSemaphores;
+            submitInfo.pWaitDstStageMask = waitStages;
+            submitInfo.commandBufferCount = 1;
+            submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
+            submitInfo.signalSemaphoreCount = 1;
+            submitInfo.pSignalSemaphores = signalSemaphores;
+            VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]));
+
+            VkPresentInfoKHR presentInfo{};
+            presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+            presentInfo.waitSemaphoreCount = 1;
+            presentInfo.pWaitSemaphores = signalSemaphores;
+            VkSwapchainKHR swapChains[] = { swapChain };
+            presentInfo.swapchainCount = 1;
+            presentInfo.pSwapchains = swapChains;
+            presentInfo.pImageIndices = &framebufferIndex;
+            presentInfo.pResults = nullptr; // Optional
+            // Now pop it on the screen!
+            result = vkQueuePresentKHR(presentQueue, &presentInfo);
+
+            // Now wait for GPU
+            waitForGPU();
         }
-        inspector.controlCamera(activeView, mouseX, mouseY);
-
-        // End the command buffer
-        VK_CHECK(vkEndCommandBuffer(commandBuffers[currentFrame]));
-
-        VkSubmitInfo submitInfo{};
-        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-        VkSemaphore waitSemaphores[] = {imageAvailableSemaphores[currentFrame]};
-        VkPipelineStageFlags waitStages[] = {VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = waitSemaphores;
-        submitInfo.pWaitDstStageMask = waitStages;
-
-        submitInfo.commandBufferCount = 1;
-        submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
-
-        VkSemaphore signalSemaphores[] = {renderFinishedSemaphores[currentFrame]};
-        submitInfo.signalSemaphoreCount = 1;
-        submitInfo.pSignalSemaphores = signalSemaphores;
-        VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]));
-
-        VkPresentInfoKHR presentInfo{};
-        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-        presentInfo.waitSemaphoreCount = 1;
-        presentInfo.pWaitSemaphores = signalSemaphores;
-        VkSwapchainKHR swapChains[] = {swapChain};
-        presentInfo.swapchainCount = 1;
-        presentInfo.pSwapchains = swapChains;
-        presentInfo.pImageIndices = &framebufferIndex;
-        presentInfo.pResults = nullptr; // Optional
-        // Now pop it on the screen!
-        result = vkQueuePresentKHR(presentQueue, &presentInfo); 
-        
-        // Now wait for GPU
-        waitForGPU();
 
         // Handle resizing again
         updateSize(result, "failed to present swap chain image!");
@@ -1139,7 +1136,6 @@ namespace RT64
 
         VK_CHECK(vkCreateSwapchainKHR(vkDevice, &createInfo, nullptr, &swapChain));
 
-        vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, nullptr);
         swapChainImages.resize(imageCount);
         vkGetSwapchainImagesKHR(vkDevice, swapChain, &imageCount, swapChainImages.data());
         swapChainImageFormat = surfaceFormat.format;
@@ -2240,6 +2236,27 @@ namespace RT64
         vkQueueWaitIdle(graphicsQueue);
 
         vkFreeCommandBuffers(vkDevice, commandPool, 1, commandBuffer);
+    }
+
+    // Starts and returns the current main command buffer
+    VkCommandBuffer& Device::beginCommandBuffer() {
+        if (!commandBufferActive) {
+            VkCommandBufferBeginInfo beginInfo{};
+            beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+            beginInfo.flags = 0; // Optional
+            beginInfo.pInheritanceInfo = nullptr; // Optional
+            VK_CHECK(vkBeginCommandBuffer(commandBuffers[currentFrame], &beginInfo));
+            commandBufferActive = true;
+        }
+        return commandBuffers[currentFrame];
+    }
+
+    // Ends the current main command buffer if active
+    void Device::endCommandBuffer() {
+        if (commandBufferActive) {
+            VK_CHECK(vkEndCommandBuffer(commandBuffers[currentFrame]));
+            commandBufferActive = false;
+        }
     }
 
     // Generates a descriptor set layout and pushes its bindings to the pool 
