@@ -308,6 +308,7 @@ namespace RT64
 			const std::string vertexShader = baseName + "VS";
 			const std::string pixelShader = baseName + "PS";
 			generateRasterGroup(shaderId, filter, flags & RT64_SHADER_RASTER_TRANSFORMS_ENABLED, hAddr, vAddr, vertexShader, pixelShader);
+			rasterGroupInit = true;
 		}
 
 		if (flags & RT64_SHADER_RAYTRACE_ENABLED) {
@@ -319,6 +320,7 @@ namespace RT64
 			const std::string shadowAnyHit = baseName + "ShadowAnyHit";
 			generateSurfaceHitGroup(shaderId, filter, hAddr, vAddr, normalMapEnabled, specularMapEnabled, hitGroup, closestHit, anyHit);
 			generateShadowHitGroup(shaderId, filter, hAddr, vAddr, shadowHitGroup, shadowClosestHit, shadowAnyHit);
+			hitGroupInit = true;
 		}
 
 		VkSamplerCreateInfo samplerInfo { VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO };
@@ -940,13 +942,13 @@ namespace RT64
 
 	// Public
 	Shader::RasterGroup& RT64::Shader::getRasterGroup() { return rasterGroup; }
-	bool Shader::hasRasterGroup() const { return (rasterGroup.vertexModule != nullptr) || (rasterGroup.fragmentModule != nullptr); }
+	bool Shader::hasRasterGroup() const { return rasterGroupInit; }
 	Shader::HitGroup Shader::getSurfaceHitGroup() { return surfaceHitGroup; }
 	Shader::HitGroup Shader::getShadowHitGroup() { return shadowHitGroup; }
 	VkDescriptorSet& Shader::getRTDescriptorSet() { return rtDescriptorSet; }
 	VkSampler& Shader::getSampler() { return sampler; }
-	bool Shader::hasHitGroups() const { return (surfaceHitGroup.shaderModule != nullptr) || (shadowHitGroup.shaderModule != nullptr); }
-	uint32_t Shader::hitGroupCount() const { return (surfaceHitGroup.shaderModule != nullptr) + (shadowHitGroup.shaderModule != nullptr); };
+	bool Shader::hasHitGroups() const { return hitGroupInit; }
+	uint32_t Shader::hitGroupCount() const { return (surfaceHitGroup.shaderModule != VK_NULL_HANDLE) + (shadowHitGroup.shaderModule != VK_NULL_HANDLE); };
 	uint32_t Shader::getFlags() const { return flags; }
 	bool Shader::has3DRaster() const { return flags & RT64_SHADER_RASTER_TRANSFORMS_ENABLED; }
 	unsigned int Shader::getSamplerRegisterIndex() const { return samplerRegisterIndex; }
