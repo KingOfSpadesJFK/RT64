@@ -51,10 +51,11 @@ namespace RT64 {
             HitGroup surfaceHitGroup {};
             HitGroup shadowHitGroup {};
             uint32_t flags;
-            bool descriptorBound = false;
+            bool hitGroupInit = false;
+            bool rasterGroupInit = false;
+            unsigned int descriptorSetIndex = 0;
             unsigned int samplerRegisterIndex = 0;
             VkDescriptorSet rtDescriptorSet {};
-            unsigned int descriptorSetIndex = 0;
             VkSampler sampler;
             
             unsigned int uniqueSamplerRegisterIndex(Filter filter, AddressingMode hAddr, AddressingMode vAddr);
