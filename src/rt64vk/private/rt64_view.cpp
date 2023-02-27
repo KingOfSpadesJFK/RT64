@@ -1159,7 +1159,7 @@ namespace RT64
     void View::createShaderBindingTable() {
         VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties = device->getRTProperties();
         unsigned int missCount = 2;                                                 // How many miss shaders exist in the pipeline
-        unsigned int hitCount = device->getHitShaderCount();                        // How many hit shaders exist in the pipeline
+        unsigned int hitCount = device->getHitGroupCount();                        // How many hit shaders exist in the pipeline
         unsigned int raygenCount = SHADER_INDEX(surfaceMiss);                       // How many raygen shaders exist in the pipeline
         unsigned int handleCount = raygenCount + missCount + hitCount;              // How many rt shaders in total exist in the pipeline
         unsigned int handleSize = rtProperties.shaderGroupHandleSize;
@@ -1750,7 +1750,7 @@ namespace RT64
             applyScissor({rtWidth, rtHeight});
             VkViewport v = {0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f};
             applyViewport(v);
-	        drawInstances(rasterFgInstances, 0, true);
+	        drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
 
             vkCmdEndRenderPass(commandBuffer);
         }

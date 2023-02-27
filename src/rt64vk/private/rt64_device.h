@@ -23,6 +23,7 @@
 #include <nvvk/raytraceKHR_vk.hpp>
 #include <nvvk/resourceallocator_vk.hpp>
 #include <unordered_map>
+#include <unordered_set>
 #include <GLFW/glfw3.h>
 #include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_vulkan.h>
@@ -146,7 +147,7 @@ namespace RT64
             bool framebufferResized = false;
 
             std::vector<Scene*> scenes;
-            std::vector<Shader*> shaders;
+            std::unordered_set<Shader*> shaders;
             std::vector<Mesh*> meshes;
             std::vector<Texture*> textures;
             std::unordered_map<unsigned int, VkSampler> samplers;
@@ -188,10 +189,9 @@ namespace RT64
 
             uint32_t currentFrame = 0;
             uint32_t framebufferIndex = 0;
-            uint32_t overallShaderCount = 0;
-            uint32_t rasterShaderCount = 0;
-            uint32_t hitShaderCount = 0;
-            uint32_t firstShaderNullSpot = 0;
+            uint32_t shaderGroupCount = 0;
+            uint32_t rasterGroupCount = 0;
+            uint32_t hitGroupCount = 0;
 
             VkViewport vkViewport;
             VkRect2D vkScissorRect;
@@ -323,8 +323,8 @@ namespace RT64
             VkDescriptorSetLayout& getRTDescriptorSetLayout();
             std::vector<VkDescriptorSet>& getRTDescriptorSets();
             Texture* getBlueNoise() const;
-            uint32_t getHitShaderCount() const;
-            uint32_t getRasterShaderCount() const;
+            uint32_t getHitGroupCount() const;
+            uint32_t getRasterGroupCount() const;
             VkFence& getCurrentFence();
             Inspector& getInspector();
             Mipmaps* getMipmaps();
@@ -405,9 +405,6 @@ namespace RT64
             void generateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout);
             void addToDescriptorPool(std::vector<VkDescriptorSetLayoutBinding>& bindings);
             void allocateDescriptorSet(VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorSet& descriptorSet);
-            uint32_t getFirstAvailableHitDescriptorSetIndex() const;
-            uint32_t getFirstAvailableHitShaderID() const;
-            uint32_t getFirstAvailableRasterShaderID() const;
             void createFramebuffer(VkFramebuffer& framebuffer, VkRenderPass& renderPass, VkImageView& imageView, VkImageView* depthView, VkExtent2D extent);
             void waitForGPU();
 

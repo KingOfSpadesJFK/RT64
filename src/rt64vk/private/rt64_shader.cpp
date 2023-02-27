@@ -433,7 +433,7 @@ namespace RT64
 		std::string shaderCode = ss.str();
 		rasterGroup.pixelShaderName = pixelShaderName;
 		rasterGroup.vertexShaderName = vertexShaderName;
-		rasterGroup.id = device->getFirstAvailableRasterShaderID();
+		rasterGroup.id = device->getRasterGroupCount();
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_VERTEX_BIT, vertexShaderName, L"vs_6_3", rasterGroup.vertexInfo, rasterGroup.vertexModule);
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_FRAGMENT_BIT, pixelShaderName, L"ps_6_3", rasterGroup.fragmentInfo, rasterGroup.fragmentModule);
 		generateRasterDescriptorSetLayout(filter, use3DTransforms, hAddr, vAddr, samplerRegisterIndex, rasterGroup.descriptorSetLayout, rasterGroup.descriptorSet);
@@ -704,7 +704,7 @@ namespace RT64
 
 		// Compile shader.
 		std::string shaderCode = ss.str();
-		surfaceHitGroup.id = device->getFirstAvailableHitShaderID();
+		surfaceHitGroup.id = device->getHitGroupCount();
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", surfaceHitGroup.shaderInfo, surfaceHitGroup.shaderModule);
 		surfaceHitGroup.hitGroupName = hitGroupName;
 		surfaceHitGroup.closestHitName = closestHitName;
@@ -786,7 +786,7 @@ namespace RT64
 
 		// Compile shader.
 		std::string shaderCode = ss.str();
-		shadowHitGroup.id = device->getFirstAvailableHitShaderID() + 1;
+		shadowHitGroup.id = device->getHitGroupCount() + 1;
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", shadowHitGroup.shaderInfo, shadowHitGroup.shaderModule);
 		shadowHitGroup.hitGroupName = hitGroupName;
 		shadowHitGroup.closestHitName = closestHitName;

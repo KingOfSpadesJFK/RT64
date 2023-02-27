@@ -1752,8 +1752,8 @@ namespace RT64
     VkSampler&          Device::getGaussianSampler()                    { return gaussianSampler; }
     VkPhysicalDeviceRayTracingPipelinePropertiesKHR Device::getRTProperties() const { return rtProperties; }
     Texture* Device::getBlueNoise() const { return blueNoise; }
-    uint32_t Device::getHitShaderCount() const { return hitShaderCount; }
-    uint32_t Device::getRasterShaderCount() const { return rasterShaderCount; }
+    uint32_t Device::getHitGroupCount() const { return hitGroupCount; }
+    uint32_t Device::getRasterGroupCount() const { return rasterGroupCount; }
     VkFence& Device::getCurrentFence() { return inFlightFences[currentFrame]; }
     Inspector& Device::getInspector() { return inspector; }
     Mipmaps* Device::getMipmaps() { return mipmaps; }
@@ -1831,26 +1831,15 @@ namespace RT64
     // Adds a scene to the device
     void Device::addShader(Shader* shader) {
         assert(shader != nullptr);
-        if (shaders.size() > 0 && shaders[firstShaderNullSpot] == nullptr) {
-            shaders[firstShaderNullSpot] = shader;
-            for (int i = firstShaderNullSpot+1; i < shaders.size(); i++) {
-                if (shaders[i] == nullptr) {
-                    firstShaderNullSpot = i;
-                    break;
-                }
-            }
-        } else {
-            shaders.push_back(shader);
-        }
-
+        shaders.emplace(shader);
         if (shader->hasHitGroups()) {
-            hitShaderCount += shader->hitGroupCount();
-            overallShaderCount += shader->hitGroupCount();
+            hitGroupCount += shader->hitGroupCount();
+            shaderGroupCount += shader->hitGroupCount();
             rtStateDirty = true;
         }
         if (shader->hasRasterGroup()) {
-            overallShaderCount++;
-            rasterShaderCount++;
+            shaderGroupCount++;
+            rasterGroupCount++;
         }
         descPoolDirty = true;
     }
@@ -1861,74 +1850,17 @@ namespace RT64
     // Removes a shader from the device
     void Device::removeShader(Shader* shader) {
         assert(shader != nullptr && shaders.size() > 0 );
-        if (shaders[shaders.size()-1] == shader) {
-            shaders.pop_back();
-        } else {
-            for (int i = 0; i < shaders.size(); i++) {
-                if (shaders[i] == shader) {
-                    shaders[i] = nullptr;
-                    if (i < firstShaderNullSpot) {
-                        firstShaderNullSpot = i;
-                    }
-                    break;
-                }
-            }
-        }
-
+        shaders.erase(shader);
         if (shader->hasHitGroups()) {
-            hitShaderCount -= shader->hitGroupCount();
-            overallShaderCount -= shader->hitGroupCount();
+            hitGroupCount -= shader->hitGroupCount();
+            shaderGroupCount -= shader->hitGroupCount();
             rtStateDirty = true;
         }
         if (shader->hasRasterGroup()) {
-            overallShaderCount--;
-            rasterShaderCount--;
+            shaderGroupCount--;
+            rasterGroupCount--;
         }
         descPoolDirty = true;
-    }
-
-    uint32_t Device::getFirstAvailableHitShaderID() const {
-        uint32_t id = 0;
-        for (int i = 0; i < shaders.size(); i++) {
-            if (shaders[i] == nullptr) {
-                break;
-            } else {
-                if (shaders[i]->hasHitGroups()) {
-                    id += shaders[i]->hitGroupCount();
-                } else {
-                    break;
-                }
-            }
-        }
-        return id;
-    }
-
-    uint32_t Device::getFirstAvailableRasterShaderID() const {
-        uint32_t id = 0;
-        for (int i = 0; i < shaders.size(); i++) {
-            if (shaders[i] == nullptr) {
-                break;
-            } else {
-                if (shaders[i]->hasRasterGroup()) {
-                    id++;
-                } else {
-                    break;
-                }
-            }
-        }
-        return id;
-    }
-
-    uint32_t Device::getFirstAvailableHitDescriptorSetIndex() const {
-        uint32_t index = 1;
-        for (int i = 0; i < shaders.size(); i++) {
-            if (shaders[i] == nullptr) {
-                break;
-            } else {
-                index++;
-            }
-        }
-        return index;
     }
 
     void Device::addDepthImageView(VkImageView* depthImageView) {
