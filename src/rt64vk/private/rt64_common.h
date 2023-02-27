@@ -139,6 +139,15 @@ namespace RT64 {
 
 #ifndef RT64_MINIMAL
 
+	inline unsigned int uniqueSamplerRegisterIndex(unsigned int filter, unsigned int hAddr, unsigned int vAddr) {
+		// Index 0 is reserved by the sampler used in the tracer.
+		unsigned int uniqueID = 1;
+		uniqueID += (unsigned int)(filter) * 9;
+		uniqueID += (unsigned int)(hAddr) * 3;
+		uniqueID += (unsigned int)(vAddr);
+		return uniqueID;
+	}
+
 	class AllocatedResource {
 		protected:
 			VmaAllocation allocation;

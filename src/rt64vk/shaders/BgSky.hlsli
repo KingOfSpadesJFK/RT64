@@ -2,7 +2,7 @@
 // RT64
 //
 
-SamplerState gBackgroundSampler : register(s1);
+SamplerState gBackgroundSampler : register(s0);
 
 // TODO: This code was recreated from the decompilation.
 // It can probably be simplified with a proper rewrite.
