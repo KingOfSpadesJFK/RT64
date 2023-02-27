@@ -433,7 +433,7 @@ namespace RT64
 		std::string shaderCode = ss.str();
 		rasterGroup.pixelShaderName = pixelShaderName;
 		rasterGroup.vertexShaderName = vertexShaderName;
-		rasterGroup.id = device->getRasterGroupCount();
+		rasterGroup.index = device->getRasterGroupCount();
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_VERTEX_BIT, vertexShaderName, L"vs_6_3", rasterGroup.vertexInfo, rasterGroup.vertexModule);
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_FRAGMENT_BIT, pixelShaderName, L"ps_6_3", rasterGroup.fragmentInfo, rasterGroup.fragmentModule);
 		generateRasterDescriptorSetLayout(filter, use3DTransforms, hAddr, vAddr, samplerRegisterIndex, rasterGroup.descriptorSetLayout, rasterGroup.descriptorSet);
@@ -704,7 +704,6 @@ namespace RT64
 
 		// Compile shader.
 		std::string shaderCode = ss.str();
-		surfaceHitGroup.id = device->getHitGroupCount();
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", surfaceHitGroup.shaderInfo, surfaceHitGroup.shaderModule);
 		surfaceHitGroup.hitGroupName = hitGroupName;
 		surfaceHitGroup.closestHitName = closestHitName;
@@ -786,7 +785,6 @@ namespace RT64
 
 		// Compile shader.
 		std::string shaderCode = ss.str();
-		shadowHitGroup.id = device->getHitGroupCount() + 1;
 		compileShaderCode(shaderCode, VK_SHADER_STAGE_ANY_HIT_BIT_KHR, "", L"lib_6_3", shadowHitGroup.shaderInfo, shadowHitGroup.shaderModule);
 		shadowHitGroup.hitGroupName = hitGroupName;
 		shadowHitGroup.closestHitName = closestHitName;
@@ -890,6 +888,8 @@ namespace RT64
 	bool Shader::hasRasterGroup() const { return rasterGroupInit; }
 	Shader::HitGroup Shader::getSurfaceHitGroup() { return surfaceHitGroup; }
 	Shader::HitGroup Shader::getShadowHitGroup() { return shadowHitGroup; }
+	void Shader::setSurfaceSBTIndex(int i) { surfaceHitGroup.sbtIndex = i; }
+	void Shader::setShadowSBTIndex(int i) { shadowHitGroup.sbtIndex = i; }
 	bool Shader::hasHitGroups() const { return hitGroupInit; }
 	uint32_t Shader::hitGroupCount() const { return (surfaceHitGroup.shaderModule != VK_NULL_HANDLE) + (shadowHitGroup.shaderModule != VK_NULL_HANDLE); };
 	uint32_t Shader::getFlags() const { return flags; }

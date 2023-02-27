@@ -589,13 +589,16 @@ namespace RT64
 
 	    RT64_LOG_PRINTF("Loading the hit modules...");
         // Add the generated hit shaders to the shaderStages vector
-         for (Shader* s : shaders) {
-            if (s == nullptr) { continue; }
-            if (s->hasHitGroups()) {
-                Shader::HitGroup surfaceHitGroup = s->getSurfaceHitGroup();
+        int i = 0;
+        for (Shader* s : shaders) {
+            if (s != nullptr && s->hasHitGroups()) {
+                auto surfaceHitGroup = s->getSurfaceHitGroup();
                 shaderStages.push_back(surfaceHitGroup.shaderInfo);
-                Shader::HitGroup shadowHitGroup = s->getShadowHitGroup();
+                auto shadowHitGroup = s->getShadowHitGroup();
                 shaderStages.push_back(shadowHitGroup.shaderInfo);
+                // Set the SBT index of the hit shaders
+                s->setSurfaceSBTIndex(i++);
+                s->setShadowSBTIndex(i++);
             }
         }
 

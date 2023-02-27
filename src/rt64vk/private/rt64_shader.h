@@ -23,7 +23,7 @@ namespace RT64 {
             };
 
             struct RasterGroup {
-                uint32_t id = 0;
+                uint32_t index = 0;
                 VkPipelineShaderStageCreateInfo vertexInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
                 VkPipelineShaderStageCreateInfo fragmentInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
                 VkShaderModule vertexModule = VK_NULL_HANDLE;
@@ -37,7 +37,7 @@ namespace RT64 {
             };
 
             struct HitGroup {
-                uint32_t id = 0;
+                uint32_t sbtIndex = 0;
                 VkPipelineShaderStageCreateInfo shaderInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
                 VkShaderModule shaderModule = VK_NULL_HANDLE;
                 std::string hitGroupName;
@@ -73,6 +73,8 @@ namespace RT64 {
             RasterGroup& getRasterGroup();
             HitGroup getSurfaceHitGroup();
             HitGroup getShadowHitGroup();
+            void setSurfaceSBTIndex(int i);
+            void setShadowSBTIndex(int i);
             uint32_t getFlags() const;
             bool has3DRaster() const;
             bool hasRasterGroup() const;

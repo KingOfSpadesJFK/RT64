@@ -1260,13 +1260,13 @@ namespace RT64
 
             // Get the surface hit group
             auto surfaceHitGroup = rtInstances[c].shader->getSurfaceHitGroup();
-            memcpy(pData, getHandle(handleIdx + surfaceHitGroup.id), handleSize);       // Copy the handle for the current surface hit group
+            memcpy(pData, getHandle(handleIdx + surfaceHitGroup.sbtIndex), handleSize);       // Copy the handle for the current surface hit group
             memcpy(pData + handleSize, sbtData, sizeof(sbtData));                       // After that, copy the SBT data
             pData += hitRegion.stride;
 
             // Get the shadow hit group
             auto shadowHitGroup = rtInstances[c].shader->getShadowHitGroup();           
-            memcpy(pData, getHandle(handleIdx + shadowHitGroup.id), handleSize);        // Copy the handle for the current shadow hit group
+            memcpy(pData, getHandle(handleIdx + shadowHitGroup.sbtIndex), handleSize);        // Copy the handle for the current shadow hit group
             memcpy(pData + handleSize, sbtData, sizeof(sbtData));                       // You know what it is
             pData += hitRegion.stride;
         }
