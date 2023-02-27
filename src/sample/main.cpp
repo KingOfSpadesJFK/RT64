@@ -739,8 +739,8 @@ int main(int argc, char *argv[]) {
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	// Create window.
-	const int Width = 800;
-	const int Height = 600;
+	const int Width = 1280;
+	const int Height = 720;
     GLFWwindow* window = glfwCreateWindow(Width, Height, "RT64VK Sample", nullptr, nullptr);
 	glfwSetKeyCallback(window, keyCallback);
 	glfwSetMouseButtonCallback(window, mouseButtonCallBack);
@@ -764,7 +764,6 @@ int main(int argc, char *argv[]) {
 	rect.right = rect.left + Width;
 	rect.bottom = rect.top + Height;
 	AdjustWindowRectEx(&rect, dwStyle, 0, 0);
-
 	HWND window = CreateWindow(wc.lpszClassName, WINDOW_TITLE, dwStyle, rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top, 0, 0, wc.hInstance, NULL);
 #endif
 
