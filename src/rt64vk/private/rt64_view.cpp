@@ -1376,13 +1376,6 @@ namespace RT64
             updateFilterParamsBuffer();
         }
 
-        // Begin the command buffer
-        VkCommandBufferBeginInfo beginInfo{};
-        beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-        beginInfo.flags = 0; // Optional
-        beginInfo.pInheritanceInfo = nullptr; // Optional
-        VK_CHECK(vkBeginCommandBuffer(commandBuffer, &beginInfo));
-
         // Create a render pass begin info structure (it's a surprise tool that will help us later)
         VkRenderPassBeginInfo renderPassInfo{ VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
         renderPassInfo.renderArea.offset = {0, 0};
@@ -1397,14 +1390,19 @@ namespace RT64
         // Draw the background instances to a buffer that can be used by the tracer as an environment map.
         RT64_LOG_PRINTF("Drawing background instances");
         {
-            resetScissor();
-            resetViewport();
+            // resetScissor();
+            // resetViewport();
             // drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), true);
         }
 
         // Now raytrace!
         if (rtEnabled && !rtInstances.empty())
         {
+            // Begin the command buffer
+            device->beginCommandBuffer();
+            resetScissor();
+            resetViewport();
+
             // Make sure the images are usable
             AllocatedImage* primaryTranslation[] = {
                 &rtDiffuse,
@@ -1729,8 +1727,11 @@ namespace RT64
                 }
             }
         }
-        else if (!rasterFgInstances.empty())    // Or don't raytrace.
+        else if (!rtEnabled && !rasterFgInstances.empty())    // Or don't raytrace.
         {
+            // Begin the command buffer
+            device->beginCommandBuffer();
+
             // Make sure the images are usable
             AllocatedImage* primaryTranslation[] = {
                 &rtDiffuse,
@@ -1863,7 +1864,6 @@ namespace RT64
             RT64_LOG_PRINTF("Drawing UI instances");
             resetScissor();
             resetViewport();
-            // drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
             drawInstances(rasterUiInstances, rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size(), true);
 
             vkCmdEndRenderPass(commandBuffer);
@@ -1902,6 +1902,23 @@ namespace RT64
                 VK_ACCESS_NONE,
                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                 &commandBuffer);
+        } else if (!rasterUiInstances.empty()) {
+            // Begin the command buffer (if it hasn't been begun)
+            device->beginCommandBuffer();
+
+            // Begine the on-screen render pass
+            renderPassInfo.framebuffer = framebuffer;
+            renderPassInfo.renderArea.extent = swapChainExtent;
+            renderPassInfo.renderPass = presentRenderPass;
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            // Draw the UI images
+            RT64_LOG_PRINTF("Drawing UI instances");
+            resetScissor();
+            resetViewport();
+            drawInstances(rasterUiInstances, rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size(), true);
+
+            vkCmdEndRenderPass(commandBuffer);
         }
 
         rtSwap = !rtSwap;

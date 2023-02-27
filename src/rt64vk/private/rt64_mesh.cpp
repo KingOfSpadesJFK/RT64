@@ -120,7 +120,7 @@ namespace RT64
         // BLAS - Storing each primitive in a geometry
         nvvk::RaytracingBuilderKHR::BlasInput blasInput;
         modelIntoVkGeo(vVertexBuffers.first, vVertexBuffers.second, vIndexBuffers.first, vIndexBuffers.second, blasInput);
-        if (updatable) {
+        if (updatable && builderActive) {
             builder.updateBlas(0, blasInput, (flags & (-1 ^ RT64_MESH_RAYTRACE_UPDATABLE)) >> 1);
         } else {
             if (builderActive) {

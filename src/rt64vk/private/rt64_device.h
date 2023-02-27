@@ -164,6 +164,7 @@ namespace RT64
 
             VkCommandPool commandPool;
             std::vector<VkCommandBuffer> commandBuffers;
+            bool commandBufferActive = false;
 
             std::vector<VkSemaphore> imageAvailableSemaphores;
             std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -364,6 +365,8 @@ namespace RT64
             VkCommandBuffer* beginSingleTimeCommands();
             VkCommandBuffer* beginSingleTimeCommands(VkCommandBuffer* commandBuffer);
             void endSingleTimeCommands(VkCommandBuffer* commandBuffer);
+            VkCommandBuffer& beginCommandBuffer();
+            void endCommandBuffer();
 
 		    void createRenderPass(VkRenderPass& renderPass, bool useDepth, VkFormat imageFormat, VkImageLayout finalLayout);
             VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedBuffer* alre);
