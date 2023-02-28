@@ -837,11 +837,38 @@ namespace RT64
 
         VkResult result = vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
 
+        waitForGPU();
+
         // Handle resizing
         if (updateSize(result, "failed to acquire swap chain image!")) {
             // don't draw the image if resized
             return;
         }
+
+        // Transition the current swapchain image
+        VkCommandBuffer* commandBuffer = beginSingleTimeCommands();
+        VkImageMemoryBarrier barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
+        barrier.image = swapChainImages[currentFrame];
+        barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        barrier.subresourceRange.baseMipLevel = 0;
+        barrier.subresourceRange.levelCount = 1;
+        barrier.subresourceRange.baseArrayLayer = 0;
+        barrier.subresourceRange.layerCount = 1;
+        barrier.srcAccessMask = VK_ACCESS_NONE;
+        barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
+
+        vkCmdPipelineBarrier(*commandBuffer,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier
+        );
+        endSingleTimeCommands(commandBuffer);
 
         // Update the scenes....
         updateScenes();
@@ -854,6 +881,20 @@ namespace RT64
         for (Scene* s : scenes) {
             s->render(delta);
         }
+
+        // Prepare submitting the semaphores
+        VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
+        VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
+        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+        VkSubmitInfo submitInfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = waitSemaphores;
+        submitInfo.pWaitDstStageMask = waitStages;
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = signalSemaphores;
+        submitInfo.commandBufferCount = 0;
+        submitInfo.pCommandBuffers = nullptr;
 
         if (commandBufferActive) {
             // Get the cursor position
@@ -876,35 +917,28 @@ namespace RT64
             // End the command buffer
             endCommandBuffer();
 
-            VkSemaphore waitSemaphores[] = { imageAvailableSemaphores[currentFrame] };
-            VkSemaphore signalSemaphores[] = { renderFinishedSemaphores[currentFrame] };
-            VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-
-            VkSubmitInfo submitInfo{ VK_STRUCTURE_TYPE_SUBMIT_INFO };
-            submitInfo.waitSemaphoreCount = 1;
-            submitInfo.pWaitSemaphores = waitSemaphores;
-            submitInfo.pWaitDstStageMask = waitStages;
+            // Prepare submitting the command buffer
             submitInfo.commandBufferCount = 1;
             submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
-            submitInfo.signalSemaphoreCount = 1;
-            submitInfo.pSignalSemaphores = signalSemaphores;
-            VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]));
-
-            VkPresentInfoKHR presentInfo{};
-            presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-            presentInfo.waitSemaphoreCount = 1;
-            presentInfo.pWaitSemaphores = signalSemaphores;
-            VkSwapchainKHR swapChains[] = { swapChain };
-            presentInfo.swapchainCount = 1;
-            presentInfo.pSwapchains = swapChains;
-            presentInfo.pImageIndices = &framebufferIndex;
-            presentInfo.pResults = nullptr; // Optional
-            // Now pop it on the screen!
-            result = vkQueuePresentKHR(presentQueue, &presentInfo);
-
-            // Now wait for GPU
-            waitForGPU();
         }
+
+        // Submit the queue
+        VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]));
+
+        VkPresentInfoKHR presentInfo{};
+        presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        presentInfo.waitSemaphoreCount = 1;
+        presentInfo.pWaitSemaphores = signalSemaphores;
+        VkSwapchainKHR swapChains[] = { swapChain };
+        presentInfo.swapchainCount = 1;
+        presentInfo.pSwapchains = swapChains;
+        presentInfo.pImageIndices = &framebufferIndex;
+        presentInfo.pResults = nullptr; // Optional
+        // Now pop it on the screen!
+        result = vkQueuePresentKHR(presentQueue, &presentInfo);
+
+        // Now wait for GPU
+        waitForGPU();
 
         // Handle resizing again
         updateSize(result, "failed to present swap chain image!");
@@ -933,7 +967,7 @@ namespace RT64
     // Returns true if the size got updated, false if not
     //  Also returns a secret third thing if something goes wrong (a runtime error)
     bool Device::updateSize(VkResult result, const char* error) {
-        if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+        if (result == VK_NOT_READY || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
             recreateSwapChain();
             updateViewport();
             framebufferResized = false;

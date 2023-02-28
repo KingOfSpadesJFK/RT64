@@ -121,7 +121,7 @@ namespace RT64
         nvvk::RaytracingBuilderKHR::BlasInput blasInput;
         modelIntoVkGeo(vVertexBuffers.first, vVertexBuffers.second, vIndexBuffers.first, vIndexBuffers.second, blasInput);
         if (updatable && builderActive) {
-            builder.updateBlas(0, blasInput, (flags & (-1 ^ RT64_MESH_RAYTRACE_UPDATABLE)) >> 1);
+            builder.updateBlas(0, blasInput, (flags & (RT64_MESH_RAYTRACE_UPDATABLE | RT64_MESH_RAYTRACE_FAST_TRACE  | RT64_MESH_RAYTRACE_COMPACT)) >> 1);
         } else {
             if (builderActive) {
                 builder.destroy();
@@ -130,7 +130,7 @@ namespace RT64
             std::vector<nvvk::RaytracingBuilderKHR::BlasInput> blas;
             blas.reserve(1);
             blas.emplace_back(blasInput);
-            builder.buildBlas(blas, (flags & (-1 ^ RT64_MESH_RAYTRACE_UPDATABLE)) >> 1);
+            builder.buildBlas(blas, (flags & (RT64_MESH_RAYTRACE_UPDATABLE | RT64_MESH_RAYTRACE_FAST_TRACE | RT64_MESH_RAYTRACE_COMPACT)) >> 1);
             builderActive = true;
             blasAddress = builder.getBlasDeviceAddress(0);
         }
