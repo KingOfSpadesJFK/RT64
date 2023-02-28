@@ -543,7 +543,7 @@ namespace RT64
     }
 
     void View::createInstanceTransformsBuffer() {
-        uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size() + rasterUiInstances.size());
+        uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size());
         uint32_t newBufferSize = totalInstances * sizeof(InstanceTransforms);
         if (activeInstancesBufferTransformsSize != newBufferSize) {
             activeInstancesBufferTransforms.destroyResource();
@@ -592,17 +592,13 @@ namespace RT64
         for (const RenderInstance &inst : rasterFgInstances) {
             storeTransforms(inst);
             current++;
-        } 
-        for (const RenderInstance &inst : rasterUiInstances) {
-            storeTransforms(inst);
-            current++;
-        } 
+        }
 
         activeInstancesBufferTransforms.unmapMemory();
     }
 
     void View::createInstanceMaterialsBuffer() {
-        uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size() + rasterUiInstances.size());
+        uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size());
         uint32_t newBufferSize = totalInstances * sizeof(RT64_MATERIAL);
         if (activeInstancesBufferMaterialsSize != newBufferSize) {
             activeInstancesBufferMaterials.destroyResource();
@@ -631,11 +627,6 @@ namespace RT64
         } 
 
         for (const RenderInstance& inst : rasterFgInstances) {
-            *current = inst.material;
-            current++;
-        }
-
-        for (const RenderInstance& inst : rasterUiInstances) {
             *current = inst.material;
             current++;
         }
@@ -837,15 +828,6 @@ namespace RT64
         }
         usedShaders.clear();
 
-        // UI instances
-        for (int i = 0; i < rasterUiInstances.size(); i++) {
-            Shader* shader = rasterUiInstances[i].shader;
-            if (usedShaders.contains(shader)) { continue; }
-            writeRasterDescriptors(shader, shader->getRasterGroup().descriptorSet, descriptorWrites);
-            usedShaders.emplace(shader);
-        }
-        usedShaders.clear();
-
         // Update the descriptor sest for the indirect filter
         for (int i = 0; i < 2; i++)
         {
@@ -1017,19 +999,17 @@ namespace RT64
             Mesh* usedMesh = nullptr;
             Texture *usedDiffuse = nullptr;
             size_t totalInstances = scene->getInstances().size();
-		    bool updateDescriptors = (totalInstances != (rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size() + rasterUiInstances.size()));
+		    bool updateDescriptors = (totalInstances != (rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size()));
             unsigned int instFlags = 0;
             unsigned int screenHeight = getHeight();
             unsigned int id = 0;
             rtInstances.clear();
             rasterBgInstances.clear();
             rasterFgInstances.clear();
-            rasterUiInstances.clear();
 
             rtInstances.reserve(totalInstances);
             rasterBgInstances.reserve(totalInstances);
             rasterFgInstances.reserve(totalInstances);
-            rasterUiInstances.reserve(totalInstances);
 
             for (Instance *instance : scene->getInstances()) {
                 instFlags = instance->getFlags();
@@ -1079,8 +1059,6 @@ namespace RT64
                     rtInstances.push_back(renderInstance);
                 } else if (instFlags & RT64_INSTANCE_RASTER_BACKGROUND) {
                     rasterBgInstances.push_back(renderInstance);
-                } else if (instFlags & RT64_INSTANCE_RASTER_UI) {
-                    rasterUiInstances.push_back(renderInstance);
                 } else {
                     rasterFgInstances.push_back(renderInstance);
                 }
@@ -1114,7 +1092,6 @@ namespace RT64
             rtInstances.clear();
             rasterBgInstances.clear();
             rasterFgInstances.clear();
-            rasterUiInstances.clear();
         }
 
         RT64_LOG_PRINTF("Finished view update");
@@ -1727,7 +1704,7 @@ namespace RT64
                 }
             }
         }
-        else if (!rtEnabled && !rasterFgInstances.empty())    // Or don't raytrace.
+        else if (!rtEnabled && !rtInstances.empty())    // Or don't raytrace.
         {
             // Begin the command buffer
             device->beginCommandBuffer();
@@ -1751,13 +1728,13 @@ namespace RT64
             applyScissor({rtWidth, rtHeight});
             VkViewport v = {0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f};
             applyViewport(v);
-	        drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
+	        drawInstances(rtInstances, 0, true);
 
             vkCmdEndRenderPass(commandBuffer);
         }
 
         // Everything else
-        if (!rtInstances.empty() || !rasterFgInstances.empty())
+        if (!rtInstances.empty())
         {
             // Compose the output buffer.
             AllocatedImage& rtOutputCur = rtOutput[rtSwap ? 1 : 0];
@@ -1860,11 +1837,11 @@ namespace RT64
                 vkCmdDraw(commandBuffer, 3, 1, 0, 0);
             }
 
-            // Draw the UI images
+            // Draw the foreground images
             RT64_LOG_PRINTF("Drawing UI instances");
             resetScissor();
             resetViewport();
-            drawInstances(rasterUiInstances, rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size(), true);
+            drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
 
             vkCmdEndRenderPass(commandBuffer);
 
@@ -1902,7 +1879,7 @@ namespace RT64
                 VK_ACCESS_NONE,
                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                 &commandBuffer);
-        } else if (!rasterUiInstances.empty()) {
+        } else if (!rasterFgInstances.empty()) {
             // Begin the command buffer (if it hasn't been begun)
             device->beginCommandBuffer();
 
@@ -1916,7 +1893,7 @@ namespace RT64
             RT64_LOG_PRINTF("Drawing UI instances");
             resetScissor();
             resetViewport();
-            drawInstances(rasterUiInstances, rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size(), true);
+            drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
 
             vkCmdEndRenderPass(commandBuffer);
         }

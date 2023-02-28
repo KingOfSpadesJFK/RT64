@@ -114,7 +114,6 @@ namespace RT64
             VkDescriptorSet indirectFilterDescriptorSets[2] {};
             std::vector<RenderInstance> rasterBgInstances;
             std::vector<RenderInstance> rasterFgInstances;
-            std::vector<RenderInstance> rasterUiInstances;
             std::vector<RenderInstance> rtInstances;
 		    std::vector<Texture*> usedTextures;
             VkRenderPass rasterPass;

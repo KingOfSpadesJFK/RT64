@@ -87,7 +87,9 @@ namespace RT64
         initRayTracing();
         createDescriptorPool();
         createRayTracingPipeline();
+
         inspector.init(this);
+        fencesUp.fill(false);
 #endif
     }
 
@@ -567,6 +569,7 @@ namespace RT64
         }
 
         loadBlueNoise();
+        createFramebuffers();
 
     }
 
@@ -822,13 +825,7 @@ namespace RT64
             rtStateDirty = false;
         }
 
-        if (!framebufferCreated) {
-            createFramebuffers();
-            framebufferCreated = true;
-        }
-
-        VkResult result = vkAcquireNextImageKHR(vkDevice, swapChain, UINT64_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
-
+        VkResult result = vkAcquireNextImageKHR(vkDevice, swapChain, UINT32_MAX, imageAvailableSemaphores[currentFrame], VK_NULL_HANDLE, &framebufferIndex);
         waitForGPU();
 
         // Handle resizing
@@ -837,36 +834,12 @@ namespace RT64
             return;
         }
 
-        // Transition the current swapchain image
-        VkCommandBuffer* commandBuffer = beginSingleTimeCommands();
-        VkImageMemoryBarrier barrier{ VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER };
-        barrier.image = swapChainImages[currentFrame];
-        barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-        barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = 1;
-        barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
-        barrier.srcAccessMask = VK_ACCESS_NONE;
-        barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT;
-
-        vkCmdPipelineBarrier(*commandBuffer,
-            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            0,
-            0, nullptr,
-            0, nullptr,
-            1, &barrier
-        );
-        endSingleTimeCommands(commandBuffer);
+        vkResetCommandBuffer(commandBuffers[currentFrame], 0);
+        vkResetFences(vkDevice, 1, &inFlightFences[currentFrame]);
+        fencesUp[currentFrame] = false;
 
         // Update the scenes....
         updateScenes();
-
-        vkResetFences(vkDevice, 1, &inFlightFences[currentFrame]);
-        vkResetCommandBuffer(commandBuffers[currentFrame], 0);
 
         // Draw the scenes!
         View* activeView = nullptr;
@@ -907,6 +880,7 @@ namespace RT64
 
         // Submit the queue
         VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]));
+        fencesUp[currentFrame] = true;
 
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -947,7 +921,7 @@ namespace RT64
     // Returns true if the size got updated, false if not
     //  Also returns a secret third thing if something goes wrong (a runtime error)
     bool Device::updateSize(VkResult result, const char* error) {
-        if (result == VK_NOT_READY || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+        if (result == VK_TIMEOUT || result == VK_NOT_READY || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
             recreateSwapChain();
             updateViewport();
             framebufferResized = false;
@@ -1034,7 +1008,9 @@ namespace RT64
     }
 
     void Device::waitForGPU() {
-        vkWaitForFences(vkDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT64_MAX);
+        if (fencesUp[currentFrame]) {
+            vkWaitForFences(vkDevice, 1, &inFlightFences[currentFrame], VK_TRUE, UINT32_MAX);
+        }
     }
 
     void Device::createFramebuffer(VkFramebuffer& framebuffer, VkRenderPass& renderPass, VkImageView& imageView, VkImageView* depthView, VkExtent2D extent) {
