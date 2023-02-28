@@ -405,7 +405,7 @@ void setupRT64Scene() {
 	RT64.lib.SetSceneDescription(RT64.scene, RT64.sceneDesc);
 
 	// Setup shader.
-	int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RASTER_TRANSFORMS_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
+	int shaderFlags = RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
 	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 	shaderFlags = RT64_SHADER_RASTER_ENABLED;
 	Sample.uiShader = RT64.lib.CreateShader(RT64.device, 0x01200a01, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
@@ -549,7 +549,7 @@ void setupRT64Scene() {
 	instDesc.specularTexture = specularTexture;
 	instDesc.material = RT64.baseMaterial;
 	instDesc.shader = Sample.uiShader;
-	instDesc.flags = RT64_INSTANCE_RASTER_UI;
+	instDesc.flags = 0;
 
 	// Create HUD B Instance.
 	RT64_INSTANCE *instanceB = RT64.lib.CreateInstance(RT64.scene);
@@ -571,6 +571,7 @@ void setupRT64Scene() {
 	instDesc.normalTexture = nullptr;
 	instDesc.specularTexture = nullptr;
 	instDesc.flags = RT64_INSTANCE_RASTER_BACKGROUND;
+	instDesc.shader = Sample.uiShader;
 	RT64.lib.SetInstanceDescription(instanceA, instDesc);
 
 	// Create floor.
@@ -697,7 +698,7 @@ void setupSponza()
 		RT64_INSTANCE_DESC instDesc;
 		RT64_INSTANCE* instance = RT64.lib.CreateInstance(RT64.scene);
 		RT64_MATRIX4 sceneTransform {};
-		int shaderFlags = RT64_SHADER_RASTER_ENABLED | RT64_SHADER_RASTER_TRANSFORMS_ENABLED | RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
+		int shaderFlags = RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
 		Sample.sceneShaders[i] = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 		RT64_MATERIAL mat = RT64.baseMaterial;
 		// if (i % 5 == 0) {

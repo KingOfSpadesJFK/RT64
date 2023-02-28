@@ -170,6 +170,7 @@ namespace RT64
             std::vector<VkSemaphore> renderFinishedSemaphores;
             std::vector<VkFence> inFlightFences;
             std::vector<VkImageView*> depthViews;
+            std::array<bool, MAX_FRAMES_IN_FLIGHT> fencesUp;
 
             bool rtStateDirty = false;
             bool descPoolDirty = false;
