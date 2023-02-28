@@ -29,8 +29,8 @@ float3 getCosHemisphereSampleBlueNoise(uint2 pixelPos, uint frameCount, float3 h
 }
 
 struct PushConstant { 
-    float bounceDivisor;
-    float currentBounce;
+    float giBounceDivisor;
+    float giResolutionScale;
 };
 
 [[vk::push_constant]] PushConstant pc;
@@ -38,25 +38,28 @@ struct PushConstant {
 [shader("raygeneration")]
 void IndirectRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
+	uint2 launchIndexOffset = floor(clamp(getBlueNoise(launchIndex, frameCount).rg * pc.giResolutionScale, 0.0f, 1.0f - EPSILON));
+	uint2 scaledLaunchIndex = (launchIndex * pc.giResolutionScale) + launchIndexOffset;
 	int instanceId = gInstanceId[launchIndex];
 	if ((instanceId < 0)) {
 		return;			// Skip if the instance ID is invalid
 	}
 	uint2 launchDims = DispatchRaysDimensions().xy;
-	float3 rayOrigin = gShadingPosition[launchIndex].xyz;
-	float3 shadingNormal = gShadingNormal[launchIndex].xyz;
+	uint2 scaledLaunchDims = launchDims * pc.giResolutionScale;
+	float3 rayOrigin = gShadingPosition[scaledLaunchIndex].xyz;
+	float3 shadingNormal = gShadingNormal[scaledLaunchIndex].xyz;
 	float3 newIndirect = float3(0.0f, 0.0f, 0.0f);
 	float historyLength = 0.0f;
 
 	// Reproject previous indirect.
 	if (giReproject) {
 		const float WeightNormalExponent = 128.0f;
-		float2 flow = gFlow[launchIndex].xy;
-		int2 prevIndex = int2(launchIndex + float2(0.5f, 0.5f) + flow);
+		float2 flow = gFlow[scaledLaunchIndex].xy;
+		int2 prevIndex = int2(scaledLaunchIndex + float2(0.5f, 0.5f)+ flow);
 		float prevDepth = gPrevDepth[prevIndex];
 		float3 prevNormal = gPrevNormal[prevIndex].xyz;
 		float4 prevIndirectAccum = gPrevIndirectLightAccum[prevIndex];
-		float depth = gDepth[launchIndex];
+		float depth = gDepth[scaledLaunchIndex];
 		float weightDepth = abs(depth - prevDepth) / 0.01f;
 		float weightNormal = pow(max(0.0f, dot(prevNormal, shadingNormal)), WeightNormalExponent);
 		float historyWeight = exp(-weightDepth) * weightNormal;
@@ -151,10 +154,10 @@ void IndirectRayGen() {
 	
 	// Store the new positions and normals
 	if (giBounces > 1) {
-		gShadingPosition[launchIndex] = float4(hitPosition, 0.0f);
-		gShadingNormal[launchIndex] = float4(hitNormal, 0.0f);
-		gInstanceId[launchIndex] = hitInstanceId;
+		gShadingPosition[scaledLaunchIndex] = float4(hitPosition, 0.0f);
+		gShadingNormal[scaledLaunchIndex] = float4(hitNormal, 0.0f);
+		gInstanceId[scaledLaunchIndex] = hitInstanceId;
 	}
 
-	gIndirectLightAccum[launchIndex] += float4(newIndirect / pc.bounceDivisor, historyLength);
+	gIndirectLightAccum[scaledLaunchIndex] += float4(newIndirect / pc.giBounceDivisor, historyLength);
 }

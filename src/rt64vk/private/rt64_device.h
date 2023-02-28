@@ -71,8 +71,8 @@ namespace RT64
     };
 
     struct RaygenPushConstant {
-        float bounceDivisor;
-        float currentBounce;
+        float giBounceDivisor;
+        float giResolutionScale;
     };
     
     class Device

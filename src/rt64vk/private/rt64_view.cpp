@@ -1505,11 +1505,14 @@ namespace RT64
                 VkDeviceSize offsets[] = {0};
                 RaygenPushConstant pushConst = { 1.0f, 1.0f };
                 for (int i = 0; i < globalParamsData.giBounces; i++) {
+                    unsigned int giWidth = (unsigned int)((float)rtWidth / pushConst.giResolutionScale);
+                    unsigned int giHeight = (unsigned int)((float)rtHeight / pushConst.giResolutionScale);
+                    if (giWidth + giHeight == 0) { break; }
                     RT64_LOG_PRINTF("Dispatching indirect light rays batch #%d", (i+1));
                     vkCmdPushConstants(commandBuffer, device->getRTPipelineLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(RaygenPushConstant), &pushConst);
-                    vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
-                    pushConst.bounceDivisor *= 16.0f;
-                    pushConst.currentBounce += 1.0f;
+                    vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, giWidth, giHeight, 1);
+                    pushConst.giBounceDivisor *= 16.0f;
+                    pushConst.giResolutionScale *= 4.0f;        // For every gi bounce, halve the resolution
 
                     if (i < globalParamsData.giBounces - 1) {
                         // This is meant to just make the gpu wait until it's done with the prior indirect lighting
@@ -1563,7 +1566,7 @@ namespace RT64
             } else if (globalParamsData.giBounces == 1 && globalParamsData.giSamples > 0) {
                 RT64_LOG_PRINTF("Dispatching only first indirect rays");
                 VkDeviceSize offsets[] = {0};
-                RaygenPushConstant pushConst = { 1.0f };
+                RaygenPushConstant pushConst = { 1.0f, 1.0f };
                 vkCmdPushConstants(commandBuffer, device->getRTPipelineLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(RaygenPushConstant), &pushConst);
                 vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 
