@@ -834,12 +834,12 @@ namespace RT64
             return;
         }
 
+        // Update the scenes....
+        updateScenes();
+
         vkResetCommandBuffer(commandBuffers[currentFrame], 0);
         vkResetFences(vkDevice, 1, &inFlightFences[currentFrame]);
         fencesUp[currentFrame] = false;
-
-        // Update the scenes....
-        updateScenes();
 
         // Draw the scenes!
         View* activeView = nullptr;
