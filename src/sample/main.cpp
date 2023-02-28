@@ -681,8 +681,8 @@ int main(int argc, char *argv[]) {
     glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
 
 	// Create window.
-	const int Width = 800;
-	const int Height = 600;
+	const int Width = 1280;
+	const int Height = 720;
     GLFWwindow* window = glfwCreateWindow(Width, Height, "RT64VK Sample", nullptr, nullptr);
 
 	glfwSetKeyCallback(window, keyCallback);
