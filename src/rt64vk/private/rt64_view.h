@@ -191,6 +191,7 @@ namespace RT64
             VkFramebuffer   rtOutputFB[2];
             VkFramebuffer   rtOutputTonemappedFB;
             VkFramebuffer   diffuseFB;
+            VkFramebuffer   backgroundFB;
 
             // Im3d
 		    AllocatedBuffer im3dVertexBuffer;

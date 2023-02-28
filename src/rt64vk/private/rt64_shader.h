@@ -28,7 +28,8 @@ namespace RT64 {
                 VkPipelineShaderStageCreateInfo fragmentInfo {VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO};
                 VkShaderModule vertexModule = VK_NULL_HANDLE;
                 VkShaderModule fragmentModule = VK_NULL_HANDLE;
-                VkPipeline pipeline = VK_NULL_HANDLE;
+                VkPipeline offscreenPipeline = VK_NULL_HANDLE;
+                VkPipeline presentPipeline = VK_NULL_HANDLE;
                 VkPipelineLayout pipelineLayout = VK_NULL_HANDLE;
                 VkDescriptorSetLayout descriptorSetLayout = VK_NULL_HANDLE;
                 VkDescriptorSet descriptorSet = VK_NULL_HANDLE;
