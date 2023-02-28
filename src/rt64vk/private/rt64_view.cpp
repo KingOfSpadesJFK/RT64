@@ -394,7 +394,8 @@ namespace RT64
         device->createFramebuffer(rtOutputFB[0], device->getOffscreenRenderPass(), rtOutput[0].getImageView(), nullptr, {(unsigned int)rtWidth, (unsigned int)rtHeight});
         device->createFramebuffer(rtOutputFB[1], device->getOffscreenRenderPass(), rtOutput[1].getImageView(), nullptr, {(unsigned int)rtWidth, (unsigned int)rtHeight});
         device->createFramebuffer(rtOutputTonemappedFB, device->getOffscreenRenderPass(), rtOutputTonemapped.getImageView(), nullptr, {(unsigned int)rtWidth, (unsigned int)rtHeight});
-        device->createFramebuffer(diffuseFB, rasterPass, rtDiffuse.getImageView(), &rasterDepth.getImageView(), {(unsigned int)rtWidth, (unsigned int)rtHeight});
+        device->createFramebuffer(backgroundFB, device->getOffscreenRenderPass(), rasterBg.getImageView(), nullptr, { (unsigned int)screenWidth, (unsigned int)screenHeight });
+        device->createFramebuffer(diffuseFB, rasterPass, rtDiffuse.getImageView(), &rasterDepth.getImageView(), { (unsigned int)rtWidth, (unsigned int)rtHeight });
 
         imageBuffersInit = true;
     }
@@ -447,6 +448,7 @@ namespace RT64
         vkDestroyFramebuffer(device->getVkDevice(), rtOutputFB[0], nullptr);
         vkDestroyFramebuffer(device->getVkDevice(), rtOutputFB[1], nullptr);
         vkDestroyFramebuffer(device->getVkDevice(), rtOutputTonemappedFB, nullptr);
+        vkDestroyFramebuffer(device->getVkDevice(), backgroundFB, nullptr);
         vkDestroyFramebuffer(device->getVkDevice(), diffuseFB, nullptr);
     }
 
@@ -1259,6 +1261,7 @@ namespace RT64
         VkFramebuffer framebuffer = scene->getDevice()->getCurrentSwapchainFramebuffer();
         VkExtent2D swapChainExtent = scene->getDevice()->getSwapchainExtent();
 	    Upscaler* upscaler = getUpscaler(upscaleMode);
+        VkRenderPassBeginInfo renderPassInfo{ VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
 
         // Configure the current viewport
         auto resetViewport = [this, commandBuffer, &viewport]() {
@@ -1291,7 +1294,8 @@ namespace RT64
             }
         };
 
-        auto drawInstances = [commandBuffer, &scissors, applyScissor, applyViewport, this](const std::vector<RT64::View::RenderInstance>& rasterInstances, uint32_t baseInstanceIndex, bool applyScissorsAndViewports) {
+        auto drawInstances = [commandBuffer, &scissors, applyScissor, applyViewport, renderPassInfo, this]
+            (const std::vector<RT64::View::RenderInstance>& rasterInstances, uint32_t baseInstanceIndex, bool applyScissorsAndViewports, bool present) {
             uint32_t rasterSize = rasterInstances.size();
             Shader* previousShader = nullptr;
             
@@ -1303,7 +1307,7 @@ namespace RT64
                 }
                 if (previousShader != renderInstance.shader) {
                     const auto &rasterGroup = renderInstance.shader->getRasterGroup();
-                    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterGroup.pipeline);
+                    vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, present ? rasterGroup.presentPipeline : rasterGroup.offscreenPipeline);
                     vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, rasterGroup.pipelineLayout, 0, 1, &renderInstance.shader->getRasterGroup().descriptorSet, 0, nullptr);
                     previousShader = renderInstance.shader;
                 }
@@ -1354,23 +1358,49 @@ namespace RT64
         }
 
         // Create a render pass begin info structure (it's a surprise tool that will help us later)
-        VkRenderPassBeginInfo renderPassInfo{ VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO };
         renderPassInfo.renderArea.offset = {0, 0};
-        renderPassInfo.renderArea.extent.width = rtWidth;
-        renderPassInfo.renderArea.extent.height = rtHeight;
+        renderPassInfo.renderArea.extent = swapChainExtent;
         std::array<VkClearValue, 2> clearValues{};
         clearValues[0].color = {{0.0f, 0.0f, 0.0f, 1.0f}};
         clearValues[1].depthStencil = {1.0f, 0};
         renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
         renderPassInfo.pClearValues = clearValues.data();
 
-        // Draw the background instances to a buffer that can be used by the tracer as an environment map.
-        RT64_LOG_PRINTF("Drawing background instances");
+        if (!rasterBgInstances.empty())
         {
-            // resetScissor();
-            // resetViewport();
-            // drawInstances(rasterBgInstances, (UINT)(rtInstances.size()), true);
+            RT64_LOG_PRINTF("Drawing background instances");
+            device->beginCommandBuffer();
+
+            // Use the present render pass for the backgrounds
+            renderPassInfo.renderPass = presentRenderPass;
+            renderPassInfo.framebuffer = framebuffer;
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            // Now draw the background instances!
+            resetScissor();
+            resetViewport();
+            drawInstances(rasterBgInstances, rtInstances.size(), true, true);
+
+            // End the render pass
+            vkCmdEndRenderPass(commandBuffer);
+
+            // Begin the offscreen render pass so that the backgrounds are drawn to a buffer as an environment map
+            renderPassInfo.renderPass = offscreenRenderPass;
+            renderPassInfo.framebuffer = backgroundFB;
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            // Now draw the background instances! Again!
+            resetScissor();
+            resetViewport();
+            drawInstances(rasterBgInstances, rtInstances.size(), false, false);
+
+            // End the render pass
+            vkCmdEndRenderPass(commandBuffer);
         }
+
+        renderPassInfo.renderArea.offset = { 0, 0 };
+        renderPassInfo.renderArea.extent.width = rtWidth;
+        renderPassInfo.renderArea.extent.height = rtHeight;
 
         // Now raytrace!
         if (rtEnabled && !rtInstances.empty())
@@ -1703,39 +1733,7 @@ namespace RT64
                         &commandBuffer);
                 }
             }
-        }
-        else if (!rtEnabled && !rtInstances.empty())    // Or don't raytrace.
-        {
-            // Begin the command buffer
-            device->beginCommandBuffer();
 
-            // Make sure the images are usable
-            AllocatedImage* primaryTranslation[] = {
-                &rtDiffuse,
-            };
-            device->transitionImageLayout(primaryTranslation, sizeof(primaryTranslation) / sizeof(AllocatedImage*), 
-                VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, 
-                VK_ACCESS_SHADER_WRITE_BIT, 
-                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
-                &commandBuffer);
-
-            // Begin the render pass for the diffuse image
-            renderPassInfo.renderPass = rasterPass;
-            renderPassInfo.framebuffer = diffuseFB;
-            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-            // Apply the scissor and viewport to the size of the output texture.
-            applyScissor({rtWidth, rtHeight});
-            VkViewport v = {0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f};
-            applyViewport(v);
-	        drawInstances(rtInstances, 0, true);
-
-            vkCmdEndRenderPass(commandBuffer);
-        }
-
-        // Everything else
-        if (!rtInstances.empty())
-        {
             // Compose the output buffer.
             AllocatedImage& rtOutputCur = rtOutput[rtSwap ? 1 : 0];
             VkFramebuffer& rtOutputCurFB = rtOutputFB[rtSwap ? 1 : 0];
@@ -1757,6 +1755,44 @@ namespace RT64
             vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
             vkCmdEndRenderPass(commandBuffer);
+        }
+        else if (!rtEnabled && !rtInstances.empty())    // Or don't raytrace.
+        {
+            // Begin the command buffer
+            device->beginCommandBuffer();
+
+            // Make sure the images are usable
+            AllocatedImage* primaryTranslation[] = {
+                &rtDiffuse,
+            };
+            device->transitionImageLayout(primaryTranslation, sizeof(primaryTranslation) / sizeof(AllocatedImage*), 
+                VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL, 
+                VK_ACCESS_SHADER_WRITE_BIT, 
+                VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+                &commandBuffer);
+
+            // Begin the render pass for the diffuse image
+            renderPassInfo.renderArea.extent.width = rtWidth;
+            renderPassInfo.renderArea.extent.height = rtHeight;
+            renderPassInfo.renderPass = rasterPass;
+            renderPassInfo.framebuffer = diffuseFB;
+            vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+            // Apply the scissor and viewport to the size of the output texture.
+            applyScissor({rtWidth, rtHeight});
+            VkViewport v = {0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f};
+            applyViewport(v);
+	        drawInstances(rtInstances, 0, true, false);
+
+            vkCmdEndRenderPass(commandBuffer);
+        }
+
+        // Everything else
+        if (!rtInstances.empty())
+        {
+            // Compose the output buffer.
+            AllocatedImage& rtOutputCur = rtOutput[rtSwap ? 1 : 0];
+            VkFramebuffer& rtOutputCurFB = rtOutputFB[rtSwap ? 1 : 0];
 
             // Begin tonemapping 
             renderPassInfo.framebuffer = rtOutputTonemappedFB;
@@ -1837,11 +1873,11 @@ namespace RT64
                 vkCmdDraw(commandBuffer, 3, 1, 0, 0);
             }
 
-            // Draw the foreground images
-            RT64_LOG_PRINTF("Drawing UI instances");
+            // Draw the FG images
+            RT64_LOG_PRINTF("Drawing foreground instances");
             resetScissor();
             resetViewport();
-            drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
+            drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true, true);
 
             vkCmdEndRenderPass(commandBuffer);
 
@@ -1889,11 +1925,11 @@ namespace RT64
             renderPassInfo.renderPass = presentRenderPass;
             vkCmdBeginRenderPass(commandBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-            // Draw the UI images
-            RT64_LOG_PRINTF("Drawing UI instances");
+            // Draw the FG images
+            RT64_LOG_PRINTF("Drawing foreground instances");
             resetScissor();
             resetViewport();
-            drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true);
+            drawInstances(rasterFgInstances, rtInstances.size() + rasterBgInstances.size(), true, true);
 
             vkCmdEndRenderPass(commandBuffer);
         }

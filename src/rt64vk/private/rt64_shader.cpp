@@ -330,7 +330,8 @@ namespace RT64
 
 		vkDestroyShaderModule(device->getVkDevice(), rasterGroup.vertexModule, nullptr);
 		vkDestroyShaderModule(device->getVkDevice(), rasterGroup.fragmentModule, nullptr);
-		vkDestroyPipeline(device->getVkDevice(), rasterGroup.pipeline, nullptr);
+		vkDestroyPipeline(device->getVkDevice(), rasterGroup.presentPipeline, nullptr);
+		vkDestroyPipeline(device->getVkDevice(), rasterGroup.offscreenPipeline, nullptr);
 		vkDestroyPipelineLayout(device->getVkDevice(), rasterGroup.pipelineLayout, nullptr);
 		vkDestroyDescriptorSetLayout(device->getVkDevice(), rasterGroup.descriptorSetLayout, nullptr);
 
@@ -554,11 +555,14 @@ namespace RT64
         pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pDynamicState = &dynamicState;
         pipelineInfo.layout = rasterGroup.pipelineLayout;
+		// TODO: Figure out how to utilize different render passes
         pipelineInfo.renderPass = device->getPresentRenderPass();
         pipelineInfo.subpass = 0;
         pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
         pipelineInfo.basePipelineIndex = -1; // Optional
-        VK_CHECK(vkCreateGraphicsPipelines(device->getVkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &rasterGroup.pipeline));
+		VK_CHECK(vkCreateGraphicsPipelines(device->getVkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &rasterGroup.presentPipeline));
+		pipelineInfo.renderPass = device->getOffscreenRenderPass();
+		VK_CHECK(vkCreateGraphicsPipelines(device->getVkDevice(), VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &rasterGroup.offscreenPipeline));
 	}
 
 	void Shader::generateSurfaceHitGroup(unsigned int shaderId, Filter filter, AddressingMode hAddr, AddressingMode vAddr, bool normalMapEnabled, bool specularMapEnabled, const std::string& hitGroupName, const std::string& closestHitName, const std::string& anyHitName) {
