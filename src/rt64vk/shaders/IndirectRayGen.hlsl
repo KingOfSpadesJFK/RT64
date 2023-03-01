@@ -38,14 +38,16 @@ struct PushConstant {
 [shader("raygeneration")]
 void IndirectRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
-	uint2 launchIndexOffset = floor(clamp(getBlueNoise(launchIndex, frameCount).rg * pc.giResolutionScale, 0.0f, 1.0f - EPSILON));
-	uint2 scaledLaunchIndex = (launchIndex * pc.giResolutionScale) + launchIndexOffset;
-	int instanceId = gInstanceId[launchIndex];
+	uint2 scaledLaunchIndex = (launchIndex * pc.giResolutionScale);
+	if (pc.giResolutionScale > 1.0f){
+		uint2 launchIndexOffset = getBlueNoise(scaledLaunchIndex, frameCount).rg * pc.giResolutionScale;
+		scaledLaunchIndex += launchIndexOffset;
+	}
+	int instanceId = gInstanceId[scaledLaunchIndex];
 	if ((instanceId < 0)) {
 		return;			// Skip if the instance ID is invalid
 	}
 	uint2 launchDims = DispatchRaysDimensions().xy;
-	uint2 scaledLaunchDims = launchDims * pc.giResolutionScale;
 	float3 rayOrigin = gShadingPosition[scaledLaunchIndex].xyz;
 	float3 shadingNormal = gShadingNormal[scaledLaunchIndex].xyz;
 	float3 newIndirect = float3(0.0f, 0.0f, 0.0f);

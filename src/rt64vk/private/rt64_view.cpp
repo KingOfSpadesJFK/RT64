@@ -1507,12 +1507,12 @@ namespace RT64
                 for (int i = 0; i < globalParamsData.giBounces; i++) {
                     unsigned int giWidth = (unsigned int)((float)rtWidth / pushConst.giResolutionScale);
                     unsigned int giHeight = (unsigned int)((float)rtHeight / pushConst.giResolutionScale);
-                    if (giWidth + giHeight == 0) { break; }
+                    if (giWidth == 0 || giHeight == 0) { break; }
                     RT64_LOG_PRINTF("Dispatching indirect light rays batch #%d", (i+1));
                     vkCmdPushConstants(commandBuffer, device->getRTPipelineLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(RaygenPushConstant), &pushConst);
                     vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, giWidth, giHeight, 1);
-                    pushConst.giBounceDivisor *= 16.0f;
-                    pushConst.giResolutionScale *= 4.0f;        // For every gi bounce, halve the resolution
+                    pushConst.giBounceDivisor *= 8.0f;
+                    pushConst.giResolutionScale *= 2.0f;        // For every gi bounce, halve the resolution
 
                     if (i < globalParamsData.giBounces - 1) {
                         // This is meant to just make the gpu wait until it's done with the prior indirect lighting
