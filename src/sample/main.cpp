@@ -116,7 +116,7 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			case GLFW_KEY_F1:
 				RT64.showInspector = !RT64.showInspector;
-				RT64.lib.SetInspectorVisibility(RT64.device, RT64.showInspector);
+				RT64.lib.SetInspectorVisibility2(RT64.device, RT64.showInspector);
 				break;
 			case GLFW_KEY_F3:
 				Sample.daylightTime = 0.0f;
@@ -261,15 +261,15 @@ void draw(GLFWwindow* window ) {
 
 	// Inspector stuff
 	if (RT64.showInspector) {
-		RT64.lib.PrintClearInspector(RT64.device);
-		RT64.lib.SetMaterialInspector(RT64.device, &RT64.materialMods, "Sphere");
-		RT64.lib.SetSceneInspector(RT64.device, &RT64.sceneDesc);
-		RT64.lib.SetLightsInspector(RT64.device, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
+		RT64.lib.PrintClearInspector2(RT64.device);
+		RT64.lib.SetMaterialInspector2(RT64.device, &RT64.materialMods, "Sphere");
+		RT64.lib.SetSceneInspector2(RT64.device, &RT64.sceneDesc);
+		RT64.lib.SetLightsInspector2(RT64.device, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
 		std::string print = "Draw time: ";
 		print.append(std::to_string(Sample.deltaTime));
 		print.append("\nRuntime: ");
 		print.append(std::to_string(Sample.runtime));
-		RT64.lib.PrintMessageInspector(RT64.device, print.c_str());
+		RT64.lib.PrintMessageInspector2(RT64.device, print.c_str());
 	}
 }
 

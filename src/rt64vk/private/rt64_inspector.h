@@ -59,5 +59,6 @@ namespace RT64 {
             void setLights(RT64_LIGHT *lights, int *lightCount, int maxLightCount);
             void printClear();
             void printMessage(const std::string& message);
+            Device* getDevice();
 	};
 };

@@ -315,13 +315,21 @@ typedef void (*SetInstanceDescriptionPtr)(RT64_INSTANCE* instancePtr, RT64_INSTA
 typedef void (*DestroyInstancePtr)(RT64_INSTANCE* instancePtr);
 typedef RT64_TEXTURE* (*CreateTexturePtr)(RT64_DEVICE* devicePtr, RT64_TEXTURE_DESC textureDesc);
 typedef void (*DestroyTexturePtr)(RT64_TEXTURE* texture);
-typedef void (*SetSceneInspectorPtr)(RT64_DEVICE *devicePtr, RT64_SCENE_DESC* sceneDesc);
-typedef void (*SetMaterialInspectorPtr)(RT64_DEVICE *devicePtr, RT64_MATERIAL* material, const char *materialName);
-typedef void (*SetLightsInspectorPtr)(RT64_DEVICE *devicePtr, RT64_LIGHT* lights, int *lightCount, int maxLightCount);
-typedef void (*PrintClearInspectorPtr)(RT64_DEVICE *devicePtr);
-typedef void (*PrintMessageInspectorPtr)(RT64_DEVICE *devicePtr, const char* message);
-typedef void (*SetInspectorVisibilityPtr)(RT64_DEVICE *devicePtr, bool showInspector);
-
+typedef RT64_INSPECTOR* (*CreateInspectorPtr)(RT64_DEVICE* devicePtr);
+typedef void (*SetSceneInspectorPtr2)(RT64_DEVICE *devicePtr, RT64_SCENE_DESC* sceneDesc);
+typedef void (*SetMaterialInspectorPtr2)(RT64_DEVICE *devicePtr, RT64_MATERIAL* material, const char *materialName);
+typedef void (*SetLightsInspectorPtr2)(RT64_DEVICE *devicePtr, RT64_LIGHT* lights, int *lightCount, int maxLightCount);
+typedef void (*PrintClearInspectorPtr2)(RT64_DEVICE *devicePtr);
+typedef void (*PrintMessageInspectorPtr2)(RT64_DEVICE *devicePtr, const char* message);
+typedef void (*SetInspectorVisibilityPtr2)(RT64_DEVICE *devicePtr, bool showInspector);
+// Old inspector handles
+typedef RT64_INSPECTOR* (*CreateInspectorPtr)(RT64_DEVICE* devicePtr);
+typedef void (*SetSceneInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_SCENE_DESC* sceneDesc);
+typedef void (*SetMaterialInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_MATERIAL* material, const char *materialName);
+typedef void (*SetLightsInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT* lights, int *lightCount, int maxLightCount);
+typedef void (*PrintClearInspectorPtr)(RT64_INSPECTOR *inspectorPtr);
+typedef void (*PrintMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, const char* message);
+typedef void (*DestroyInspectorPtr)(RT64_INSPECTOR* inspectorPtr);
 
 // Stores all the function pointers used in the RT64 library.
 typedef struct {
@@ -357,12 +365,20 @@ typedef struct {
 	DestroyInstancePtr DestroyInstance;
 	CreateTexturePtr CreateTexture;
 	DestroyTexturePtr DestroyTexture;
+	PrintClearInspectorPtr2 PrintClearInspector2;
+	PrintMessageInspectorPtr2 PrintMessageInspector2;
+	SetSceneInspectorPtr2 SetSceneInspector2;
+	SetMaterialInspectorPtr2 SetMaterialInspector2;
+	SetLightsInspectorPtr2 SetLightsInspector2;
+	SetInspectorVisibilityPtr2 SetInspectorVisibility2;
+	// Old inspector handles
+	CreateInspectorPtr CreateInspector;
 	PrintClearInspectorPtr PrintClearInspector;
 	PrintMessageInspectorPtr PrintMessageInspector;
 	SetSceneInspectorPtr SetSceneInspector;
 	SetMaterialInspectorPtr SetMaterialInspector;
 	SetLightsInspectorPtr SetLightsInspector;
-	SetInspectorVisibilityPtr SetInspectorVisibility;
+	DestroyInspectorPtr DestroyInspector;
 #endif
 } RT64_LIBRARY;
 
@@ -429,12 +445,21 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.DestroyInstance = (DestroyInstancePtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyInstance"));
 		lib.CreateTexture = (CreateTexturePtr)(RT64_GetProcAddress(lib.handle, "RT64_CreateTexture"));
 		lib.DestroyTexture = (DestroyTexturePtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyTexture"));
+		// New style of inspector handles
+		lib.SetSceneInspector2 = (SetSceneInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64_SetSceneInspector"));
+		lib.SetMaterialInspector2 = (SetMaterialInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetMaterialInspector"));
+		lib.SetLightsInspector2 = (SetLightsInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetLightsInspector"));
+		lib.PrintClearInspector2 = (PrintClearInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_PrintClearInspector"));
+		lib.PrintMessageInspector2 = (PrintMessageInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_PrintMessageInspector"));
+		lib.SetInspectorVisibility2 = (SetInspectorVisibilityPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetInspectorVisibility"));
+		// Old inspector handles for upstream RT64 compatibility
+		lib.CreateInspector = (CreateInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_CreateInspector"));
 		lib.SetSceneInspector = (SetSceneInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetSceneInspector"));
 		lib.SetMaterialInspector = (SetMaterialInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetMaterialInspector"));
 		lib.SetLightsInspector = (SetLightsInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetLightsInspector"));
 		lib.PrintClearInspector = (PrintClearInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_PrintClearInspector"));
 		lib.PrintMessageInspector = (PrintMessageInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_PrintMessageInspector"));
-		lib.SetInspectorVisibility = (SetInspectorVisibilityPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetInspectorVisibility"));
+		lib.DestroyInspector = (DestroyInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyInspector"));
 #endif
 	}
 	else {
