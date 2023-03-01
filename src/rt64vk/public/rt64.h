@@ -446,7 +446,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.CreateTexture = (CreateTexturePtr)(RT64_GetProcAddress(lib.handle, "RT64_CreateTexture"));
 		lib.DestroyTexture = (DestroyTexturePtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyTexture"));
 		// New style of inspector handles
-		lib.SetSceneInspector2 = (SetSceneInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64_SetSceneInspector"));
+		lib.SetSceneInspector2 = (SetSceneInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetSceneInspector"));
 		lib.SetMaterialInspector2 = (SetMaterialInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetMaterialInspector"));
 		lib.SetLightsInspector2 = (SetLightsInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetLightsInspector"));
 		lib.PrintClearInspector2 = (PrintClearInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_PrintClearInspector"));
