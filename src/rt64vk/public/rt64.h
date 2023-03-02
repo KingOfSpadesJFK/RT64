@@ -322,6 +322,9 @@ typedef void (*SetLightsInspectorPtr2)(RT64_DEVICE *devicePtr, RT64_LIGHT* light
 typedef void (*PrintClearInspectorPtr2)(RT64_DEVICE *devicePtr);
 typedef void (*PrintMessageInspectorPtr2)(RT64_DEVICE *devicePtr, const char* message);
 typedef void (*SetInspectorVisibilityPtr2)(RT64_DEVICE *devicePtr, bool showInspector);
+#ifdef _WIN32
+typedef bool (*HandleMessageInspectorPtr2)(RT64_DEVICE* devicePtr, UINT msg, WPARAM wParam, LPARAM lParam);
+#endif
 // Old inspector handles
 typedef RT64_INSPECTOR* (*CreateInspectorPtr)(RT64_DEVICE* devicePtr);
 typedef void (*SetSceneInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_SCENE_DESC* sceneDesc);
@@ -331,7 +334,7 @@ typedef void (*PrintClearInspectorPtr)(RT64_INSPECTOR *inspectorPtr);
 typedef void (*PrintMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, const char* message);
 typedef void (*DestroyInspectorPtr)(RT64_INSPECTOR* inspectorPtr);
 #ifdef _WIN32
-typedef bool (*HandleMessageInspectorPtr)(RT64_DEVICE* devicePtr, UINT msg, WPARAM wParam, LPARAM lParam);
+typedef bool (*HandleMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
 
 // Stores all the function pointers used in the RT64 library.
@@ -368,6 +371,9 @@ typedef struct {
 	DestroyInstancePtr DestroyInstance;
 	CreateTexturePtr CreateTexture;
 	DestroyTexturePtr DestroyTexture;
+#ifdef _WIN32
+	HandleMessageInspectorPtr2 HandleMessageInspector2;
+#endif
 	PrintClearInspectorPtr2 PrintClearInspector2;
 	PrintMessageInspectorPtr2 PrintMessageInspector2;
 	SetSceneInspectorPtr2 SetSceneInspector2;
@@ -452,6 +458,9 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.CreateTexture = (CreateTexturePtr)(RT64_GetProcAddress(lib.handle, "RT64_CreateTexture"));
 		lib.DestroyTexture = (DestroyTexturePtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyTexture"));
 		// New style of inspector handles
+#ifdef _WIN32
+		lib.HandleMessageInspector2 = (HandleMessageInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_HandleMessageInspector"));
+#endif
 		lib.SetSceneInspector2 = (SetSceneInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetSceneInspector"));
 		lib.SetMaterialInspector2 = (SetMaterialInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetMaterialInspector"));
 		lib.SetLightsInspector2 = (SetLightsInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetLightsInspector"));

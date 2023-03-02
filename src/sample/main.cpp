@@ -275,7 +275,7 @@ void draw() {
 
 #ifdef _WIN32
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-	if (RT64.device != nullptr && RT64.lib.HandleMessageInspector(RT64.device, message, wParam, lParam)) {
+	if (RT64.device != nullptr && RT64.lib.HandleMessageInspector2(RT64.device, message, wParam, lParam)) {
 		return true;
 	}
 
@@ -298,7 +298,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		switch (wParam) {
 		case VK_F1:
 			RT64.showInspector = !RT64.showInspector;
-			RT64.lib.SetInspectorVisibility(RT64.device, RT64.showInspector);
+			RT64.lib.SetInspectorVisibility2(RT64.device, RT64.showInspector);
 			break;
 		case VK_F3:
 			Sample.daylightTime = 0.0f;

@@ -839,6 +839,9 @@ namespace RT64
         // Handle resizing
         if (updateSize(result, "failed to acquire swap chain image!")) {
             // don't draw the image if resized
+#ifdef _WIN32
+            RedrawWindow(window, NULL, NULL, RDW_INVALIDATE);
+#endif
             return;
         }
 
@@ -2418,7 +2421,7 @@ DLEXPORT void RT64_DrawDevice(RT64_DEVICE* devicePtr, int vsyncInterval, double 
 }
 
 #ifdef _WIN32
-DLEXPORT bool RT64_HandleMessageInspector(RT64_DEVICE* devicePtr, UINT msg, WPARAM wParam, LPARAM lParam) {
+DLEXPORT bool RT64VK_HandleMessageInspector(RT64_DEVICE* devicePtr, UINT msg, WPARAM wParam, LPARAM lParam) {
     assert(devicePtr != nullptr);
     RT64::Device* device = (RT64::Device*)(devicePtr);
     RT64::Inspector& inspector = device->getInspector();
