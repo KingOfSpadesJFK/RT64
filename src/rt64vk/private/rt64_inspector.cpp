@@ -626,4 +626,52 @@ namespace RT64 {
 #endif
 };
 
+// Library Exports
+
+DLEXPORT RT64_INSPECTOR* RT64_CreateInspector(RT64_DEVICE* devicePtr) {
+    assert(devicePtr != nullptr);
+    RT64::Device* device = (RT64::Device*)(devicePtr);
+    RT64::Inspector* inspector = new RT64::Inspector();
+	inspector->init(device);
+	device->addInspectorOld(inspector);
+    return (RT64_INSPECTOR*)(inspector);
+}
+
+DLEXPORT void RT64_SetSceneInspector(RT64_INSPECTOR* inspectorPtr, RT64_SCENE_DESC* sceneDesc) {
+    assert(inspectorPtr != nullptr);
+    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
+    inspector->setSceneDescription(sceneDesc);
+}
+
+DLEXPORT void RT64_SetMaterialInspector(RT64_INSPECTOR* inspectorPtr, RT64_MATERIAL* material, const char* materialName) {
+    assert(inspectorPtr != nullptr);
+    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
+    inspector->setMaterial(material, std::string(materialName));
+}
+
+DLEXPORT void RT64_SetLightsInspector(RT64_INSPECTOR* inspectorPtr, RT64_LIGHT* lights, int* lightCount, int maxLightCount) {
+    assert(inspectorPtr != nullptr);
+    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
+    inspector->setLights(lights, lightCount, maxLightCount);
+}
+
+DLEXPORT void RT64_PrintClearInspector(RT64_INSPECTOR* inspectorPtr) {
+    assert(inspectorPtr != nullptr);
+    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
+    inspector->printClear();
+}
+
+DLEXPORT void RT64_PrintMessageInspector(RT64_INSPECTOR* inspectorPtr, const char* message) {
+    assert(inspectorPtr != nullptr);
+    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
+    std::string messageStr(message);
+    inspector->printMessage(messageStr);
+}
+
+DLEXPORT void RT64_DestroyInspector(RT64_INSPECTOR* inspectorPtr) {
+    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
+	inspector->getDevice()->removeInspectorOld(inspector);
+    delete inspector;
+}
+
 #endif

@@ -66,8 +66,8 @@ namespace RT64
     };
 
     struct RaygenPushConstant {
-        float bounceDivisor;
-        float currentBounce;
+        float giBounceDivisor;
+        float giResolutionScale;
     };
     
     class Device
@@ -145,6 +145,7 @@ namespace RT64
             std::unordered_set<Shader*> shaders;
             std::vector<Mesh*> meshes;
             std::vector<Texture*> textures;
+            std::vector<Inspector*> oldInspectors;
             std::unordered_map<unsigned int, VkSampler> samplers;
 
             Inspector inspector;
@@ -391,6 +392,8 @@ namespace RT64
 		    void removeMesh(Mesh* mesh);
 		    void addTexture(Texture* texture);
 		    void removeTexture(Texture* texture);
+		    void addInspectorOld(Inspector* inspect);
+		    void removeInspectorOld(Inspector* inspect);
             void addShader(Shader* shader);
             void removeShader(Shader* shader);
             std::unordered_map<unsigned int, VkSampler>& getSamplerMap();

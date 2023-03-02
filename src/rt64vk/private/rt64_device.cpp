@@ -842,12 +842,12 @@ namespace RT64
             return;
         }
 
+        // Update the scenes....
+        updateScenes();
+
         vkResetCommandBuffer(commandBuffers[currentFrame], 0);
         vkResetFences(vkDevice, 1, &inFlightFences[currentFrame]);
         fencesUp[currentFrame] = false;
-
-        // Update the scenes....
-        updateScenes();
 
         // Draw the scenes!
         View* activeView = nullptr;
@@ -885,7 +885,13 @@ namespace RT64
             if (inspector.init(this) && showInspector) {
                 inspector.render(activeView, mouseX, mouseY);
             }
-            inspector.controlCamera(activeView, mouseX, mouseY);
+            if (oldInspectors.empty()) {
+                inspector.controlCamera(activeView, mouseX, mouseY);
+            } else {
+                for (Inspector* i : oldInspectors) {
+                    i->render(activeView, mouseX, mouseY);
+                }
+            }
 
             // End the command buffer
             endCommandBuffer();
@@ -1213,8 +1219,12 @@ namespace RT64
         createImageViews();
         resizeScenes();
         createFramebuffers();
-        if (inspector.init(this) && showInspector) {
+        if (showInspector) {
             inspector.resize();
+        } else {
+            for (Inspector* i : oldInspectors) {
+                i->resize();
+            }
         }
         RT64_LOG_PRINTF("Finished device size update");
     }
@@ -1653,6 +1663,11 @@ namespace RT64
                 delete sh;
             }
         }
+        // Destroy the old inspectors
+        auto inspectorsCopy = oldInspectors;
+        for (Inspector* i : inspectorsCopy) {
+            delete i;
+        }
         // Destroy the samplers
         for (auto sampler : samplers) {
             vkDestroySampler(vkDevice, sampler.second, nullptr);
@@ -1879,6 +1894,19 @@ namespace RT64
         assert(texture != nullptr);
         textures.erase(std::remove(textures.begin(), textures.end(), texture), textures.end());
     }
+
+    // Adds an old-style inspector to the device
+    void Device::addInspectorOld(Inspector* inspector) {
+        assert(inspector != nullptr);
+        oldInspectors.push_back(inspector);
+    }
+    
+    // Removes an old-style inspector from the device
+    void Device::removeInspectorOld(Inspector* inspector) {
+        assert(inspector != nullptr);
+        oldInspectors.erase(std::remove(oldInspectors.begin(), oldInspectors.end(), inspector), oldInspectors.end());
+    }
+
 
     ImGui_ImplVulkan_InitInfo Device::generateImguiInitInfo() {
         ImGui_ImplVulkan_InitInfo info {};
@@ -2398,35 +2426,35 @@ DLEXPORT bool RT64_HandleMessageInspector(RT64_DEVICE* devicePtr, UINT msg, WPAR
 }
 #endif
 
-DLEXPORT void RT64_SetSceneInspector(RT64_DEVICE* devicePtr, RT64_SCENE_DESC* sceneDesc) {
+DLEXPORT void RT64VK_SetSceneInspector(RT64_DEVICE* devicePtr, RT64_SCENE_DESC* sceneDesc) {
     assert(devicePtr != nullptr);
 	RT64::Device* device = (RT64::Device*)(devicePtr);
     RT64::Inspector& inspector = device->getInspector();
     inspector.setSceneDescription(sceneDesc);
 }
 
-DLEXPORT void RT64_SetMaterialInspector(RT64_DEVICE* devicePtr, RT64_MATERIAL* material, const char* materialName) {
+DLEXPORT void RT64VK_SetMaterialInspector(RT64_DEVICE* devicePtr, RT64_MATERIAL* material, const char* materialName) {
     assert(devicePtr != nullptr);
 	RT64::Device* device = (RT64::Device*)(devicePtr);
     RT64::Inspector& inspector = device->getInspector();
     inspector.setMaterial(material, std::string(materialName));
 }
 
-DLEXPORT void RT64_SetLightsInspector(RT64_DEVICE* devicePtr, RT64_LIGHT* lights, int* lightCount, int maxLightCount) {
+DLEXPORT void RT64VK_SetLightsInspector(RT64_DEVICE* devicePtr, RT64_LIGHT* lights, int* lightCount, int maxLightCount) {
     assert(devicePtr != nullptr);
 	RT64::Device* device = (RT64::Device*)(devicePtr);
     RT64::Inspector& inspector = device->getInspector();
     inspector.setLights(lights, lightCount, maxLightCount);
 }
 
-DLEXPORT void RT64_PrintClearInspector(RT64_DEVICE* devicePtr) {
+DLEXPORT void RT64VK_PrintClearInspector(RT64_DEVICE* devicePtr) {
     assert(devicePtr != nullptr);
 	RT64::Device* device = (RT64::Device*)(devicePtr);
     RT64::Inspector& inspector = device->getInspector();
     inspector.printClear();
 }
 
-DLEXPORT void RT64_PrintMessageInspector(RT64_DEVICE* devicePtr, const char* message) {
+DLEXPORT void RT64VK_PrintMessageInspector(RT64_DEVICE* devicePtr, const char* message) {
     assert(devicePtr != nullptr);
 	RT64::Device* device = (RT64::Device*)(devicePtr);
     RT64::Inspector& inspector = device->getInspector();
@@ -2434,7 +2462,7 @@ DLEXPORT void RT64_PrintMessageInspector(RT64_DEVICE* devicePtr, const char* mes
     inspector.printMessage(messageStr);
 }
 
-DLEXPORT void RT64_SetInspectorVisibility(RT64_DEVICE* devicePtr, bool showInspector) {
+DLEXPORT void RT64VK_SetInspectorVisibility(RT64_DEVICE* devicePtr, bool showInspector) {
     assert(devicePtr != nullptr);
 	RT64::Device* device = (RT64::Device*)(devicePtr);
     device->setInspectorVisibility(showInspector);
