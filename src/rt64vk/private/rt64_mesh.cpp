@@ -25,13 +25,13 @@ namespace RT64
     }
 
     Mesh::~Mesh() {
+        device->removeMesh(this);
+
         vertexBuffer.destroyResource();
         stagingVertexBuffer.destroyResource();
         indexBuffer.destroyResource();
         stagingIndexBuffer.destroyResource();
         builder.destroy();
-
-		device->removeMesh(this);
     }
 
     // This function copies the passed in vertex array into the buffer

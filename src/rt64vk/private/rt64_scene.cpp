@@ -104,7 +104,7 @@ namespace RT64
     }
 
     void Scene::removeView(View* view) {
-        // TODO
+        // views.erase(std::remove(views.begin(), views.end(), view), views.end());
     }
 
     const std::vector<RT64::View*>& RT64::Scene::getViews() const {
@@ -119,7 +119,6 @@ namespace RT64
         VkDeviceSize newSize = ROUND_UP(sizeof(RT64_LIGHT) * lightCount, 256);
         if (newSize != lightsBufferSize) {
             lightsBuffer.destroyResource();
-            // lightsBuffer = getDevice()->allocateBuffer(D3D12_HEAP_TYPE_UPLOAD, newSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ);
             getDevice()->allocateBuffer(
                 newSize,
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
@@ -132,7 +131,6 @@ namespace RT64
 
         uint64_t* pData;
         VkDeviceSize i = 0;
-        // D3D12_CHECK(lightsBuffer.Get()->Map(0, nullptr, (void **)&pData));
         void* lightBufferAddr = lightsBuffer.mapMemory((void**)&pData);
 
         if (lightArray != nullptr) {

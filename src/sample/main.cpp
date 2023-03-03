@@ -697,7 +697,7 @@ int main(int argc, char *argv[]) {
 #ifdef _WIN32
 			"Windows 10 version 2004 or newer is also required for this feature level to work properly\n"
 #else
-			"Linux Kernel version 6.0 or newer is recommended.\n"
+			"Linux Kernel version 6.0 or newer is recommended for this feature level to work properly\n"
 #endif
 			"If you're a mobile user, make sure that the high performance device is selected for this application on your system's settings");
 
@@ -712,7 +712,7 @@ int main(int argc, char *argv[]) {
 	RT64_VIEW_DESC viewDesc {};
 	viewDesc.diSamples = 0;
 	viewDesc.giSamples = 0;
-	viewDesc.giBounces = 0;
+	viewDesc.giBounces = 1;
 	viewDesc.denoiserEnabled = false;
 	viewDesc.maxLights = 12;
 	viewDesc.motionBlurStrength = 0.0f;

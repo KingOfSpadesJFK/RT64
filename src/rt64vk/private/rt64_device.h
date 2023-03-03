@@ -55,13 +55,9 @@ namespace RT64
 	class Inspector;
 	class Mipmaps;
 
-    struct QueueFamilyIndices {
-        std::optional<uint32_t> graphicsFamily;
-        std::optional<uint32_t> presentFamily;
-
-        bool isComplete() {
-            return graphicsFamily.has_value() && presentFamily.has_value();
-        }
+    struct IndexedQueue {
+        int familyIndex;
+        VkQueue queue;
     };
 
     struct SwapChainSupportDetails {
@@ -73,6 +69,7 @@ namespace RT64
     struct RaygenPushConstant {
         float giBounceDivisor;
         float giResolutionScale;
+        unsigned int giBounce;
     };
     
     class Device
@@ -82,9 +79,9 @@ namespace RT64
             VkPhysicalDevice& physicalDevice = vkctx.m_physicalDevice;
             VkInstance& vkInstance = vkctx.m_instance;
             VkDevice& vkDevice = vkctx.m_device;
-            VkQueue& graphicsQueue = vkctx.m_queueGCT.queue;
-            VkQueue& presentQueue = vkctx.m_queueGCT.queue;
-            VkDebugUtilsMessengerEXT debugMessenger;
+            IndexedQueue graphicsQueue;
+            IndexedQueue computeQueue;
+            IndexedQueue presentQueue;
             VkSwapchainKHR swapChain;
             std::vector<VkImage> swapChainImages;
             VkFormat swapChainImageFormat;
@@ -94,17 +91,6 @@ namespace RT64
             bool disableMipmaps = false;
 
             inline void createVkInstanceNV();
-            void createVKInstance();
-            void setupDebugMessenger();
-            void pickPhysicalDevice();
-            void createLogicalDevice();
-
-            bool isDeviceSuitable(VkPhysicalDevice device);
-            std::vector<const char*> getInstanceExtensions();
-            bool checkDeviceExtensionSupport(VkPhysicalDevice device);
-            void hasGflwRequiredInstanceExtensions();
-            void populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo);
-            QueueFamilyIndices findQueueFamilies(VkPhysicalDevice device);
             SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
             VkSurfaceFormatKHR chooseSwapSurfaceFormat(const std::vector<VkSurfaceFormatKHR>& availableFormats);
             VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
@@ -184,8 +170,6 @@ namespace RT64
             VkPhysicalDeviceRayTracingPipelinePropertiesKHR rtProperties {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_PROPERTIES_KHR};
             nvvk::RaytracingBuilderKHR rtBlasBuilder;
             nvvk::ResourceAllocatorDma rtAllocator;
-            std::vector<VkDescriptorSetLayout> rtDescriptorSetLayouts;
-            std::vector<VkDescriptorSet> rtDescriptorSets;
 
             std::vector<VkDescriptorPoolSize> descriptorPoolBindings;
             VkDescriptorPool descriptorPool;
@@ -324,7 +308,6 @@ namespace RT64
             VkPipelineLayout& getRTPipelineLayout();
             VkDescriptorSet& getRTDescriptorSet();
             VkDescriptorSetLayout& getRTDescriptorSetLayout();
-            std::vector<VkDescriptorSet>& getRTDescriptorSets();
             Texture* getBlueNoise() const;
             uint32_t getHitGroupCount() const;
             uint32_t getRasterGroupCount() const;

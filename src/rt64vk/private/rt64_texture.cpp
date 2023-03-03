@@ -116,6 +116,7 @@ namespace RT64 {
 
     AllocatedImage& Texture::getTexture() { return texture; };
     VkImageView& Texture::getTextureImageView() { return texture.getImageView(); };
+    VkFormat Texture::getFormat() const { return texture.getFormat(); }
     void Texture::setCurrentIndex(int v) { currentIndex = v; }
     int Texture::getCurrentIndex() const { return currentIndex; }
     int Texture::getWidth() { return width; }

@@ -60,13 +60,6 @@ namespace RT64
 #endif
 
         createVkInstanceNV();
-        // createVKInstance();
-        // setupDebugMessenger();
-#ifndef RT64_MINIMAL
-        createSurface();
-#endif
-        // pickPhysicalDevice();
-        // createLogicalDevice();
 
 #ifndef RT64_MINIMAL
         createMemoryAllocator();
@@ -120,6 +113,7 @@ namespace RT64
         contextInfo.addDeviceExtension(VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME);
         contextInfo.addDeviceExtension(VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME);
         contextInfo.addDeviceExtension(VK_KHR_PUSH_DESCRIPTOR_EXTENSION_NAME);
+        contextInfo.addRequestedQueue(VK_QUEUE_GRAPHICS_BIT);
 
         // Creating Vulkan base application
         vkctx.initInstance(contextInfo);
@@ -128,6 +122,21 @@ namespace RT64
         assert(!compatibleDevices.empty());
         // Use a compatible device
         vkctx.initDevice(compatibleDevices[0], contextInfo);
+
+        auto tempQueue = vkctx.createQueue(VK_QUEUE_GRAPHICS_BIT, "graphicsQueue");
+        graphicsQueue.queue = tempQueue.queue;
+        graphicsQueue.familyIndex = tempQueue.familyIndex;
+        presentQueue.queue = vkctx.m_queueGCT.queue;
+        presentQueue.familyIndex = vkctx.m_queueGCT.familyIndex;
+        computeQueue.queue = vkctx.m_queueC.queue;
+        computeQueue.familyIndex = vkctx.m_queueC.familyIndex;
+
+#ifndef RT64_MINIMAL
+        createSurface();
+        VkBool32 supportsPresent;
+        vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, presentQueue.familyIndex, vkSurface, &supportsPresent);
+        assert(supportsPresent);
+#endif
     }
 
     void Device::generateSamplers() {
@@ -261,7 +270,7 @@ namespace RT64
             vkCreateSampler(vkDevice, &samplerInfo, nullptr, &gaussianSampler);
         }
 
-        RT64_LOG_PRINTF("Creating the raygen/miss modules"); 
+        RT64_LOG_PRINTF("Creating the ray tracing shader modules, descriptor set layout, and pipeline layout"); 
         {
             createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "PrimaryRayGen",    VK_SHADER_STAGE_RAYGEN_BIT_KHR, primaryRayGenStage,         primaryRayGenModule, nullptr);
             createShaderModule(DirectRayGen_SPIRV,      sizeof(DirectRayGen_SPIRV),     "DirectRayGen",     VK_SHADER_STAGE_RAYGEN_BIT_KHR, directRayGenStage,          directRayGenModule, nullptr);
@@ -271,6 +280,19 @@ namespace RT64
             createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "SurfaceMiss",      VK_SHADER_STAGE_MISS_BIT_KHR, surfaceMissStage,             surfaceMissModule, nullptr);
             createShaderModule(PrimaryRayGen_SPIRV,     sizeof(PrimaryRayGen_SPIRV),    "ShadowMiss",       VK_SHADER_STAGE_MISS_BIT_KHR, shadowMissStage,              shadowMissModule, nullptr);
             generateRTDescriptorSetLayout();
+
+            // Set up the push constnants
+            VkPushConstantRange pushConstant;
+            pushConstant.offset = 0;
+            pushConstant.size = sizeof(RaygenPushConstant);
+            pushConstant.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
+            // Create the pipeline layout create info
+            VkPipelineLayoutCreateInfo layoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
+            layoutInfo.setLayoutCount = 1;
+            layoutInfo.pSetLayouts = &rtDescriptorSetLayout;
+            layoutInfo.pushConstantRangeCount = 1;
+            layoutInfo.pPushConstantRanges = &pushConstant;
+            vkCreatePipelineLayout(vkDevice, &layoutInfo, nullptr, &rtPipelineLayout);
         }
 
 	    RT64_LOG_PRINTF("Creating the composition descriptor set layout");
@@ -641,26 +663,7 @@ namespace RT64
             rtShaderGroups.push_back(group);
         }
         
-	    RT64_LOG_PRINTF("Gathering the descriptor set layouts...");        
-        // Push the main RT descriptor set layout into the layouts vector
-        rtDescriptorSetLayouts.clear();
-        rtDescriptorSetLayouts.reserve(shaders.size() + 1);
-        rtDescriptorSetLayouts.push_back(rtDescriptorSetLayout);
-        
-	    RT64_LOG_PRINTF("Creating the RT pipeline...");
-		// Set up the push constnants
-		VkPushConstantRange pushConstant;
-		pushConstant.offset = 0;
-		pushConstant.size = sizeof(RaygenPushConstant);
-		pushConstant.stageFlags = VK_SHADER_STAGE_RAYGEN_BIT_KHR;
-        // Create the pipeline layout create info
-        VkPipelineLayoutCreateInfo layoutInfo {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO};
-        layoutInfo.setLayoutCount = 1;
-        layoutInfo.pSetLayouts = &rtDescriptorSetLayout;
-        layoutInfo.pushConstantRangeCount = 1;
-        layoutInfo.pPushConstantRanges = &pushConstant;
-        vkCreatePipelineLayout(vkDevice, &layoutInfo, nullptr, &rtPipelineLayout);
-
+	    RT64_LOG_PRINTF("Creating the raytracing pipeline...");   
         // Assemble the shader stages and recursion depth info into the ray tracing pipeline
         VkRayTracingPipelineInterfaceCreateInfoKHR interfaceInfo { VK_STRUCTURE_TYPE_RAY_TRACING_PIPELINE_INTERFACE_CREATE_INFO_KHR };
         interfaceInfo.maxPipelineRayHitAttributeSize = 2 * sizeof(float);
@@ -674,9 +677,6 @@ namespace RT64
         rayPipelineInfo.layout = rtPipelineLayout;
         rayPipelineInfo.pLibraryInterface = &interfaceInfo;
         vkCreateRayTracingPipelinesKHR(vkDevice, {}, {}, 1, &rayPipelineInfo, nullptr, &rtPipeline);
-
-        rtDescriptorSets.clear();
-        rtDescriptorSets.push_back(rtDescriptorSet);
 
 	    RT64_LOG_PRINTF("Raytracing pipeline created!");
     }
@@ -820,7 +820,6 @@ namespace RT64
         }
         if (rtStateDirty) {
             vkDestroyPipeline(vkDevice, rtPipeline, nullptr);
-            vkDestroyPipelineLayout(vkDevice, rtPipelineLayout, nullptr);
             createRayTracingPipeline();
             rtStateDirty = false;
         }
@@ -885,23 +884,21 @@ namespace RT64
         }
 
         // Submit the queue
-        VK_CHECK(vkQueueSubmit(graphicsQueue, 1, &submitInfo, inFlightFences[currentFrame]));
+        VK_CHECK(vkQueueSubmit(graphicsQueue.queue, 1, &submitInfo, inFlightFences[currentFrame]));
+        vkQueueWaitIdle(graphicsQueue.queue);
         fencesUp[currentFrame] = true;
 
+        VkSwapchainKHR swapChains[] = { swapChain };
         VkPresentInfoKHR presentInfo{};
         presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
         presentInfo.waitSemaphoreCount = 1;
         presentInfo.pWaitSemaphores = signalSemaphores;
-        VkSwapchainKHR swapChains[] = { swapChain };
         presentInfo.swapchainCount = 1;
         presentInfo.pSwapchains = swapChains;
         presentInfo.pImageIndices = &framebufferIndex;
         presentInfo.pResults = nullptr; // Optional
         // Now pop it on the screen!
-        result = vkQueuePresentKHR(presentQueue, &presentInfo);
-
-        // Now wait for GPU
-        waitForGPU();
+        result = vkQueuePresentKHR(presentQueue.queue, &presentInfo);
 
         // Handle resizing again
         updateSize(result, "failed to present swap chain image!");
@@ -979,12 +976,11 @@ namespace RT64
 
     void Device::createCommandPool() {
 	    RT64_LOG_PRINTF("Command pool creation started");
-        QueueFamilyIndices queueFamilyIndices = findQueueFamilies(physicalDevice);
 
         VkCommandPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
-        poolInfo.queueFamilyIndex = queueFamilyIndices.graphicsFamily.value();
+        poolInfo.queueFamilyIndex = graphicsQueue.familyIndex;
         
         VK_CHECK(vkCreateCommandPool(vkDevice, &poolInfo, nullptr, &commandPool));
     }
@@ -1132,10 +1128,9 @@ namespace RT64
         createInfo.imageArrayLayers = 1;
         createInfo.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         
-        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
-        uint32_t queueFamilyIndices[] = {indices.graphicsFamily.value(), indices.presentFamily.value()};
+        uint32_t queueFamilyIndices[] = {graphicsQueue.familyIndex, presentQueue.familyIndex};
 
-        if (indices.graphicsFamily != indices.presentFamily) {
+        if (graphicsQueue.familyIndex != presentQueue.familyIndex) {
             createInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
             createInfo.queueFamilyIndexCount = 2;
             createInfo.pQueueFamilyIndices = queueFamilyIndices;
@@ -1231,121 +1226,11 @@ namespace RT64
         rtAllocator.init(vkInstance, vkDevice, physicalDevice);
     }
 
-	void Device::createVKInstance() 
-    {
-	    RT64_LOG_PRINTF("Creating Vulkan instance");
-        
-        VkApplicationInfo appInfo{};
-        appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-        appInfo.pApplicationName = "RT64VK Application";
-        appInfo.applicationVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.pEngineName = "No Engine";
-        appInfo.engineVersion = VK_MAKE_VERSION(1, 0, 0);
-        appInfo.apiVersion = RT64_VULKAN_VERSION;
-
-        VkInstanceCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-        createInfo.pApplicationInfo = &appInfo;
-
-        auto extensions = getInstanceExtensions();
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
-        createInfo.ppEnabledExtensionNames = extensions.data();
-
-        VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo;
-        if (enableValidationLayers) {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-            createInfo.ppEnabledLayerNames = validationLayers.data();
-
-            populateDebugMessengerCreateInfo(debugCreateInfo);
-            createInfo.pNext = (VkDebugUtilsMessengerCreateInfoEXT *)&debugCreateInfo;
-        } else {
-            createInfo.enabledLayerCount = 0;
-            createInfo.pNext = nullptr;
-        }
-
-        VK_CHECK(vkCreateInstance(&createInfo, nullptr, &vkInstance));
-
-        hasGflwRequiredInstanceExtensions();
-    }
-
 #ifndef RT64_MINIMAL
     void Device::createSurface() { 
         VK_CHECK(glfwCreateWindowSurface(vkInstance, window, nullptr, &vkSurface));
     }
 #endif
-
-    void Device::pickPhysicalDevice() 
-    {
-        uint32_t deviceCount = 0;
-        vkEnumeratePhysicalDevices(vkInstance, &deviceCount, nullptr);
-        if (deviceCount == 0) {
-            throw std::runtime_error("failed to find GPUs with Vulkan support!");
-        }
-        
-        std::vector<VkPhysicalDevice> devices(deviceCount);
-        vkEnumeratePhysicalDevices(vkInstance, &deviceCount, devices.data());
-        
-        for (const auto& device : devices) {
-            if (isDeviceSuitable(device)) {
-                physicalDevice = device;
-                break;
-            }
-        }
-
-        if (physicalDevice == VK_NULL_HANDLE) {
-            throw std::runtime_error("failed to find a suitable GPU!");
-        }
-    }
-
-    void Device::createLogicalDevice() {
-        QueueFamilyIndices indices = findQueueFamilies(physicalDevice);
-
-        std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
-        std::set<uint32_t> uniqueQueueFamilies = {indices.graphicsFamily.value(), indices.presentFamily.value()};
-
-        float queuePriority = 1.0f;
-        for (uint32_t queueFamily : uniqueQueueFamilies) {
-            VkDeviceQueueCreateInfo queueCreateInfo{};
-            queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-            queueCreateInfo.queueFamilyIndex = queueFamily;
-            queueCreateInfo.queueCount = 1;
-            queueCreateInfo.pQueuePriorities = &queuePriority;
-            queueCreateInfos.push_back(queueCreateInfo);
-        }
-        
-        VkPhysicalDeviceFeatures deviceFeatures{};
-        VkPhysicalDeviceFeatures2 deviceFeatures2{};
-        VkPhysicalDeviceVulkan11Features deviceFeatures11{};
-        VkPhysicalDeviceVulkan12Features deviceFeatures12{};
-        deviceFeatures2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
-        deviceFeatures11.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES;
-        deviceFeatures12.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES;
-        deviceFeatures2.features = deviceFeatures;
-        deviceFeatures2.pNext = &deviceFeatures12;
-        deviceFeatures12.pNext = &deviceFeatures11;
-        vkGetPhysicalDeviceFeatures2(physicalDevice, &deviceFeatures2);
-
-        VkDeviceCreateInfo createInfo{};
-        createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-        createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
-        createInfo.pQueueCreateInfos = queueCreateInfos.data();
-        // createInfo.pEnabledFeatures = &deviceFeatures;
-        createInfo.pNext = &deviceFeatures2;
-
-        createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
-        createInfo.ppEnabledExtensionNames = deviceExtensions.data();
-        if (enableValidationLayers) {
-            createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
-            createInfo.ppEnabledLayerNames = validationLayers.data();
-        } else {
-            createInfo.enabledLayerCount = 0;
-        }
-
-        VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, nullptr, &vkDevice));
-
-        vkGetDeviceQueue(vkDevice, indices.graphicsFamily.value(), 0, &graphicsQueue);
-        vkGetDeviceQueue(vkDevice, indices.presentFamily.value(), 0, &presentQueue);
-    }
 
     SwapChainSupportDetails Device::querySwapChainSupport(VkPhysicalDevice device) {
         SwapChainSupportDetails details;
@@ -1385,7 +1270,6 @@ namespace RT64
                 return availablePresentMode;
             }
         }
-
         return VK_PRESENT_MODE_FIFO_KHR;
     }
     
@@ -1424,150 +1308,6 @@ namespace RT64
         }
     }
 
-    bool Device::isDeviceSuitable(VkPhysicalDevice device) {
-        QueueFamilyIndices indices = findQueueFamilies(device);
-        bool extensionsSupported = checkDeviceExtensionSupport(device);
-        bool swapChainAdequate = false;
-        if (extensionsSupported) {
-            SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
-            swapChainAdequate = !swapChainSupport.formats.empty() && !swapChainSupport.presentModes.empty();
-        }
-        return indices.isComplete() && extensionsSupported && swapChainAdequate;
-
-    }
-
-    bool Device::checkDeviceExtensionSupport(VkPhysicalDevice device) {
-        uint32_t extensionCount;
-        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
-
-        std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-        vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
-
-        std::set<std::string> requiredExtensions(deviceExtensions.begin(), deviceExtensions.end());
-
-        for (const auto& extension : availableExtensions) {
-            requiredExtensions.erase(extension.extensionName);
-        }
-
-        return requiredExtensions.empty();
-    }
-
-    // local callback functions
-    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-        VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-        VkDebugUtilsMessageTypeFlagsEXT messageType,
-        const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-        void *pUserData) 
-    {
-        std::cerr << "********************************************************" << std::endl;
-        std::cerr << "[VALIDATION LAYER] " << pCallbackData->pMessage << std::endl;
-        std::cerr << std::endl;
-        return VK_FALSE;
-    }
-
-    VkResult CreateDebugUtilsMessengerEXT(
-        VkInstance instance,
-        const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
-        const VkAllocationCallbacks *pAllocator,
-        VkDebugUtilsMessengerEXT *pDebugMessenger) 
-    {
-        auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
-            instance,
-            "vkCreateDebugUtilsMessengerEXT");
-        if (func != nullptr) {
-            return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-        } else {
-            return VK_ERROR_EXTENSION_NOT_PRESENT;
-        }
-    }
-
-    void Device::populateDebugMessengerCreateInfo(VkDebugUtilsMessengerCreateInfoEXT &createInfo) 
-    {
-        createInfo = {};
-        createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-                                    VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                                VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                                VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        createInfo.pfnUserCallback = debugCallback;
-        createInfo.pUserData = nullptr;  // Optional
-    }
-
-    void Device::setupDebugMessenger() {
-        if (!enableValidationLayers) return;
-        VkDebugUtilsMessengerCreateInfoEXT createInfo;
-        populateDebugMessengerCreateInfo(createInfo);
-        VK_CHECK(CreateDebugUtilsMessengerEXT(vkInstance, &createInfo, nullptr, &debugMessenger));
-    }
-
-    QueueFamilyIndices Device::findQueueFamilies(VkPhysicalDevice device)
-    {
-        QueueFamilyIndices indices;
-        // Assign index to queue families that could be found
-        uint32_t queueFamilyCount = 0;
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, nullptr);
-        std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
-        vkGetPhysicalDeviceQueueFamilyProperties(device, &queueFamilyCount, queueFamilies.data());
-
-        int i = 0;
-        for (const auto& queueFamily : queueFamilies) {
-            if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-                indices.graphicsFamily = i;
-            }
-            VkBool32 presentSupport = false;
-            vkGetPhysicalDeviceSurfaceSupportKHR(device, i, vkSurface, &presentSupport);
-            if (presentSupport) {
-                indices.presentFamily = i;
-            }
-            if (indices.isComplete()) {
-                break;
-            }
-            i++;
-        }
-
-        return indices;
-    }
-
-    std::vector<const char*> Device::getInstanceExtensions() 
-    {
-        uint32_t glfwExtensionCount = 0;
-        const char** glfwExtensions;
-        glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-
-        std::vector<const char*> extensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
-
-        if (enableValidationLayers) {
-            extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-        }
-
-        return extensions;
-    }
-
-    void Device::hasGflwRequiredInstanceExtensions() 
-    {
-        uint32_t extensionCount = 0;
-        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, nullptr);
-        std::vector<VkExtensionProperties> extensions(extensionCount);
-        vkEnumerateInstanceExtensionProperties(nullptr, &extensionCount, extensions.data());
-
-        std::cout << "available extensions:" << std::endl;
-        std::unordered_set<std::string> available;
-        for (const auto &extension : extensions) {
-            std::cout << "\t" << extension.extensionName << std::endl;
-            available.insert(extension.extensionName);
-        }
-
-        std::cout << "required extensions:" << std::endl;
-        auto requiredExtensions = getInstanceExtensions();
-        for (const auto &required : requiredExtensions) {
-            std::cout << "\t" << required << std::endl;
-            if (available.find(required) == available.end()) {
-                throw std::runtime_error("Missing required glfw extension");
-            }
-        }
-    }
-
 #ifndef RT64_MINIMAL
     void Device::framebufferResizeCallback(GLFWwindow* glfwWindow, int width, int height) {
         auto rt64Device = reinterpret_cast<Device*>(glfwGetWindowUserPointer(glfwWindow));
@@ -1576,13 +1316,6 @@ namespace RT64
         rt64Device->height = height;
     }
 #endif
-
-    void DestroyDebugUtilsMessengerEXT(VkInstance instance, VkDebugUtilsMessengerEXT debugMessenger, const VkAllocationCallbacks* pAllocator) {
-        auto func = (PFN_vkDestroyDebugUtilsMessengerEXT) vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-        if (func != nullptr) {
-            func(instance, debugMessenger, pAllocator);
-        }
-    }
 
     Device::~Device() {
 #ifndef RT64_MINIMAL
@@ -1700,9 +1433,6 @@ namespace RT64
         vkDestroyPipelineLayout(vkDevice, gaussianFilterRGB3x3PipelineLayout, nullptr);
         vkDestroyDescriptorSetLayout(vkDevice, gaussianFilterRGB3x3DescriptorSetLayout, nullptr);
 #endif
-        if (enableValidationLayers) {
-            DestroyDebugUtilsMessengerEXT(vkInstance, debugMessenger, nullptr);
-        }
         vkctx.deinit();
         // Destroy the window
         glfwDestroyWindow(window);
@@ -1747,7 +1477,6 @@ namespace RT64
     VkPipelineLayout&   Device::getRTPipelineLayout() { return rtPipelineLayout; }
     VkDescriptorSet&    Device::getRTDescriptorSet() { return rtDescriptorSet; }
     VkDescriptorSetLayout& Device::getRTDescriptorSetLayout() { return rtDescriptorSetLayout; }
-    std::vector<VkDescriptorSet>& Device::getRTDescriptorSets() { return rtDescriptorSets; }
     VkPipeline&             Device::getComposePipeline()                            { return composePipeline; }
     VkPipelineLayout&       Device::getComposePipelineLayout()                      { return composePipelineLayout; }
     VkDescriptorSet&        Device::getComposeDescriptorSet()                       { return composeDescriptorSet; }
@@ -1799,7 +1528,7 @@ namespace RT64
     VkPipelineShaderStageCreateInfo Device::getRefractionShaderStage() const { return refractionRayGenStage; }
 
     void Device::initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder) {
-        rtBuilder.setup(vkDevice, &rtAllocator, vkctx.m_queueC);
+        rtBuilder.setup(vkDevice, &rtAllocator, computeQueue.familyIndex);
     }
 
     void Device::setInspectorVisibility(bool v) { showInspector = v; }
@@ -1858,8 +1587,8 @@ namespace RT64
         info.Instance = vkInstance;
         info.Device = vkDevice;
         info.PhysicalDevice = physicalDevice;
-        info.Queue = vkctx.m_queueGCT;
-        info.QueueFamily = vkctx.m_queueGCT.familyIndex;
+        info.Queue = graphicsQueue.queue;
+        info.QueueFamily = graphicsQueue.familyIndex;
         info.MinImageCount = MAX_FRAMES_IN_FLIGHT;
         info.ImageCount = MAX_FRAMES_IN_FLIGHT;
         return info;
@@ -2270,8 +1999,8 @@ namespace RT64
         submitInfo.commandBufferCount = 1;
         submitInfo.pCommandBuffers = commandBuffer;
 
-        vkQueueSubmit(graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-        vkQueueWaitIdle(graphicsQueue);
+        vkQueueSubmit(graphicsQueue.queue, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(graphicsQueue.queue);
 
         vkFreeCommandBuffers(vkDevice, commandPool, 1, commandBuffer);
     }
