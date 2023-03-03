@@ -51,6 +51,7 @@ namespace RT64 {
             RasterGroup rasterGroup {};
             HitGroup surfaceHitGroup {};
             HitGroup shadowHitGroup {};
+            VkDescriptorPool rasterDescriptorPool = VK_NULL_HANDLE;
             uint32_t flags;
             bool hitGroupInit = false;
             bool rasterGroupInit = false;
@@ -82,6 +83,5 @@ namespace RT64 {
             bool hasHitGroups() const;
             uint32_t hitGroupCount() const;
             unsigned int getSamplerRegisterIndex() const;
-            void allocateRasterDescriptorSet();
         };
 };

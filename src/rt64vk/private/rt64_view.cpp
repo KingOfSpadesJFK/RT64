@@ -93,8 +93,15 @@ namespace RT64
         createGlobalParamsBuffer();
 	    createFilterParamsBuffer();
 
+        VkDescriptorPoolCreateInfo poolInfo{ VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+        poolInfo.maxSets = 2;
+        poolInfo.poolSizeCount = device->getGaussianDescriptorPoolSizes().size();
+        poolInfo.pPoolSizes = device->getGaussianDescriptorPoolSizes().data();
+        poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+        VK_CHECK(vkCreateDescriptorPool(device->getVkDevice(), &poolInfo, nullptr, &descriptorPool));
+        device->allocateDescriptorSet(device->getGaussianFilterRGB3x3DescriptorSetLayout(), indirectFilterDescriptorSets[0], descriptorPool);
+        device->allocateDescriptorSet(device->getGaussianFilterRGB3x3DescriptorSetLayout(), indirectFilterDescriptorSets[1], descriptorPool);
 	    scene->addView(this);
-        device->dirtyDescriptorPool();
     }
 
     void View::createOutputBuffers() {
@@ -466,7 +473,8 @@ namespace RT64
         shaderBindingTable.destroyResource();
         im3dVertexBuffer.destroyResource();
         vkDestroySampler(device->getVkDevice(), skyPlaneSampler, nullptr);
-        vkFreeDescriptorSets(device->getVkDevice(), device->getDescriptorPool(), 2, indirectFilterDescriptorSets);
+        vkFreeDescriptorSets(device->getVkDevice(), descriptorPool, 2, indirectFilterDescriptorSets);
+        vkDestroyDescriptorPool(device->getVkDevice(), descriptorPool, nullptr);
 
         rtBuilder.destroyTlas();
     }
@@ -1948,11 +1956,6 @@ namespace RT64
 
     void View::setSkyPlaneTexture(Texture *texture) {
         skyPlaneTexture = texture;
-    }
-
-    void View::allocateDescriptorSets() {
-        device->allocateDescriptorSet(device->getGaussianFilterRGB3x3DescriptorSetLayout(), indirectFilterDescriptorSets[0]);
-        device->allocateDescriptorSet(device->getGaussianFilterRGB3x3DescriptorSetLayout(), indirectFilterDescriptorSets[1]);
     }
 
     RT64_VECTOR3 View::getRayDirectionAt(int px, int py) {

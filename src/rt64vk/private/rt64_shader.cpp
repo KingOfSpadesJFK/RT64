@@ -333,6 +333,7 @@ namespace RT64
 		vkDestroyPipeline(device->getVkDevice(), rasterGroup.presentPipeline, nullptr);
 		vkDestroyPipeline(device->getVkDevice(), rasterGroup.offscreenPipeline, nullptr);
 		vkDestroyPipelineLayout(device->getVkDevice(), rasterGroup.pipelineLayout, nullptr);
+		vkDestroyDescriptorPool(device->getVkDevice(), rasterDescriptorPool, nullptr);
 		vkDestroyDescriptorSetLayout(device->getVkDevice(), rasterGroup.descriptorSetLayout, nullptr);
 
 		vkDestroyShaderModule(device->getVkDevice(), surfaceHitGroup.shaderModule, nullptr);
@@ -810,7 +811,14 @@ namespace RT64
 		bindings.push_back({SRV_INDEX(gTextures) + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, SRV_TEXTURES_MAX, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
 		bindings.push_back({samplerRegisterIndex + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr});
 		
-		device->generateDescriptorSetLayout(bindings, flags, descriptorSetLayout);
+		device->generateDescriptorSetLayout(bindings, flags, descriptorSetLayout, poolSizes);
+		VkDescriptorPoolCreateInfo poolInfo { VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO };
+		poolInfo.maxSets = 2;
+		poolInfo.poolSizeCount = poolSizes.size();
+		poolInfo.pPoolSizes = poolSizes.data();
+		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT | VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT;
+		VK_CHECK(vkCreateDescriptorPool(device->getVkDevice(), &poolInfo, nullptr, &rasterDescriptorPool));
+		device->allocateDescriptorSet(descriptorSetLayout, descriptorSet, rasterDescriptorPool);
 	}
 	
 	void Shader::compileShaderCode(const std::string& shaderCode, VkShaderStageFlagBits stage, const std::string& entryName, const std::wstring& profile, VkPipelineShaderStageCreateInfo& shaderStage, VkShaderModule& shaderModule) {
@@ -899,10 +907,6 @@ namespace RT64
 	uint32_t Shader::getFlags() const { return flags; }
 	bool Shader::has3DRaster() const { return flags & RT64_SHADER_RASTER_TRANSFORMS_ENABLED; }
 	unsigned int Shader::getSamplerRegisterIndex() const { return samplerRegisterIndex; }
-
-	void Shader::allocateRasterDescriptorSet() {
-		device->allocateDescriptorSet(rasterGroup.descriptorSetLayout, rasterGroup.descriptorSet);
-	}
 };
 
 // Library exports

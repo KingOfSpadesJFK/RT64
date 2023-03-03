@@ -89,6 +89,7 @@ namespace RT64
             std::vector<VkImageView> swapChainImageViews;
             Mipmaps* mipmaps = nullptr;
             bool disableMipmaps = false;
+            bool vsyncEnabled = true;
 
             inline void createVkInstanceNV();
             SwapChainSupportDetails querySwapChainSupport(VkPhysicalDevice device);
@@ -115,7 +116,7 @@ namespace RT64
 
             void initRayTracing();
             void recreateSwapChain();
-            bool updateSize(VkResult result, const char* error);
+            bool updateSize(VkResult result, bool vsync, const char* error);
             void updateViewport();
             void updateScenes();
             void resizeScenes();
@@ -155,6 +156,7 @@ namespace RT64
             std::vector<VkFramebuffer> swapChainFramebuffers;
 
             VkCommandPool commandPool;
+            VkCommandPool computeCommandPool;
             std::vector<VkCommandBuffer> commandBuffers;
             bool commandBufferActive = false;
 
@@ -171,7 +173,8 @@ namespace RT64
             nvvk::RaytracingBuilderKHR rtBlasBuilder;
             nvvk::ResourceAllocatorDma rtAllocator;
 
-            std::vector<VkDescriptorPoolSize> descriptorPoolBindings;
+            std::vector<VkDescriptorPoolSize> descriptorPoolSizes;
+            std::vector<VkDescriptorPoolSize> gaussianDescriptorPoolSizes;
             VkDescriptorPool descriptorPool;
 
             uint32_t currentFrame = 0;
@@ -351,6 +354,7 @@ namespace RT64
             VkPipeline&                 getGaussianFilterRGB3x3Pipeline();
             VkPipelineLayout&           getGaussianFilterRGB3x3PipelineLayout();
             VkDescriptorSetLayout&      getGaussianFilterRGB3x3DescriptorSetLayout();
+            std::vector<VkDescriptorPoolSize>& getGaussianDescriptorPoolSizes();
 
             VkCommandBuffer* beginSingleTimeCommands();
             VkCommandBuffer* beginSingleTimeCommands(VkCommandBuffer* commandBuffer);
@@ -392,9 +396,9 @@ namespace RT64
             void removeDepthImageView(VkImageView* depthImageView);
             void createShaderModule(const void* code, size_t size, const char* entryName, VkShaderStageFlagBits stage, VkPipelineShaderStageCreateInfo& shaderStageInfo, VkShaderModule& shader, std::vector<VkPipelineShaderStageCreateInfo>* shaderStages);
             void initRTBuilder(nvvk::RaytracingBuilderKHR& rtBuilder);
-            void generateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout);
+            void generateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkDescriptorPoolSize>& poolSizes);
             void addToDescriptorPool(std::vector<VkDescriptorSetLayoutBinding>& bindings);
-            void allocateDescriptorSet(VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorSet& descriptorSet);
+            void allocateDescriptorSet(VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorSet& descriptorSet, VkDescriptorPool& descriptorPool);
             void createFramebuffer(VkFramebuffer& framebuffer, VkRenderPass& renderPass, VkImageView& imageView, VkImageView* depthView, VkExtent2D extent);
             void waitForGPU();
 

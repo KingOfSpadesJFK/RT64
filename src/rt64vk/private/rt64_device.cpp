@@ -309,7 +309,7 @@ namespace RT64
                 {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
                 {0 + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
             };
-            generateDescriptorSetLayout(bindings, flags, composeDescriptorSetLayout);
+            generateDescriptorSetLayout(bindings, flags, composeDescriptorSetLayout, descriptorPoolSizes);
         }
 
         RT64_LOG_PRINTF("Creating the composition pipeline");
@@ -343,7 +343,7 @@ namespace RT64
                 {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
                 {CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
             };
-            generateDescriptorSetLayout(bindings, flags, postProcessDescriptorSetLayout);
+            generateDescriptorSetLayout(bindings, flags, postProcessDescriptorSetLayout, descriptorPoolSizes);
         }
 
         RT64_LOG_PRINTF("Creating the post process pipeline");
@@ -376,7 +376,7 @@ namespace RT64
                 {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
                 {CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
             };
-            generateDescriptorSetLayout(bindings, flags, tonemappingDescriptorSetLayout);
+            generateDescriptorSetLayout(bindings, flags, tonemappingDescriptorSetLayout, descriptorPoolSizes);
         }
 
         RT64_LOG_PRINTF("Creating the color correction pipeline");
@@ -423,7 +423,7 @@ namespace RT64
                 {UAV_SHIFT + UAV_INDEX(gDepth), VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr},
                 {CBV_SHIFT + CBV_INDEX(gParams), VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_FRAGMENT_BIT, nullptr}
             };
-            generateDescriptorSetLayout(bindings, flags, debugDescriptorSetLayout);
+            generateDescriptorSetLayout(bindings, flags, debugDescriptorSetLayout, descriptorPoolSizes);
         }
 
         RT64_LOG_PRINTF("Creating the debug pipeline");
@@ -463,7 +463,7 @@ namespace RT64
                 {0 + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, stages, nullptr},
                 {0 + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, stages, nullptr}
             };
-            generateDescriptorSetLayout(bindings, flags, gaussianFilterRGB3x3DescriptorSetLayout);
+            generateDescriptorSetLayout(bindings, flags, gaussianFilterRGB3x3DescriptorSetLayout, gaussianDescriptorPoolSizes);
         }
 
         RT64_LOG_PRINTF("Creating the Gaussian blur pipeline");
@@ -504,7 +504,7 @@ namespace RT64
                 {UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, 1, stages, nullptr},
                 {CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, stages, nullptr},
             };
-            generateDescriptorSetLayout(bindings, flags, im3dDescriptorSetLayout);
+            generateDescriptorSetLayout(bindings, flags, im3dDescriptorSetLayout, descriptorPoolSizes);
         }
 
         RT64_LOG_PRINTF("Creating the Im3d pipeline");
@@ -616,8 +616,9 @@ namespace RT64
 	    RT64_LOG_PRINTF("Loading the hit modules...");
         // Add the generated hit shaders to the shaderStages vector
         int i = 0;
+        int hitShaders = 0;
         for (Shader* s : shaders) {
-            if (s != nullptr && s->hasHitGroups()) {
+            if (s->hasHitGroups()) {
                 auto surfaceHitGroup = s->getSurfaceHitGroup();
                 shaderStages.push_back(surfaceHitGroup.shaderInfo);
                 auto shadowHitGroup = s->getShadowHitGroup();
@@ -625,8 +626,10 @@ namespace RT64
                 // Set the SBT index of the hit shaders
                 s->setSurfaceSBTIndex(i++);
                 s->setShadowSBTIndex(i++);
+                hitShaders += 2;
             }
         }
+        assert(hitShaders == hitGroupCount);
 
 	    RT64_LOG_PRINTF("Grouping the shaders...");
 
@@ -729,46 +732,31 @@ namespace RT64
             bindings.push_back({samplerPair.first + SAMPLER_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLER, 1, defaultStageFlags, nullptr});
         }
 
-		generateDescriptorSetLayout(bindings, flags, rtDescriptorSetLayout);
+		generateDescriptorSetLayout(bindings, flags, rtDescriptorSetLayout, descriptorPoolSizes);
     }
+
+    #define DESCRIPTOR_SETS_IN_DEVICE   6
 
     // Creates the descriptor pool and allocates the descriptor sets to the pool
     void Device::createDescriptorPool() {
 	    RT64_LOG_PRINTF("Creating the descriptor pool...");
         VkDescriptorPoolCreateInfo poolInfo{};
         poolInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        poolInfo.poolSizeCount = descriptorPoolBindings.size();
-        poolInfo.pPoolSizes = descriptorPoolBindings.data();
+        poolInfo.poolSizeCount = descriptorPoolSizes.size();
+        poolInfo.pPoolSizes = descriptorPoolSizes.data();
 		poolInfo.flags = VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT | VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         // Change the constant if you add more descriptor sets
         //  Just bellow the RT64_LOG_PRINTF(), count the lines of allocateDescriptorSet() calls
-        #define DESCRIPTOR_SETS_IN_DEVICE   6
-        #define DESCRIPTOR_SETS_IN_VIEW     2
-        poolInfo.maxSets = (shaders.size() * 3) + (scenes.size() * DESCRIPTOR_SETS_IN_VIEW ) + DESCRIPTOR_SETS_IN_DEVICE;      
+        poolInfo.maxSets = DESCRIPTOR_SETS_IN_DEVICE;
 		VK_CHECK(vkCreateDescriptorPool(vkDevice, &poolInfo, nullptr, &descriptorPool));
 
 	    RT64_LOG_PRINTF("Allocating the descriptor sets to the pool...");
-        allocateDescriptorSet(rtDescriptorSetLayout, rtDescriptorSet);
-        allocateDescriptorSet(composeDescriptorSetLayout, composeDescriptorSet);
-        allocateDescriptorSet(tonemappingDescriptorSetLayout, tonemappingDescriptorSet);
-        allocateDescriptorSet(postProcessDescriptorSetLayout, postProcessDescriptorSet);
-        allocateDescriptorSet(debugDescriptorSetLayout, debugDescriptorSet);
-        allocateDescriptorSet(im3dDescriptorSetLayout, im3dDescriptorSet);
-        
-        for (Scene* s : scenes) {
-            if (s != nullptr) {
-                for (View* v : s->getViews()) {
-                    v->allocateDescriptorSets();
-                }
-            }
-        }
-
-        for (Shader* s : shaders) {
-            if (s == nullptr) { continue; }
-            if (s->hasRasterGroup()) {
-                s->allocateRasterDescriptorSet();
-            }
-        }
+        allocateDescriptorSet(rtDescriptorSetLayout, rtDescriptorSet, descriptorPool);
+        allocateDescriptorSet(composeDescriptorSetLayout, composeDescriptorSet, descriptorPool);
+        allocateDescriptorSet(tonemappingDescriptorSetLayout, tonemappingDescriptorSet, descriptorPool);
+        allocateDescriptorSet(postProcessDescriptorSetLayout, postProcessDescriptorSet, descriptorPool);
+        allocateDescriptorSet(debugDescriptorSetLayout, debugDescriptorSet, descriptorPool);
+        allocateDescriptorSet(im3dDescriptorSetLayout, im3dDescriptorSet, descriptorPool);
     }
 
     /*
@@ -813,11 +801,6 @@ namespace RT64
             generateSamplers();
             recreateSamplers = false;
         }
-        if (descPoolDirty) {
-            vkDestroyDescriptorPool(vkDevice, descriptorPool, nullptr);
-            createDescriptorPool();
-            descPoolDirty = false;
-        }
         if (rtStateDirty) {
             vkDestroyPipeline(vkDevice, rtPipeline, nullptr);
             createRayTracingPipeline();
@@ -828,7 +811,7 @@ namespace RT64
         waitForGPU();
 
         // Handle resizing
-        if (updateSize(result, "failed to acquire swap chain image!")) {
+        if (updateSize(result, vsyncInterval, "failed to acquire swap chain image!")) {
             // don't draw the image if resized
             return;
         }
@@ -901,7 +884,7 @@ namespace RT64
         result = vkQueuePresentKHR(presentQueue.queue, &presentInfo);
 
         // Handle resizing again
-        updateSize(result, "failed to present swap chain image!");
+        updateSize(result, vsyncInterval, "failed to present swap chain image!");
         
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 #ifdef RT64_DEBUG
@@ -923,8 +906,9 @@ namespace RT64
     // Recreates the swapchain and what not if the resolution gets resized
     // Returns true if the size got updated, false if not
     //  Also returns a secret third thing if something goes wrong (a runtime error)
-    bool Device::updateSize(VkResult result, const char* error) {
-        if (result == VK_TIMEOUT || result == VK_NOT_READY || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized) {
+    bool Device::updateSize(VkResult result, bool vsync, const char* error) {
+        if (result == VK_TIMEOUT || result == VK_NOT_READY || result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || framebufferResized || vsync != vsyncEnabled) {
+            vsyncEnabled = vsync;
             recreateSwapChain();
             updateViewport();
             framebufferResized = false;
@@ -981,8 +965,9 @@ namespace RT64
         poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         poolInfo.queueFamilyIndex = graphicsQueue.familyIndex;
-        
         VK_CHECK(vkCreateCommandPool(vkDevice, &poolInfo, nullptr, &commandPool));
+        poolInfo.queueFamilyIndex = computeQueue.familyIndex;
+        VK_CHECK(vkCreateCommandPool(vkDevice, &poolInfo, nullptr, &computeCommandPool));
     }
 
     void Device::createFramebuffers() {
@@ -1265,12 +1250,15 @@ namespace RT64
 
     VkPresentModeKHR Device::chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes) 
     {
-        for (const auto& availablePresentMode : availablePresentModes) {
-            if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
-                return availablePresentMode;
+        if (vsyncEnabled) {
+            for (const auto& availablePresentMode : availablePresentModes) {
+                if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+                    return availablePresentMode;
+                }
             }
+            return VK_PRESENT_MODE_FIFO_KHR;
         }
-        return VK_PRESENT_MODE_FIFO_KHR;
+        return VK_PRESENT_MODE_IMMEDIATE_KHR;
     }
     
     VkExtent2D Device::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) 
@@ -1363,6 +1351,7 @@ namespace RT64
         vkDestroyRenderPass(vkDevice, presentRenderPass, nullptr);
         vkDestroyRenderPass(vkDevice, offscreenRenderPass, nullptr);
         vkDestroyCommandPool(vkDevice, commandPool, nullptr);
+        vkDestroyCommandPool(vkDevice, computeCommandPool, nullptr);
         for (int i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
             vkDestroySemaphore(vkDevice, imageAvailableSemaphores[i], nullptr);
             vkDestroySemaphore(vkDevice, renderFinishedSemaphores[i], nullptr);
@@ -1512,6 +1501,7 @@ namespace RT64
     Mipmaps* Device::getMipmaps() { return mipmaps; }
     float Device::getAnisotropyLevel() { return anisotropy; }
     VkPhysicalDeviceProperties Device::getPhysicalDeviceProperties() { return physDeviceProperties; }
+    std::vector<VkDescriptorPoolSize>& Device::getGaussianDescriptorPoolSizes() { return gaussianDescriptorPoolSizes; }
 
     void Device::setAnisotropyLevel(float level) {
         if (level != anisotropy) {
@@ -1610,7 +1600,7 @@ namespace RT64
         descPoolDirty = true;
     }
 
-    std::unordered_map<unsigned int, VkSampler>& Device::getSamplerMap() { return samplers; } 
+    std::unordered_map<unsigned int, VkSampler>& Device::getSamplerMap() { return samplers; }
     VkSampler& Device::getSampler(unsigned int index) { return samplers[index]; }
 
     // Removes a shader from the device
@@ -2026,13 +2016,14 @@ namespace RT64
         }
     }
 
+
     // Generates a descriptor set layout and pushes its bindings to the pool 
-    void Device::generateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout) {
+    void Device::generateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkDescriptorPoolSize>& poolSizes) {
 		for (int i = 0; i < bindings.size(); i++) {
             VkDescriptorPoolSize poolSize;
 			poolSize.type = bindings[i].descriptorType;
 			poolSize.descriptorCount = bindings[i].descriptorCount;
-            descriptorPoolBindings.push_back(poolSize);
+            poolSizes.push_back(poolSize);
 		}
 
         std::vector<VkDescriptorBindingFlags> vectorOfFlags(bindings.size(), flags);
@@ -2049,8 +2040,8 @@ namespace RT64
         VK_CHECK(vkCreateDescriptorSetLayout(vkDevice, &layoutInfo, nullptr, &descriptorSetLayout));
     }
 
-    // Allocates the descriptor set layout and descriptor set to the current descriptor pool
-	void Device::allocateDescriptorSet(VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorSet& descriptorSet) {
+    // Allocates the descriptor set layout and descriptor set to the descriptor pool
+	void Device::allocateDescriptorSet(VkDescriptorSetLayout& descriptorSetLayout, VkDescriptorSet& descriptorSet, VkDescriptorPool& descriptorPool) {
         VkDescriptorSetAllocateInfo allocInfo{};
         allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         allocInfo.descriptorSetCount = 1;

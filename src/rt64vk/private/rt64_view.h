@@ -99,6 +99,7 @@ namespace RT64
             bool imageBuffersInit = false;
             bool recreateImageBuffers = false;
 
+            VkDescriptorPool descriptorPool;
             std::vector<VkWriteDescriptorSet> rasterDescriptorSetWrite;
             AllocatedBuffer globalParamsBuffer;
             GlobalParams globalParamsData {};
@@ -231,7 +232,6 @@ namespace RT64
             RT64_VECTOR3 getRayDirectionAt(int px, int py);
 		    void renderInspector(Inspector* inspector);
             void setSkyPlaneTexture(Texture* texture);
-            void allocateDescriptorSets();
             // Getters
             int getWidth() const;
             int getHeight() const;
