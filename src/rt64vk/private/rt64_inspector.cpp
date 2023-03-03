@@ -81,6 +81,7 @@ namespace RT64 {
 		ImGuiIO& io = ImGui::GetIO(); (void)io;
 		ImGui::StyleColorsDark();
 
+
 		// Create descriptor pool for ImGui
 		//  This is just copied from the imgui demo lmao
 		VkDescriptorPoolSize pool_sizes[] =
@@ -196,6 +197,8 @@ namespace RT64 {
 
 		if (ImGui::BeginTabItem("View"))
 		{
+			ImGui::BeginChild("ViewInspector", ImVec2(0, ImGui::GetWindowHeight() * .75 - ImGui::GetFrameHeightWithSpacing() * 2.0));
+			ImGui::Text("View Inspector");
 			int diSamples = view->getDISamples();
 			int giSamples = view->getGISamples();
 			int giBounces = view->getGIBounces();
@@ -211,8 +214,8 @@ namespace RT64 {
 
 			ImGui::DragInt("DI samples", &diSamples, 0.1f, 0, 32);
 			ImGui::DragInt("GI samples", &giSamples, 0.1f, 0, 32);
-			ImGui::DragInt("GI bounces", &giBounces, 0.1f, 0, 32);
-			ImGui::DragInt("Anisotropic Filtering", &anisotropicLevels, 0.1f, 1, 16);
+			ImGui::SliderInt("GI bounces", &giBounces, 1, 4);
+			ImGui::SliderInt("Anisotropic Filtering", &anisotropicLevels,1, 16);
 			ImGui::DragInt("Max lights", &maxLights, 0.1f, 0, 16);
 			ImGui::DragInt("Max reflections", &maxReflections, 0.1f, 0, 32);
 			ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
@@ -294,6 +297,7 @@ namespace RT64 {
 			view->setResolutionScale(resScale / 100.0f);
 			view->setDenoiserEnabled(denoiser);
 
+			ImGui::EndChild();
 			ImGui::EndTabItem();
 		}
 	}
@@ -302,7 +306,9 @@ namespace RT64 {
 	void Inspector::renderPostInspector(View* view) {
 		assert(view != nullptr);
 
-		if (ImGui::BeginTabItem("Post Processing")) {
+		if (ImGui::BeginTabItem("Post")) {
+			ImGui::BeginChild("PostInspector", ImVec2(0, ImGui::GetWindowHeight() * .75 - ImGui::GetFrameHeightWithSpacing() * 2.0));
+			ImGui::Text("Post-Processing Inspector");
 			int tonemapMode = view->getTonemappingMode();
 			float tonemapExposure = view->getTonemappingExposure();
 			float tonemapWhite = view->getTonemappingWhite();
@@ -343,12 +349,15 @@ namespace RT64 {
 			view->setTonemappingWhite(tonemapWhite);
 			view->setTonemappingGamma(tonemapGamma);
 			// view->setEyeAdaptionEnabledFlag(eyeAdaption);
+			ImGui::EndChild();
 			ImGui::EndTabItem();
 		}
 	}
 
 	void Inspector::renderSceneInspector() {
 		if (sceneDesc != nullptr && ImGui::BeginTabItem("Scene")) {
+			ImGui::BeginChild("SceneInspector", ImVec2(0, ImGui::GetWindowHeight() * .75 - ImGui::GetFrameHeightWithSpacing() * 2.0));
+			ImGui::Text("Scene Inspector");
 			ImGui::DragFloat3("Ambient Base Color", &sceneDesc->ambientBaseColor.x, 0.01f, 0.0f, 100.0f);
 			ImGui::DragFloat3("Ambient No GI Color", &sceneDesc->ambientNoGIColor.x, 0.01f, 0.0f, 100.0f);
 			ImGui::DragFloat3("Eye Light Diffuse Color", &sceneDesc->eyeLightDiffuseColor.x, 0.01f, 0.0f, 100.0f);
@@ -358,13 +367,15 @@ namespace RT64 {
 			ImGui::DragFloat("Sky Yaw Offset", &sceneDesc->skyYawOffset, 0.01f, 0.0f, Im3d::TwoPi);
 			ImGui::DragFloat("GI Diffuse Strength", &sceneDesc->giDiffuseStrength, 0.01f, 0.0f, 100.0f);
 			ImGui::DragFloat("GI Sky Strength", &sceneDesc->giSkyStrength, 0.01f, 0.0f, 100.0f);
+			ImGui::EndChild();
 			ImGui::EndTabItem();
 		}
 	}
 
 	void Inspector::renderMaterialInspector() {
 		if (material != nullptr && ImGui::BeginTabItem("Material")) {
-			ImGui::Text("Name: %s", materialName.c_str());
+			ImGui::BeginChild("MaterialInspector", ImVec2(0, ImGui::GetWindowHeight() * .75 - ImGui::GetFrameHeightWithSpacing() * 2.0));
+			ImGui::Text("Material Inspector (%s)", materialName.c_str());
 
 			auto pushCommon = [](const char* name, int mask, int* attributes) {
 				bool checkboxValue = *attributes & mask;
@@ -442,12 +453,15 @@ namespace RT64 {
 			pushVector4("Diffuse color mix", RT64_ATTRIBUTE_DIFFUSE_COLOR_MIX, &material->diffuseColorMix, &material->enabledAttributes, 0.01f, 0.0f, 1.0f);
 			pushInt("Light group mask bits", RT64_ATTRIBUTE_LIGHT_GROUP_MASK_BITS, (int *)(&material->lightGroupMaskBits), &material->enabledAttributes);
 
+			ImGui::EndChild();
 			ImGui::EndTabItem();
 		}
 	}
 
 	void Inspector::renderLightInspector() {
 		if (lights != nullptr && ImGui::BeginTabItem("Lights")) {
+			ImGui::BeginChild("LightInspector", ImVec2(0, ImGui::GetWindowHeight() * .75 - ImGui::GetFrameHeightWithSpacing() * 2.0));
+			ImGui::Text("Lights Inspector");
 			ImGui::InputInt("Light count", lightCount);
 			*lightCount = std::min(std::max(*lightCount, 1), maxLightCount);
 
@@ -485,6 +499,7 @@ namespace RT64 {
 				Im3d::PopId();
 				ImGui::PopID();
 			}
+			ImGui::EndChild();
 			ImGui::EndTabItem();
 		}
 	}
@@ -538,6 +553,8 @@ namespace RT64 {
 
 	void Inspector::renderCameraControl() {
 		if (ImGui::BeginTabItem("Camera")) {
+			ImGui::BeginChild("CameraInspector", ImVec2(0, ImGui::GetWindowHeight() * .75 - ImGui::GetFrameHeightWithSpacing() * 2.0));
+			ImGui::Text("Camera Control");
 			ImGui::Checkbox("Enable", &cameraControl);
 			if (cameraControl) {
 				ImGui::DragFloat("Camera pan x", &cameraPanX, 0.1f, -100.0f, 100.0f);
@@ -555,17 +572,20 @@ namespace RT64 {
 				cameraPanX = 0.0f;
 				cameraPanY = 0.0f;
 			}
+			ImGui::EndChild();
 			ImGui::EndTabItem();
 		}
 	}
 
 	void Inspector::renderPrint() {
 		if (!printMessages.empty()) {
-			ImGui::Begin("Print");
+			ImGui::Separator();
+			ImGui::Text("Output:");
+			ImGui::BeginChild("Print", ImVec2(0, ImGui::GetWindowHeight() * .25 - ImGui::GetFrameHeightWithSpacing() * 2.0), true);
 			for (size_t i = 0; i < printMessages.size(); i++) {
 				ImGui::Text("%s", printMessages[i].c_str());
 			}
-			ImGui::End();
+			ImGui::EndChild();
 		}
 	}
 

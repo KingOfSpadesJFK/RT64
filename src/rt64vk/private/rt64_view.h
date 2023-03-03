@@ -101,7 +101,7 @@ namespace RT64
 
             std::vector<VkWriteDescriptorSet> rasterDescriptorSetWrite;
             AllocatedBuffer globalParamsBuffer;
-            GlobalParams globalParamsData;
+            GlobalParams globalParamsData {};
             VkDeviceSize globalParamsSize = 0;
             AllocatedBuffer filterParamsBuffer;
             VkDeviceSize filterParamsSize = 0;

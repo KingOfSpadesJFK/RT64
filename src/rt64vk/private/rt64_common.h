@@ -502,7 +502,7 @@ namespace RT64 {
 			unsigned int getHeight() { return dimensions.height; }
 			unsigned int getDepth() { return dimensions.depth; }
 			unsigned int getMipLevels() { return mipLevels; }
-			VkFormat getFormat() { return format; }
+			VkFormat getFormat() const { return format; }
 
 			static void transitionLayouts(AllocatedImage** images, uint32_t imageCount, VkCommandBuffer* commandBuffer, VkPipelineStageFlags sourceStage, VkPipelineStageFlags destStage, VkImageMemoryBarrier* barriers, VkImageLayout newLayout) {
 				vkCmdPipelineBarrier(

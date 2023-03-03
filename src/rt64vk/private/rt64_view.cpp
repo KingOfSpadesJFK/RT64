@@ -1083,7 +1083,7 @@ namespace RT64
             
             // Create the shader binding table and indicating which shaders
             // are invoked for each instance in the AS.
-            if (rtEnabled) {
+            if (rtEnabled && !rtInstances.empty()) {
                 createShaderBindingTable();
             }
 
@@ -1327,7 +1327,7 @@ namespace RT64
         // TODO: Some less hackish way to determine what viewport to use for the raytraced content perhaps.
         VkRect2D rtScissorRect = scissors;
         VkViewport rtViewport = viewport;
-        if (!rtInstances.empty() || !rasterFgInstances.empty()) {
+        if (!rtInstances.empty()) {
             rtScissorRect = rtInstances[0].scissorRect;
             rtViewport = rtInstances[0].viewport;
             if ((rtScissorRect.offset.x + rtScissorRect.extent.width <= rtScissorRect.offset.x)) {
@@ -1352,10 +1352,10 @@ namespace RT64
             globalParamsData.viewport.y = rtViewport.y;
             globalParamsData.viewport.z = rtViewport.width;
             globalParamsData.viewport.w = rtViewport.height;
-
-            updateGlobalParamsBuffer();
             updateFilterParamsBuffer();
         }
+
+        updateGlobalParamsBuffer();
 
         // Create a render pass begin info structure (it's a surprise tool that will help us later)
         renderPassInfo.renderArea.offset = {0, 0};
@@ -1431,7 +1431,7 @@ namespace RT64
             // Bind pipeline and dispatch primary rays.
 		    RT64_LOG_PRINTF("Dispatching primary rays");
             vkCmdBindPipeline(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipeline());
-            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipelineLayout(), 0, device->getRTDescriptorSets().size(), device->getRTDescriptorSets().data(), 0, nullptr);
+            vkCmdBindDescriptorSets(commandBuffer, VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR, device->getRTPipelineLayout(), 0, 1, &device->getRTDescriptorSet(), 0, nullptr);
             vkCmdTraceRaysKHR(commandBuffer, &primaryRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 
 	    	// Barriers for shading buffers before dispatching secondary rays.
@@ -1503,7 +1503,7 @@ namespace RT64
                     &commandBuffer);
             
                 VkDeviceSize offsets[] = {0};
-                RaygenPushConstant pushConst = { 1.0f, 1.0f };
+                RaygenPushConstant pushConst = { 1.0f, 1.0f, 0 };
                 for (int i = 0; i < globalParamsData.giBounces; i++) {
                     unsigned int giWidth = (unsigned int)((float)rtWidth / pushConst.giResolutionScale);
                     unsigned int giHeight = (unsigned int)((float)rtHeight / pushConst.giResolutionScale);
@@ -1511,8 +1511,9 @@ namespace RT64
                     RT64_LOG_PRINTF("Dispatching indirect light rays batch #%d", (i+1));
                     vkCmdPushConstants(commandBuffer, device->getRTPipelineLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(RaygenPushConstant), &pushConst);
                     vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, giWidth, giHeight, 1);
-                    pushConst.giBounceDivisor *= 16.0f;
+                    pushConst.giBounceDivisor *= 8.0f;
                     pushConst.giResolutionScale *= 2.0f;        // For every gi bounce, halve the resolution
+                    pushConst.giBounce++;
 
                     if (i < globalParamsData.giBounces - 1) {
                         // This is meant to just make the gpu wait until it's done with the prior indirect lighting
@@ -1566,7 +1567,7 @@ namespace RT64
             } else if (globalParamsData.giBounces == 1 && globalParamsData.giSamples > 0) {
                 RT64_LOG_PRINTF("Dispatching only first indirect rays");
                 VkDeviceSize offsets[] = {0};
-                RaygenPushConstant pushConst = { 1.0f, 1.0f };
+                RaygenPushConstant pushConst = { 1.0f, 1.0f, 0 };
                 vkCmdPushConstants(commandBuffer, device->getRTPipelineLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(RaygenPushConstant), &pushConst);
                 vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, rtWidth, rtHeight, 1);
 

@@ -31,6 +31,7 @@ float3 getCosHemisphereSampleBlueNoise(uint2 pixelPos, uint frameCount, float3 h
 struct PushConstant { 
     float giBounceDivisor;
     float giResolutionScale;
+	uint giBounce;
 };
 
 [[vk::push_constant]] PushConstant pc;
@@ -40,7 +41,7 @@ void IndirectRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	uint2 scaledLaunchIndex = (launchIndex * pc.giResolutionScale);
 	if (pc.giResolutionScale > 1.0f){
-		uint2 launchIndexOffset = getBlueNoise(scaledLaunchIndex, frameCount).rg * pc.giResolutionScale;
+		uint2 launchIndexOffset = getBlueNoise(launchIndex, frameCount + pc.giBounce).rg * pc.giResolutionScale;
 		scaledLaunchIndex += launchIndexOffset;
 	}
 	int instanceId = gInstanceId[scaledLaunchIndex];
@@ -75,7 +76,7 @@ void IndirectRayGen() {
 	uint maxSamples = giSamples;
 	const uint blueNoiseMult = 64 / giSamples;
 	while (maxSamples > 0) {
-		float3 rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount + maxSamples * blueNoiseMult, shadingNormal);
+		float3 rayDirection = getCosHemisphereSampleBlueNoise(launchIndex, frameCount + pc.giBounce + maxSamples * blueNoiseMult, shadingNormal);
 
 		// Ray differential.
 		RayDiff rayDiff;

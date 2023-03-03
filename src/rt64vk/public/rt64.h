@@ -93,12 +93,9 @@
 #define RT64_UPSCALER_MODE_ULTRA_QUALITY		0x5
 #define RT64_UPSCALER_MODE_NATIVE				0x6
 
-// Feature codes.
-#define RT64_FEATURE_DLSS						0x1
-
 // Texture formats.
-#define RT64_TEXTURE_FORMAT_RGBA8				0x01
-#define RT64_TEXTURE_FORMAT_DDS					0x02
+#define RT64_TEXTURE_FORMAT_RGBA8				0x1
+#define RT64_TEXTURE_FORMAT_DDS					0x2
 
 // Forward declaration of types.
 typedef struct RT64_DEVICE RT64_DEVICE;
@@ -299,7 +296,6 @@ typedef void (*SetViewDescriptionPtr)(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDes
 typedef void (*SetViewSkyPlanePtr)(RT64_VIEW *viewPtr, RT64_TEXTURE *texturePtr);
 typedef RT64_INSTANCE* (*GetViewRaytracedInstanceAtPtr)(RT64_VIEW *viewPtr, int x, int y);
 typedef bool (*GetViewUpscalerSupportPtr)(RT64_VIEW* viewPtr, char upscaler);
-typedef bool (*GetViewFeatureSupportPtr)(RT64_VIEW *viewPtr, int feature);
 typedef void (*DestroyViewPtr)(RT64_VIEW* viewPtr);
 typedef RT64_SCENE* (*CreateScenePtr)(RT64_DEVICE* devicePtr);
 typedef void (*SetSceneDescriptionPtr)(RT64_SCENE* scenePtr, RT64_SCENE_DESC sceneDesc);
@@ -355,7 +351,6 @@ typedef struct {
 	SetViewSkyPlanePtr SetViewSkyPlane;
 	GetViewRaytracedInstanceAtPtr GetViewRaytracedInstanceAt;
 	GetViewUpscalerSupportPtr GetViewUpscalerSupport;
-	GetViewFeatureSupportPtr GetViewFeatureSupport;
 	DestroyViewPtr DestroyView;
 	CreateScenePtr CreateScene;
 	SetSceneDescriptionPtr SetSceneDescription;
@@ -441,7 +436,6 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.SetViewSkyPlane = (SetViewSkyPlanePtr)(RT64_GetProcAddress(lib.handle, "RT64_SetViewSkyPlane"));
 		lib.GetViewRaytracedInstanceAt = (GetViewRaytracedInstanceAtPtr)(RT64_GetProcAddress(lib.handle, "RT64_GetViewRaytracedInstanceAt"));
 		lib.GetViewUpscalerSupport = (GetViewUpscalerSupportPtr)(RT64_GetProcAddress(lib.handle, "RT64_GetViewUpscalerSupport"));
-		lib.GetViewFeatureSupport = (GetViewFeatureSupportPtr)(RT64_GetProcAddress(lib.handle, "RT64_GetViewFeatureSupport"));
 		lib.DestroyView = (DestroyViewPtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyView"));
 		lib.CreateScene = (CreateScenePtr)(RT64_GetProcAddress(lib.handle, "RT64_CreateScene"));
 		lib.SetSceneDescription = (SetSceneDescriptionPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetSceneDescription"));

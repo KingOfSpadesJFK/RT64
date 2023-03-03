@@ -406,9 +406,9 @@ void setupRT64Scene() {
 
 	// Setup shader.
 	int shaderFlags = RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
-	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
+	RT64.shader = RT64.lib.CreateShader(RT64.device, 0x1045045, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 	shaderFlags = RT64_SHADER_RASTER_ENABLED;
-	Sample.uiShader = RT64.lib.CreateShader(RT64.device, 0x01200a01, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
+	Sample.uiShader = RT64.lib.CreateShader(RT64.device, 0x1045045, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 
 	// Setup lights.
 	RT64.lights[0].position = { 0.0f, 0.0f, 0.0f };
@@ -699,7 +699,7 @@ void setupSponza()
 		RT64_INSTANCE* instance = RT64.lib.CreateInstance(RT64.scene);
 		RT64_MATRIX4 sceneTransform {};
 		int shaderFlags = RT64_SHADER_RAYTRACE_ENABLED | RT64_SHADER_NORMAL_MAP_ENABLED | RT64_SHADER_SPECULAR_MAP_ENABLED;
-		Sample.sceneShaders[i] = RT64.lib.CreateShader(RT64.device, 0x01200a00, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
+		Sample.sceneShaders[i] = RT64.lib.CreateShader(RT64.device, 0x1045045, RT64_SHADER_FILTER_LINEAR, RT64_SHADER_ADDRESSING_WRAP, RT64_SHADER_ADDRESSING_WRAP, shaderFlags);
 		RT64_MATERIAL mat = RT64.baseMaterial;
 		// if (i % 5 == 0) {
 		// 	mat.reflectionFactor = 0.250f;
@@ -779,7 +779,7 @@ int main(int argc, char *argv[]) {
 #ifdef _WIN32
 			"Windows 10 version 2004 or newer is also required for this feature level to work properly\n"
 #else
-			"Linux Kernel version 6.0 or newer is recommended.\n"
+			"Linux Kernel version 6.0 or newer is recommended for this feature level to work properly\n"
 #endif
 			"If you're a mobile user, make sure that the high performance device is selected for this application on your system's settings");
 
@@ -794,7 +794,7 @@ int main(int argc, char *argv[]) {
 	RT64_VIEW_DESC viewDesc {};
 	viewDesc.diSamples = 0;
 	viewDesc.giSamples = 0;
-	viewDesc.giBounces = 0;
+	viewDesc.giBounces = 1;
 	viewDesc.denoiserEnabled = false;
 	viewDesc.maxLights = 12;
 	viewDesc.motionBlurStrength = 0.0f;
