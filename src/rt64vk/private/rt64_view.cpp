@@ -185,6 +185,7 @@ namespace RT64
         imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
         device->allocateImage(&rtDiffuse, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        device->allocateImage(&rtDiffuseSecondary, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         // Normal
         imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -277,6 +278,7 @@ namespace RT64
             &rtShadingNormalSecondary,
             &rtShadingSpecular,
             &rtDiffuse,
+            &rtDiffuseSecondary,
             &rtInstanceId,
             &rtDirectLightAccum[0], &rtDirectLightAccum[1],
             &rtFilteredDirectLight[0], &rtFilteredDirectLight[1],
@@ -325,6 +327,7 @@ namespace RT64
         rtShadingNormalSecondary.setAllocationName("rtShadingNormalSecondary");
         rtShadingSpecular.setAllocationName("rtShadingSpecular");
         rtDiffuse.setAllocationName("rtDiffuse");
+        rtDiffuseSecondary.setAllocationName("rtDiffuseSecondary");
         rtNormal[0].setAllocationName("rtNormal[0]");
         rtNormal[1].setAllocationName("rtNormal[1]");
         rtInstanceId.setAllocationName("rtInstanceId");
@@ -366,6 +369,7 @@ namespace RT64
         rtShadingNormalSecondary.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtShadingSpecular.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtDiffuse.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtDiffuseSecondary.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtNormal[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtNormal[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtInstanceId.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -419,6 +423,7 @@ namespace RT64
         rtShadingNormalSecondary.destroyResource();
         rtShadingSpecular.destroyResource();
         rtDiffuse.destroyResource();
+        rtDiffuseSecondary.destroyResource();
         rtNormal[0].destroyResource();
         rtNormal[1].destroyResource();
         rtInstanceId.destroyResource();
@@ -1482,6 +1487,7 @@ namespace RT64
                 AllocatedImage* secondaryShadingBarriers[] = {
                     &rtShadingPositionSecondary,
                     &rtShadingNormalSecondary,
+                    &rtDiffuseSecondary,
                 };
 
                 device->transitionImageLayout(primaryShadingBarriers, sizeof(primaryShadingBarriers) / sizeof(AllocatedImage*), 
@@ -1496,6 +1502,7 @@ namespace RT64
                     &commandBuffer);
                 device->copyImage(rtShadingPosition, rtShadingPositionSecondary, rtShadingPosition.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
                 device->copyImage(rtShadingNormal,   rtShadingNormalSecondary, rtShadingNormal.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
+                device->copyImage(rtDiffuse,   rtDiffuseSecondary, rtDiffuse.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
 
                 // Now make the primary shading images readable/writeable
                 device->transitionImageLayout(primaryShadingBarriers, sizeof(primaryShadingBarriers) / sizeof(AllocatedImage*), 
@@ -1546,6 +1553,7 @@ namespace RT64
                     &commandBuffer);
                 device->copyImage(rtShadingPositionSecondary, rtShadingPosition, rtShadingPosition.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
                 device->copyImage(rtShadingNormalSecondary,   rtShadingNormal, rtShadingNormal.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
+                device->copyImage(rtDiffuseSecondary,   rtDiffuse, rtDiffuse.getDimensions(), VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_ASPECT_COLOR_BIT, &commandBuffer);
 
                 // Now make the shading position image readable
                 device->transitionImageLayout(primaryShadingBarriers, sizeof(primaryShadingBarriers) / sizeof(AllocatedImage*), 

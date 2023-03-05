@@ -70,6 +70,7 @@ void IndirectRayGen() {
 		historyLength = prevIndirectAccum.a * historyWeight;
 	}
 
+	float4 hitColorFinal = gDiffuse[scaledLaunchIndex];
 	float3 hitPosition = rayOrigin;
 	float3 hitNormal = shadingNormal;
 	int hitInstanceId = -1;
@@ -147,6 +148,7 @@ void IndirectRayGen() {
 
 		// New positions and normals
 		if (resInstanceId >= 0) {
+			hitColorFinal = resColor;
 			hitPosition = resPosition;
 			hitNormal = resNormal;
 			hitInstanceId = resInstanceId;
@@ -157,6 +159,10 @@ void IndirectRayGen() {
 	
 	// Store the new positions and normals
 	if (giBounces > 1) {
+		if (pc.giBounce > 0) {
+			newIndirect *= SrgbToLinear(gDiffuse[scaledLaunchIndex].rgb);
+		}
+		gDiffuse[scaledLaunchIndex] = hitColorFinal;
 		gShadingPosition[scaledLaunchIndex] = float4(hitPosition, 0.0f);
 		gShadingNormal[scaledLaunchIndex] = float4(hitNormal, 0.0f);
 		gInstanceId[scaledLaunchIndex] = hitInstanceId;

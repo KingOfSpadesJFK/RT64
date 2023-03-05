@@ -167,6 +167,7 @@ namespace RT64
             AllocatedImage  rtShadingNormalSecondary;
             AllocatedImage  rtShadingSpecular;
             AllocatedImage  rtDiffuse;
+            AllocatedImage  rtDiffuseSecondary;
             AllocatedImage  rtInstanceId;
             AllocatedImage  rtFirstInstanceId;
             AllocatedBuffer rtFirstInstanceIdReadback;
