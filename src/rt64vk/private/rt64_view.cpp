@@ -1526,7 +1526,7 @@ namespace RT64
                     RT64_LOG_PRINTF("Dispatching indirect light rays batch #%d", (i+1));
                     vkCmdPushConstants(commandBuffer, device->getRTPipelineLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(RaygenPushConstant), &pushConst);
                     vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, giWidth, giHeight, 1);
-                    pushConst.giBounceDivisor *= 8.0f;
+                    pushConst.giBounceDivisor *= 4.0f;
                     pushConst.giResolutionScale *= 2.0f;        // For every gi bounce, halve the resolution
                     pushConst.giBounce++;
 
