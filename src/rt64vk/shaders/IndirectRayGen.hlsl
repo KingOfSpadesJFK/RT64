@@ -162,7 +162,7 @@ void IndirectRayGen() {
 		if (pc.giBounce > 0) {
 			newIndirect *= SrgbToLinear(gDiffuse[scaledLaunchIndex].rgb);
 		}
-		gDiffuse[scaledLaunchIndex] = hitColorFinal;
+		gDiffuse[scaledLaunchIndex] *= hitColorFinal;
 		gShadingPosition[scaledLaunchIndex] = float4(hitPosition, 0.0f);
 		gShadingNormal[scaledLaunchIndex] = float4(hitNormal, 0.0f);
 		gInstanceId[scaledLaunchIndex] = hitInstanceId;
