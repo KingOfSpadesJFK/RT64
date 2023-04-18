@@ -60,6 +60,10 @@ float4 getDiffuse(float2 pos) {
     return float4(gDiffuse[pos].rgb, 1.0f);
 }
 
+float4 getDiffuseBG(float2 pos) {
+    return float4(gDiffuseBG[pos].rgb, 1.0f);
+}
+
 float4 getInstanceId(float2 pos) {
     int instanceId = gInstanceId[pos];
     if (instanceId >= 0) {
@@ -125,6 +129,8 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         return getShadingSpecular(uv * resolution.xy);
     case VISUALIZATION_MODE_DIFFUSE:
         return getDiffuse(uv * resolution.xy);
+    case VISUALIZATION_MODE_BACKGROUND:
+        return getDiffuseBG(uv * resolution.xy);
     case VISUALIZATION_MODE_INSTANCE_ID:
         return getInstanceId(uv * resolution.xy);
     case VISUALIZATION_MODE_DIRECT_LIGHT_RAW:

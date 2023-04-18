@@ -86,6 +86,7 @@ namespace RT64 {
 		gPrevIndirectLightAccum,
 		gFilteredDirectLight,
 		gFilteredIndirectLight,
+		gDiffuseBG,
 		gHitDistAndFlow,
 		gHitColor,
 		gHitNormal,

@@ -183,9 +183,11 @@ namespace RT64
 
         // Diffuse
         imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-        imageInfo.format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        imageInfo.format = VK_FORMAT_R16G16B16A16_UNORM;
         device->allocateImage(&rtDiffuse, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtDiffuseSecondary, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
+        imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        device->allocateImage(&rtDiffuseBG, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         // Normal
         imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
@@ -278,6 +280,7 @@ namespace RT64
             &rtShadingNormalSecondary,
             &rtShadingSpecular,
             &rtDiffuse,
+            &rtDiffuseBG,
             &rtDiffuseSecondary,
             &rtInstanceId,
             &rtDirectLightAccum[0], &rtDirectLightAccum[1],
@@ -327,6 +330,7 @@ namespace RT64
         rtShadingNormalSecondary.setAllocationName("rtShadingNormalSecondary");
         rtShadingSpecular.setAllocationName("rtShadingSpecular");
         rtDiffuse.setAllocationName("rtDiffuse");
+        rtDiffuseBG.setAllocationName("rtDiffuseBG");
         rtDiffuseSecondary.setAllocationName("rtDiffuseSecondary");
         rtNormal[0].setAllocationName("rtNormal[0]");
         rtNormal[1].setAllocationName("rtNormal[1]");
@@ -369,6 +373,7 @@ namespace RT64
         rtShadingNormalSecondary.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtShadingSpecular.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtDiffuse.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
+        rtDiffuseBG.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtDiffuseSecondary.createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtNormal[0].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
         rtNormal[1].createImageView(VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT);
@@ -423,6 +428,7 @@ namespace RT64
         rtShadingNormalSecondary.destroyResource();
         rtShadingSpecular.destroyResource();
         rtDiffuse.destroyResource();
+        rtDiffuseBG.destroyResource();
         rtDiffuseSecondary.destroyResource();
         rtNormal[0].destroyResource();
         rtNormal[1].destroyResource();
@@ -713,6 +719,7 @@ namespace RT64
             descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 0 : 1].generateDescriptorWrite(1, UAV_INDEX(gPrevIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtFilteredDirectLight[1].generateDescriptorWrite(1, UAV_INDEX(gFilteredDirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtFilteredIndirectLight[1].generateDescriptorWrite(1, UAV_INDEX(gFilteredIndirectLight) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDiffuseBG.generateDescriptorWrite(1, UAV_INDEX(gDiffuseBG) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtHitDistAndFlow.generateDescriptorWrite(1, UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
             descriptorWrites.push_back(rtHitColor.generateDescriptorWrite(1, UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
             descriptorWrites.push_back(rtHitNormal.generateDescriptorWrite(1, UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
@@ -878,6 +885,7 @@ namespace RT64
             descriptorWrites.push_back(rtReflection.generateDescriptorWrite(1, 4 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtRefraction.generateDescriptorWrite(1, 5 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtTransparent.generateDescriptorWrite(1, 6 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDiffuseBG.generateDescriptorWrite(1, 7 + SRV_SHIFT, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, descriptorSet));
             descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
 
             // Add the compose sampler
@@ -958,6 +966,7 @@ namespace RT64
             descriptorWrites.push_back(rtShadingNormal.generateDescriptorWrite(1, UAV_INDEX(gShadingNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtShadingSpecular.generateDescriptorWrite(1, UAV_INDEX(gShadingSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtDiffuse.generateDescriptorWrite(1, UAV_INDEX(gDiffuse) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
+            descriptorWrites.push_back(rtDiffuseBG.generateDescriptorWrite(1, UAV_INDEX(gDiffuseBG) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtInstanceId.generateDescriptorWrite(1, UAV_INDEX(gInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtDirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gDirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
             descriptorWrites.push_back(rtIndirectLightAccum[rtSwap ? 1 : 0].generateDescriptorWrite(1, UAV_INDEX(gIndirectLightAccum) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, descriptorSet));
@@ -1426,6 +1435,7 @@ namespace RT64
             // Make sure the images are usable
             AllocatedImage* primaryTranslation[] = {
                 &rtDiffuse,
+                &rtDiffuseBG,
                 &rtInstanceId,
                 &rtReflection,
                 &rtRefraction,
@@ -1526,7 +1536,7 @@ namespace RT64
                     RT64_LOG_PRINTF("Dispatching indirect light rays batch #%d", (i+1));
                     vkCmdPushConstants(commandBuffer, device->getRTPipelineLayout(), VK_SHADER_STAGE_RAYGEN_BIT_KHR, 0, sizeof(RaygenPushConstant), &pushConst);
                     vkCmdTraceRaysKHR(commandBuffer, &indirectRayGenRegion, &missRegion, &hitRegion, &callRegion, giWidth, giHeight, 1);
-                    pushConst.giBounceDivisor *= 1.0f;
+                    pushConst.giBounceDivisor *= 4.0f;
                     pushConst.giResolutionScale *= 2.0f;        // For every gi bounce, halve the resolution
                     pushConst.giBounce++;
 
@@ -1641,6 +1651,7 @@ namespace RT64
             AllocatedImage* postDispatchBarriers[] = {
                 &rtOutput[rtSwap ? 1 : 0],
                 &rtDiffuse,
+                &rtDiffuseBG,
                 &rtDirectLightAccum[rtSwap ? 1 : 0],
                 &rtIndirectLightAccum[rtSwap ? 1 : 0],
                 &rtReflection,
@@ -1924,6 +1935,7 @@ namespace RT64
             AllocatedImage* postFragBarriers[] = {
                 &rtOutputCur,
                 &rtDiffuse,
+                &rtDiffuseBG,
                 &rtDirectLightAccum[rtSwap ? 1 : 0],
                 &rtIndirectLightAccum[rtSwap ? 1 : 0],
                 &rtReflection,

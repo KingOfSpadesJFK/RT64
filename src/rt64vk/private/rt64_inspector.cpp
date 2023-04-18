@@ -188,7 +188,7 @@ namespace RT64 {
 			ImGui::DragFloat("Motion blur strength", &motionBlurStrength, 0.1f, 0.0f, 10.0f);
 			ImGui::DragInt("Motion blur samples", &motionBlurSamples, 0.1f, 0, 256);
 			ImGui::Combo("Visualization Mode", &visualizationMode, "Final\0Shading position\0Shading normal\0Shading specular\0"
-				"Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0"
+				"Foreground Color\0Background Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0"
 				"Reflection\0Refraction\0Transparent\0Motion vectors\0Reactive mask\0Lock mask\0Depth\0");
 
 #ifdef _WIN32

@@ -180,7 +180,8 @@ void PrimaryRayGen() {
 	resReactiveMask += max(resTransparent.r, max(resTransparent.g, resTransparent.b));
 
 	// Blend with the background.
-	resColor.rgb += bgColor * resColor.a;
+	// resColor.rgb += bgColor * resColor.a;
+	bgColor *= resColor.a;
 	resColor.a = 1.0f - resColor.a;
 
 	// Store shading information buffers.
@@ -188,6 +189,7 @@ void PrimaryRayGen() {
 	gShadingNormal[launchIndex] = float4(resNormal, 0.0f);
 	gShadingSpecular[launchIndex] = float4(resSpecular, 0.0f);
 	gDiffuse[launchIndex] = SrgbToLinear(resColor);
+	gDiffuseBG[launchIndex] = SrgbToLinear(float4(bgColor, 1.0f));
 	gInstanceId[launchIndex] = resInstanceId;
 	gTransparent[launchIndex] = float4(resTransparent, 1.0f);
 	gFlow[launchIndex] = float2(-resFlow.x, resFlow.y);

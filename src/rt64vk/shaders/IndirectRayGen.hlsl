@@ -41,7 +41,7 @@ void IndirectRayGen() {
 	uint2 launchIndex = DispatchRaysIndex().xy;
 	uint2 scaledLaunchIndex = (launchIndex * pc.giResolutionScale);
 	if (pc.giResolutionScale > 1.0f){
-		uint2 launchIndexOffset = getBlueNoise(launchIndex, frameCount + pc.giBounce).rg * pc.giResolutionScale;
+		uint2 launchIndexOffset = getBlueNoise(scaledLaunchIndex, frameCount).rg * pc.giResolutionScale;
 		scaledLaunchIndex += launchIndexOffset;
 	}
 	int instanceId = gInstanceId[scaledLaunchIndex];
@@ -160,10 +160,10 @@ void IndirectRayGen() {
 	// Store the new positions and normals
 	if (giBounces > 1) {
 		if (pc.giBounce > 0) {
-			newIndirect *= SrgbToLinear(gDiffuse[scaledLaunchIndex].rgb);
-			gDiffuse[scaledLaunchIndex] *= hitColorFinal;
+			newIndirect *= gDiffuse[scaledLaunchIndex].rgb;
+			gDiffuse[scaledLaunchIndex] *= SrgbToLinear(hitColorFinal);
 		} else {
-			gDiffuse[scaledLaunchIndex] = hitColorFinal;
+			gDiffuse[scaledLaunchIndex] = SrgbToLinear(hitColorFinal);
 		}
 		gShadingPosition[scaledLaunchIndex] = float4(hitPosition, 0.0f);
 		gShadingNormal[scaledLaunchIndex] = float4(hitNormal, 0.0f);
