@@ -30,7 +30,7 @@ float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET
         result += reflection;
         result += refraction;
         result += transparent;
-        return float4(result, 1.0f);
+        return float4(result + LinearToSrgb(diffuseBG.rgb), 1.0f);
     }
     else {
         return LinearToSrgb(float4(diffuse.rgb + diffuseBG.rgb, 1.0f));

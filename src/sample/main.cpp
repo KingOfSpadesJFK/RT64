@@ -438,7 +438,7 @@ void setupRT64Scene() {
 	RT64.baseMaterial.refractionFactor = 0.0f;
 	RT64.baseMaterial.specularColor = { 10.0f, 10.0f, 10.0f };
 	RT64.baseMaterial.specularExponent = 5.0f;
-	RT64.baseMaterial.solidAlphaMultiplier = 1.0f;
+	RT64.baseMaterial.solidAlphaMultiplier = 0.50f;
 	RT64.baseMaterial.shadowAlphaMultiplier = 1.0f;
 	RT64.baseMaterial.diffuseColorMix = { 0.0f, 0.0f, 0.0f, 0.0f };
 	RT64.baseMaterial.selfLight = { 0.0f , 0.0f, 0.0f };
