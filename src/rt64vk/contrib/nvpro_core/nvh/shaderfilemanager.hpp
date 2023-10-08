@@ -21,7 +21,7 @@
 #ifndef NV_SHADERFILEMANAGER_INCLUDED
 #define NV_SHADERFILEMANAGER_INCLUDED
 
-
+#include <stdint.h>
 #include <stdio.h>
 #include <string>
 #include <vector>
