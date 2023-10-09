@@ -155,9 +155,20 @@ DLEXPORT void RT64_SetInstanceDescription(RT64_INSTANCE *instancePtr, RT64_INSTA
 	assert(instanceDesc.shader != nullptr);
 
 	RT64::Instance *instance = (RT64::Instance *)(instancePtr);
+
+	// Convert the incoming transform matrices to glm matrices
+	float glmTransform[4][4];
+	float glmTransformPrev[4][4];
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			glmTransform[i][j] = instanceDesc.transform.m[j][i];
+			glmTransformPrev[i][j] = instanceDesc.previousTransform.m[j][i];
+		}
+	}
+
 	instance->setMesh((RT64::Mesh *)(instanceDesc.mesh));
-	instance->setTransform(instanceDesc.transform.m);
-	instance->setPreviousTransform(instanceDesc.previousTransform.m);
+	instance->setTransform(glmTransform);
+	instance->setPreviousTransform(glmTransformPrev);
 	instance->setMaterial(instanceDesc.material);
 	instance->setShader((RT64::Shader *)(instanceDesc.shader));
 	instance->setDiffuseTexture((RT64::Texture *)(instanceDesc.diffuseTexture));

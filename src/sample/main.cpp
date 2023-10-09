@@ -385,6 +385,9 @@ void setupRT64Scene() {
 	RT64.transform.m[0][0] = scale;
 	RT64.transform.m[1][1] = scale;
 	RT64.transform.m[2][2] = scale;
+	RT64.transform.m[3][0] = 0.0f;
+	RT64.transform.m[3][1] = 50.f;
+	RT64.transform.m[3][2] = 0.0f;
 	RT64.transform.m[3][3] = 1.0f;
 
 	// Make initial view.
@@ -450,20 +453,20 @@ void setupRT64Scene() {
 	
 	// Vertices for the UI instance
 	VERTEX vertices[3];
-	vertices[2].position = { -1.0f, -0.7f, 0.0f, 1.0f } ;
-	vertices[2].normal = { 0.0f, 1.0f, 0.0f };
-	vertices[2].uv = { 0.0f, 0.0f };
-	vertices[2].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
+	vertices[0].position = { -1.0f, 0.1f, 0.0f, 1.0f } ;
+	vertices[0].normal = { 0.0f, 1.0f, 0.0f };
+	vertices[0].uv = { 0.0f, 0.0f };
+	vertices[0].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-	vertices[1].position = { -0.5f, -0.7f, 0.0f, 1.0f };
+	vertices[1].position = { -0.5f, 0.1f, 0.0f, 1.0f };
 	vertices[1].normal = { 0.0f, 1.0f, 0.0f };
 	vertices[1].uv = { 1.0f, 0.0f };
 	vertices[1].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-	vertices[0].position = { -0.75f, -0.9f, 0.0f, 1.0f };
-	vertices[0].normal = { 0.0f, 1.0f, 0.0f };
-	vertices[0].uv = { 0.0f, 1.0f };
-	vertices[0].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
+	vertices[2].position = { -0.75f, 0.3f, 0.0f, 1.0f };
+	vertices[2].normal = { 0.0f, 1.0f, 0.0f };
+	vertices[2].uv = { 0.0f, 1.0f };
+	vertices[2].input1 = { 1.0f, 1.0f, 1.0f, 1.0f };
 	
 	unsigned int indices[] = { 0, 1, 2 };
 	RT64_TEXTURE* altTexture = loadTexturePNG("res/tiles_dif.png");

@@ -44,9 +44,11 @@ void PrimaryRayGen() {
 	gRefraction[launchIndex] = float4(0.0f, 0.0f, 0.0f, 0.0f);
 
 	// Sample the background.
-	// float2 screenUV = (float2(launchIndex) + pixelJitter) / float2(launchDims);
-	float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
-	float4 skyColor = SampleSkyPlane(rayDirection);
+	float2 screenUV = (float2(launchIndex) + pixelJitter) / float2(launchDims);
+	float3 bgColor = SampleBackground2D(screenUV);
+	float4 skyColor = SampleSky2D(screenUV);
+	// float3 bgColor = SampleBackgroundAsEnvMap(rayDirection);
+	// float4 skyColor = SampleSkyPlane(rayDirection);
 	float3 bgPosition = rayOrigin + rayDirection * RAY_MAX_DISTANCE;
 	float2 prevBgPos = WorldToScreenPos(prevViewProj, bgPosition);
 	float2 curBgPos = WorldToScreenPos(viewProj, bgPosition);
@@ -127,7 +129,7 @@ void PrimaryRayGen() {
 			float3 resColorAdd = hitColor.rgb * alphaContrib;
 			if (applyLighting) {
 				storeHit = true;
-				resColor.rgb += hitColor.rgb * alphaContrib;
+				resColor.rgb += resColorAdd;
 			}
 			// Expensive case: transparent geometry that is not solid enough to act as the main
 			// instance in the deferred pass and it also needs lighting to work correctly.
@@ -139,12 +141,12 @@ void PrimaryRayGen() {
 					resTransparentLightComputed = true;
 				}
 
-				resTransparent += LinearToSrgb(SrgbToLinear(hitColor.rgb) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[instanceId].selfLight + resTransparentLight)) * alphaContrib;
+				resTransparent += LinearToSrgb(SrgbToLinear(resColorAdd) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[instanceId].selfLight + resTransparentLight));
 			}
 			// Cheap case: we ignore the geometry entirely from the lighting pass and just add
 			// it to the transparency buffer directly.
 			else {
-				resTransparent += LinearToSrgb(SrgbToLinear(hitColor.rgb) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[instanceId].selfLight)) * alphaContrib;
+				resTransparent += LinearToSrgb(SrgbToLinear(resColorAdd) * (ambientBaseColor.rgb + ambientNoGIColor.rgb + instanceMaterials[instanceId].selfLight));
 			}
 
 			resColor.a *= (1.0 - hitColor.a);

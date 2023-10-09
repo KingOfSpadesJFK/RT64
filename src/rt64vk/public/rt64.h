@@ -457,9 +457,12 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 #endif
 	}
 	else {
+#ifdef _WIN32
 		char errorMessage[256];
-		//FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), errorMessage, sizeof(errorMessage), NULL);
-		fprintf(stderr, "Error when loading library: %s\n", errorMessage);
+		FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), errorMessage, sizeof(errorMessage), NULL);
+#else
+		fprintf(stderr, "Error when loading library: %s\n", dlerror());
+#endif
 	}
 
 	return lib;

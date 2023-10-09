@@ -11,6 +11,7 @@
 #include <nvh/alignment.hpp>
 #include <nvvk/raytraceKHR_vk.hpp>
 #include <glm/gtx/euler_angles.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
 #include <nvvk/sbtwrapper_vk.hpp>
 #include <unordered_map>
 

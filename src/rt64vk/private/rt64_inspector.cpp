@@ -148,7 +148,7 @@ namespace RT64 {
 		// }
 
 		// TODO: Finish implementing this
-		// activeView->renderInspector(this);
+		activeView->renderInspector(this);
 
 		// Get the current command buffer and then render inspector
 		ImGui::Render();

@@ -13,7 +13,7 @@ float4 ComputeFogFromCamera(uint instanceId, float3 position) {
 
 	float winv = 1.0f / max(clipPos.w, 0.001f);
 	const float DivisionFactor = 255.0f;
-	fogColor.a = (clipPos.z * winv * fogMul + fogOffset) / DivisionFactor;
+	fogColor.a = saturate((clipPos.z * winv * fogMul + fogOffset) / DivisionFactor);
 	return fogColor;
 }
 

@@ -159,6 +159,8 @@ namespace RT64
             VkCommandPool computeCommandPool;
             std::vector<VkCommandBuffer> commandBuffers;
             bool commandBufferActive = false;
+            bool presentPassActive = false;
+            bool offscreenPassActive = false;
 
             std::vector<VkSemaphore> imageAvailableSemaphores;
             std::vector<VkSemaphore> renderFinishedSemaphores;
@@ -361,6 +363,10 @@ namespace RT64
             void endSingleTimeCommands(VkCommandBuffer* commandBuffer);
             VkCommandBuffer& beginCommandBuffer();
             void endCommandBuffer();
+            void beginPresentRenderPass(VkRenderPassBeginInfo& info);
+            void endPresentRenderPass();
+            void beginOffscreenRenderPass(VkRenderPassBeginInfo& info);
+            void endOffscreenRenderPass();
 
 		    void createRenderPass(VkRenderPass& renderPass, bool useDepth, VkFormat imageFormat, VkImageLayout finalLayout);
             VkResult allocateBuffer(VkDeviceSize bufferSize, VkBufferUsageFlags bufferUsage, VmaMemoryUsage memUsage, VmaAllocationCreateFlags allocProperties, AllocatedBuffer* alre);

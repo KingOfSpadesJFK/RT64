@@ -851,6 +851,18 @@ namespace RT64
             activeView = scenes[0]->getViews()[0];
             glfwGetCursorPos(window, &mouseX, &mouseY);
             if (inspector.init(this) && showInspector) {
+                VkRenderPassBeginInfo renderPassInfo{};
+                renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+                renderPassInfo.framebuffer = getCurrentSwapchainFramebuffer();
+                renderPassInfo.renderArea.offset = {0, 0};
+                renderPassInfo.renderArea.extent.width = getWidth();
+                renderPassInfo.renderArea.extent.height = getHeight();
+                std::array<VkClearValue, 2> clearValues{};
+                clearValues[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+                clearValues[1].depthStencil = {1.0f, 0};
+                renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+                renderPassInfo.pClearValues = clearValues.data();
+                beginPresentRenderPass(renderPassInfo);
                 inspector.render(activeView, mouseX, mouseY);
             }
             if (oldInspectors.empty()) {
@@ -862,6 +874,8 @@ namespace RT64
             }
 
             // End the command buffer
+            endPresentRenderPass();
+            endOffscreenRenderPass();
             endCommandBuffer();
 
             // Prepare submitting the command buffer
@@ -1025,7 +1039,7 @@ namespace RT64
         VkAttachmentDescription colorAttachment{};
         colorAttachment.format = imageFormat;
         colorAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        colorAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;        // Not gonna worry about stencil buffers
         colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -1035,7 +1049,7 @@ namespace RT64
         VkAttachmentDescription depthAttachment{};
         depthAttachment.format = VK_FORMAT_D32_SFLOAT;
         depthAttachment.samples = VK_SAMPLE_COUNT_1_BIT;
-        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        depthAttachment.loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
         depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
@@ -2019,6 +2033,35 @@ namespace RT64
         }
     }
 
+    void Device::beginPresentRenderPass(VkRenderPassBeginInfo& renderPassInfo) {
+        if (!presentPassActive) {
+            renderPassInfo.renderPass = presentRenderPass;
+            vkCmdBeginRenderPass(commandBuffers[currentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            presentPassActive = true;
+        }
+    }
+
+    void Device::endPresentRenderPass() {
+        if (presentPassActive) {
+            vkCmdEndRenderPass(commandBuffers[currentFrame]);
+            presentPassActive = false;
+        }
+    }
+
+    void Device::beginOffscreenRenderPass(VkRenderPassBeginInfo& renderPassInfo) {
+        if (!offscreenPassActive) {
+            renderPassInfo.renderPass = offscreenRenderPass;
+            vkCmdBeginRenderPass(commandBuffers[currentFrame], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+            offscreenPassActive = true;
+        }
+    }
+
+    void Device::endOffscreenRenderPass() {
+        if (offscreenPassActive) {
+            vkCmdEndRenderPass(commandBuffers[currentFrame]);
+            offscreenPassActive = false;
+        }
+    }
 
     // Generates a descriptor set layout and pushes its bindings to the pool 
     void Device::generateDescriptorSetLayout(std::vector<VkDescriptorSetLayoutBinding>& bindings, VkDescriptorBindingFlags& flags, VkDescriptorSetLayout& descriptorSetLayout, std::vector<VkDescriptorPoolSize>& poolSizes) {
