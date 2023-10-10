@@ -27,8 +27,8 @@ float distanceFromLineSegment(float2 p, float2 start, float2 end) {
 }
 
 float4 getMotionVector(float2 pos) {
-    float lineThickness = 1.0f;
-    float blockSize = 32.0f;
+    float lineThickness = 0.5f;
+    float blockSize = 8.0f;
 
     // Divide the frame into blocks of "blockSize x blockSize" pixels
     // and get the screen coordinates of the pixel in the center of closest block.
