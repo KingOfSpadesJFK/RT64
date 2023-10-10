@@ -552,7 +552,7 @@ namespace RT64 {
 		RT64_VECTOR3 viewDir = view->getViewDirection();
 		RT64_VECTOR3 rayDir = view->getRayDirectionAt(cursorX, cursorY);
 		appData.m_deltaTime = 1.0f / 30.0f;
-		appData.m_viewportSize = Im3d::Vec2((float)(view->getWidth()), (float)(view->getHeight()));
+		appData.m_viewportSize = Im3d::Vec2((float)(view->getWidth()), -(float)(view->getHeight()));
 		appData.m_viewOrigin = Im3d::Vec3(viewPos.x, viewPos.y, viewPos.z);
 		appData.m_viewDirection = Im3d::Vec3(viewDir.x, viewDir.y, viewDir.z);
 		appData.m_worldUp = Im3d::Vec3(0.0f, 1.0f, 0.0f);

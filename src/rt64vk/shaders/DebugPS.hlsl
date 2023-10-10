@@ -57,7 +57,11 @@ float4 getShadingSpecular(float2 pos) {
 }
 
 float4 getDiffuse(float2 pos) {
-    return float4(gDiffuse[pos].rgb, 1.0f);
+    float3 bgColor = float3(0.3f, 0.3f, 0.3f);
+    if (floor(pos.x / 32.0) % 2 == 0 != floor(pos.y / 32.0) % 2 == 0) {
+        bgColor = float3(0.6f, 0.6f, 0.6f);
+    }
+    return float4(gDiffuse[pos].rgb * gDiffuse[pos].a + bgColor * (1.0f - gDiffuse[pos].a), 1.0f);
 }
 
 float4 getDiffuseBG(float2 pos) {
@@ -119,7 +123,6 @@ float4 getDepth(float2 pos) {
 }
 
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
-    uv.y = 1.0f - uv.y;
     switch (visualizationMode) {
     case VISUALIZATION_MODE_SHADING_POSITION:
         return getShadingPosition(uv * resolution.xy);

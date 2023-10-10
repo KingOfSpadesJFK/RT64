@@ -36,7 +36,7 @@ namespace RT64
         globalParamsData.randomSeed = 0;
         globalParamsData.diSamples = 1;
         globalParamsData.giSamples = 1;
-        globalParamsData.giBounces = 0;
+        globalParamsData.giBounces = 1;
         globalParamsData.maxLights = 12;
         globalParamsData.motionBlurSamples = 32;
         globalParamsData.tonemapMode = 1;
@@ -186,7 +186,7 @@ namespace RT64
         imageInfo.format = VK_FORMAT_R16G16B16A16_UNORM;
         device->allocateImage(&rtDiffuse, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtDiffuseSecondary, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
-        imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
+        imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;   // So that the background can have a higher dynamic range (especially when using values)
         device->allocateImage(&rtDiffuseBG, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         // Normal
@@ -597,7 +597,8 @@ namespace RT64
             upper3x3[3][2] = 0.f;
             upper3x3[3][3] = 1.f;
 
-            current->objectToWorldNormal = glm::inverseTranspose(upper3x3);
+            upper3x3 = glm::transpose(upper3x3);
+            current->objectToWorldNormal = upper3x3;
         };
 
         // Store the transforms
@@ -1069,9 +1070,9 @@ namespace RT64
                     RT64_RECT rect = instance->getViewportRect();
                     renderInstance.viewport = {
                         static_cast<float>(rect.x),
-                        static_cast<float>(screenHeight - rect.y - rect.h),
+                        static_cast<float>(screenHeight + screenHeight - rect.y - rect.h),
                         static_cast<float>(rect.w),
-                        static_cast<float>(rect.h)
+                        static_cast<float>(-rect.h)
                     };
                 }
                 else {
@@ -1296,7 +1297,7 @@ namespace RT64
         };
 
         auto applyViewport = [this, commandBuffer, resetViewport](const VkViewport& viewport) {
-            if ((viewport.width > 0) && (viewport.height > 0)) {
+            if ((viewport.width != 0) && (viewport.height != 0)) {
                 vkCmdSetViewport(commandBuffer, 0, 1, &viewport);
                 viewportApplied = true;
             }
@@ -1767,6 +1768,12 @@ namespace RT64
             AllocatedImage& rtOutputCur = rtOutput[rtSwap ? 1 : 0];
             VkFramebuffer& rtOutputCurFB = rtOutputFB[rtSwap ? 1 : 0];
 
+            // Transition the output image to a format compatible with the render pass
+            device->transitionImageLayout(rtOutputCur, 
+                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+                VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 
+                &commandBuffer);
             // Begin the offscreen render pass (you can't raytrace with it, so just raytrace before you render pass it up)
             renderPassInfo.renderPass = offscreenRenderPass;
             renderPassInfo.framebuffer = rtOutputCurFB;
@@ -1774,7 +1781,7 @@ namespace RT64
 
             // Apply the scissor and viewport to the size of the output texture.
             applyScissor({ rtWidth, rtHeight });
-            VkViewport v = { 0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f };
+            VkViewport v = { 0.f, (float)rtHeight, (float)rtWidth, -(float)rtHeight, 1.f, 1.f };
             applyViewport(v);
 
             // Now compose!
@@ -1784,6 +1791,13 @@ namespace RT64
             vkCmdDraw(commandBuffer, 3, 1, 0, 0);
 
             device->endOffscreenRenderPass();
+
+            // Transition the output image for the fragment shader stage
+            device->transitionImageLayout(rtOutputCur, 
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, 
+                VK_ACCESS_SHADER_READ_BIT, 
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, 
+                &commandBuffer);
         }
         else if (!rtEnabled && !rtInstances.empty())    // Or don't raytrace.
         {
@@ -1811,7 +1825,7 @@ namespace RT64
 
             // Apply the scissor and viewport to the size of the output texture.
             applyScissor({rtWidth, rtHeight});
-            VkViewport v = {0.f, 0.f, (float)rtWidth, (float)rtHeight, 1.f, 1.f};
+            VkViewport v = {0.f, (float)rtHeight, (float)rtWidth, -(float)rtHeight, 1.f, 1.f};
             applyViewport(v);
 	        drawInstances(rtInstances, 0, true, false);
 
@@ -1824,6 +1838,13 @@ namespace RT64
             // Compose the output buffer.
             AllocatedImage& rtOutputCur = rtOutput[rtSwap ? 1 : 0];
             VkFramebuffer& rtOutputCurFB = rtOutputFB[rtSwap ? 1 : 0];
+
+            // Transition the tonemapped output image to a format compatible with the render pass
+            device->transitionImageLayout(rtOutputTonemapped, 
+                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+                VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, 
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 
+                &commandBuffer);
 
             // Begin tonemapping 
             renderPassInfo.framebuffer = rtOutputTonemappedFB;
@@ -1880,7 +1901,7 @@ namespace RT64
                     &commandBuffer);
             }
 
-            // Begine the on-screen render pass
+            // Begin the on-screen render pass
             renderPassInfo.framebuffer = framebuffer;
             renderPassInfo.renderArea.extent = swapChainExtent;
             device->beginPresentRenderPass(renderPassInfo);
@@ -1932,7 +1953,7 @@ namespace RT64
                 &commandBuffer);
 
             AllocatedImage* postFragBarriers[] = {
-                &rtOutputCur,
+                // &rtOutputCur,
                 &rtDiffuse,
                 &rtDiffuseBG,
                 &rtDirectLightAccum[rtSwap ? 1 : 0],
@@ -1945,6 +1966,16 @@ namespace RT64
                 VK_IMAGE_LAYOUT_GENERAL,
                 VK_ACCESS_NONE,
                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                &commandBuffer);
+            device->transitionImageLayout(rtOutputTonemapped, 
+                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+                VK_ACCESS_COLOR_ATTACHMENT_READ_BIT, 
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 
+                &commandBuffer);
+            device->transitionImageLayout(rtOutputCur, 
+                VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, 
+                VK_ACCESS_COLOR_ATTACHMENT_READ_BIT, 
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 
                 &commandBuffer);
 
         } else if (!rasterFgInstances.empty()) {
@@ -2165,13 +2196,13 @@ namespace RT64
     float View::getFOVRadians() const { return fovRadians; } 
     float View::getNearDistance() const { return nearDist; } 
     float View::getFarDistance() const { return farDist; } 
-    void  View::setDISamples(int v) { globalParamsData.diSamples = v; }
+    void  View::setDISamples(int v) { globalParamsData.diSamples = v >= 0 ? v : 0; }
     int   View::getDISamples() const { return globalParamsData.diSamples; }
-    void  View::setGISamples(int v) { globalParamsData.giSamples = v; }
+    void  View::setGISamples(int v) { globalParamsData.giSamples = v >= 0 ? v : 0; }
     int   View::getGISamples() const { return globalParamsData.giSamples; }
-    void  View::setGIBounces(int v) { globalParamsData.giBounces = v; }
+    void  View::setGIBounces(int v) { globalParamsData.giBounces = v > 0 ? v : 1; }
     int   View::getGIBounces() const { return globalParamsData.giBounces; } 
-    void  View::setMaxLights(int v) { globalParamsData.maxLights = v; } 
+    void  View::setMaxLights(int v) { globalParamsData.maxLights = v >= 0 ? v : 0; } 
     int   View::getMaxLights() const { return globalParamsData.maxLights; } 
     void  View::setTonemappingMode(int v) { globalParamsData.tonemapMode = v; }
     int   View::getTonemappingMode() { return globalParamsData.tonemapMode; }

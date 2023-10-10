@@ -248,6 +248,12 @@ void draw(GLFWwindow* window ) {
 	instDesc.material = RT64.frameMaterial;
 	instDesc.shader = RT64.shader;
 	instDesc.flags = 0;
+
+	glm::mat4 transMat = glm::identity<glm::mat4>();
+	memcpy(glm::value_ptr(transMat), RT64.transform.m, sizeof(RT64_MATRIX4));
+	transMat = glm::rotate(transMat, glm::radians(time / 64.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	memcpy(RT64.transform.m, glm::value_ptr(transMat), sizeof(RT64_MATRIX4));
+
 	RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
 	RT64.lib.SetSceneLights(RT64.scene, RT64.lights, RT64.lightCount);
 	RT64.lib.DrawDevice(RT64.device, 1, Sample.deltaTime);
@@ -382,13 +388,9 @@ void setupRT64Scene() {
 	// Make initial transform with a 0.1f scale.
 	float scale = 1.0f;
 	memset(RT64.transform.m, 0, sizeof(RT64_MATRIX4));
-	RT64.transform.m[0][0] = scale;
-	RT64.transform.m[1][1] = scale;
-	RT64.transform.m[2][2] = scale;
-	RT64.transform.m[3][0] = 0.0f;
-	RT64.transform.m[3][1] = 50.f;
-	RT64.transform.m[3][2] = 0.0f;
-	RT64.transform.m[3][3] = 1.0f;
+	glm::mat4 transMat = glm::identity<glm::mat4>();
+	// transMat = glm::translate(transMat, glm::vec3(0.0f, 50.0f, 0.0f));
+	memcpy(RT64.transform.m, glm::value_ptr(transMat), sizeof(RT64_MATRIX4));
 
 	// Make initial view.
 	memset(RT64.viewMatrix.m, 0, sizeof(RT64_MATRIX4));

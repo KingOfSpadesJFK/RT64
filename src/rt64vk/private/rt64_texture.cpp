@@ -64,7 +64,7 @@ namespace RT64 {
         imageInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         imageInfo.extent.width = width;
         imageInfo.extent.height = height;
-        imageInfo.extent.depth = 1;             // Maybe if I were to like
+        imageInfo.extent.depth = 1;
         imageInfo.mipLevels = mipLevels;
         imageInfo.arrayLayers = 1;
         imageInfo.samples = VK_SAMPLE_COUNT_1_BIT;

@@ -84,10 +84,10 @@ namespace RT64{
 
 	inline glm::mat4 matrixFromFloats(float m[4][4]) {		
 		return glm::mat4(
-			m[0][0], m[0][1], m[0][2], m[0][3],
-			m[1][0], m[1][1], m[1][2], m[1][3],
-			m[2][0], m[2][1], m[2][2], m[2][3],
-			m[3][0], m[3][1], m[3][2], m[3][3]
+			m[0][0], m[1][0], m[2][0], m[3][0],
+			m[0][1], m[1][1], m[2][1], m[3][1],
+			m[0][2], m[1][2], m[2][2], m[3][2],
+			m[0][3], m[1][3], m[2][3], m[3][3]
 		);
 	}
 
@@ -128,7 +128,7 @@ namespace RT64{
 	}
 
 	bool Instance::hasViewportRect() const {
-		return (viewportRect.w > 0) && (viewportRect.h > 0);
+		return (viewportRect.w != 0) && (viewportRect.h != 0);
 	}
 
 	void Instance::setFlags(int v) {
@@ -156,19 +156,9 @@ DLEXPORT void RT64_SetInstanceDescription(RT64_INSTANCE *instancePtr, RT64_INSTA
 
 	RT64::Instance *instance = (RT64::Instance *)(instancePtr);
 
-	// Convert the incoming transform matrices to glm matrices
-	float glmTransform[4][4];
-	float glmTransformPrev[4][4];
-	for (int i = 0; i < 4; i++) {
-		for (int j = 0; j < 4; j++) {
-			glmTransform[i][j] = instanceDesc.transform.m[j][i];
-			glmTransformPrev[i][j] = instanceDesc.previousTransform.m[j][i];
-		}
-	}
-
 	instance->setMesh((RT64::Mesh *)(instanceDesc.mesh));
-	instance->setTransform(glmTransform);
-	instance->setPreviousTransform(glmTransformPrev);
+	instance->setTransform(instanceDesc.transform.m);
+	instance->setPreviousTransform(instanceDesc.previousTransform.m);
 	instance->setMaterial(instanceDesc.material);
 	instance->setShader((RT64::Shader *)(instanceDesc.shader));
 	instance->setDiffuseTexture((RT64::Texture *)(instanceDesc.diffuseTexture));

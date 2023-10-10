@@ -146,7 +146,7 @@ namespace RT64
         samplerInfo.anisotropyEnable = samplerAnisotropy > 1.0f ? VK_TRUE : VK_FALSE;
         samplerInfo.maxAnisotropy = samplerAnisotropy;
         samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.unnormalizedCoordinates = VK_FALSE;
+        samplerInfo.unnormalizedCoordinates = VK_TRUE;
         samplerInfo.compareEnable = VK_FALSE;
         samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
@@ -206,7 +206,7 @@ namespace RT64
         rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
         rasterizer.lineWidth = 1.0f;
         rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-        rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
+        rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         rasterizer.depthBiasEnable = VK_FALSE;
 
         // Color blending
@@ -236,6 +236,11 @@ namespace RT64
         vertexInputInfo.vertexBindingDescriptionCount = 0;
         vertexInputInfo.vertexAttributeDescriptionCount = 0;
 
+        // Multisampling (in a raytracer? lmfao)
+        VkPipelineMultisampleStateCreateInfo multisampling{VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+        multisampling.sampleShadingEnable = VK_FALSE;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
         // Pipeline info
         VkGraphicsPipelineCreateInfo pipelineInfo { VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO };
         pipelineInfo.pInputAssemblyState = &inputAssembly;
@@ -244,6 +249,7 @@ namespace RT64
         pipelineInfo.pColorBlendState = &colorBlending;
         pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pDynamicState = &dynamicState;
+        pipelineInfo.pMultisampleState = &multisampling;
         pipelineInfo.subpass = 0;
 
         RT64_LOG_PRINTF("Creating a generic image sampler for the fragment/compute shaders");
@@ -536,8 +542,8 @@ namespace RT64
             VkPipelineColorBlendAttachmentState im3dColorBlendAttachment{};
             im3dColorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
             im3dColorBlendAttachment.blendEnable = VK_TRUE;
-            im3dColorBlendAttachment.colorBlendOp = VK_BLEND_OP_OVERLAY_EXT;
-            im3dColorBlendAttachment.alphaBlendOp = VK_BLEND_OP_MAX;
+            im3dColorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
+            im3dColorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
             im3dColorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
             im3dColorBlendAttachment.dstColorBlendFactor = VK_BLEND_FACTOR_DST_COLOR;
             im3dColorBlendAttachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
@@ -850,24 +856,25 @@ namespace RT64
             double mouseX, mouseY;
             activeView = scenes[0]->getViews()[0];
             glfwGetCursorPos(window, &mouseX, &mouseY);
-            if (inspector.init(this) && showInspector) {
-                VkRenderPassBeginInfo renderPassInfo{};
-                renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-                renderPassInfo.framebuffer = getCurrentSwapchainFramebuffer();
-                renderPassInfo.renderArea.offset = {0, 0};
-                renderPassInfo.renderArea.extent.width = getWidth();
-                renderPassInfo.renderArea.extent.height = getHeight();
-                std::array<VkClearValue, 2> clearValues{};
-                clearValues[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
-                clearValues[1].depthStencil = {1.0f, 0};
-                renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-                renderPassInfo.pClearValues = clearValues.data();
-                beginPresentRenderPass(renderPassInfo);
-                inspector.render(activeView, mouseX, mouseY);
-            }
-            if (oldInspectors.empty()) {
+            if (inspector.init(this)) {
+                if (showInspector) {
+                    VkRenderPassBeginInfo renderPassInfo{};
+                    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+                    renderPassInfo.framebuffer = getCurrentSwapchainFramebuffer();
+                    renderPassInfo.renderArea.offset = {0, 0};
+                    renderPassInfo.renderArea.extent.width = getWidth();
+                    renderPassInfo.renderArea.extent.height = getHeight();
+                    std::array<VkClearValue, 2> clearValues{};
+                    clearValues[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+                    clearValues[1].depthStencil = {1.0f, 0};
+                    renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+                    renderPassInfo.pClearValues = clearValues.data();
+                    beginPresentRenderPass(renderPassInfo);
+                    inspector.render(activeView, mouseX, mouseY);
+                }
                 inspector.controlCamera(activeView, mouseX, mouseY);
-            } else {
+            }
+            if (!oldInspectors.empty()) {
                 for (Inspector* i : oldInspectors) {
                     i->render(activeView, mouseX, mouseY);
                 }
@@ -910,10 +917,10 @@ namespace RT64
     }
 
     void Device::updateViewport() {
-        vkViewport.x = 0.0f;
-        vkViewport.y = 0.0f;
         vkViewport.width = static_cast<float>(swapChainExtent.width);
-        vkViewport.height = static_cast<float>(swapChainExtent.height);
+        vkViewport.height = -(static_cast<float>(swapChainExtent.height));
+        vkViewport.x = 0.0f;
+        vkViewport.y = static_cast<float>(swapChainExtent.height);;
         vkViewport.minDepth = 0.0f;
         vkViewport.maxDepth = 1.0f;
         vkScissorRect.offset = {0, 0};
@@ -1043,7 +1050,7 @@ namespace RT64
         colorAttachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
         colorAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;        // Not gonna worry about stencil buffers
         colorAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorAttachment.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         colorAttachment.finalLayout = finalLayout;
 
         VkAttachmentDescription depthAttachment{};
@@ -1053,7 +1060,7 @@ namespace RT64
         depthAttachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
         depthAttachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
         depthAttachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        depthAttachment.initialLayout = VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL;
         depthAttachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
         // TODO: Do some subpass trickery later on
@@ -1845,6 +1852,15 @@ namespace RT64
         }
 
         VkImageLayout oldLayout = image.getLayout();
+        switch (oldLayout) {
+            case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+            case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+            case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL: 
+            case VK_IMAGE_LAYOUT_GENERAL:
+                oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+            default:
+                break;
+        }
         VkImageMemoryBarrier barrier{};
         barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         barrier.oldLayout = oldLayout;
@@ -1885,6 +1901,15 @@ namespace RT64
             VkImageMemoryBarrier barrier{};
             barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
             barrier.oldLayout = images[i]->getLayout();
+            switch (barrier.oldLayout) {
+                case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+                case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+                case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL: 
+                case VK_IMAGE_LAYOUT_GENERAL:
+                    barrier.oldLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+                default:
+                    break;
+            }
             barrier.newLayout = newLayout;
             barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
             barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;

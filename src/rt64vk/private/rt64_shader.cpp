@@ -389,7 +389,6 @@ namespace RT64
 			SS("    oPosition = mul(projection, mul(view, mul(instanceTransforms[pc.instanceId].objectToWorld, float4(iPosition.xyz, 1.0))));");
 		} else {
 			SS("    oPosition = iPosition;");
-			SS("    oPosition.y *= -1.0f;");
 		}
 		
 		SS("    oNormal = iNormal;");
@@ -544,6 +543,11 @@ namespace RT64
         vertexInputInfo.pVertexBindingDescriptions = &vertexBind;
         vertexInputInfo.pVertexAttributeDescriptions = attributes.data();
 
+        // Multisampling (I  didn't realize this was needed even if you don't use it)
+        VkPipelineMultisampleStateCreateInfo multisampling{VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+        multisampling.sampleShadingEnable = VK_FALSE;
+        multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
         // With your powers combined, I am Captain Pipeline!!!
         VkGraphicsPipelineCreateInfo pipelineInfo{};
         pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -556,6 +560,7 @@ namespace RT64
         pipelineInfo.pColorBlendState = &colorBlending;
         pipelineInfo.pDepthStencilState = &depthStencil;
         pipelineInfo.pDynamicState = &dynamicState;
+		pipelineInfo.pMultisampleState = &multisampling;
         pipelineInfo.layout = rasterGroup.pipelineLayout;
 		// TODO: Figure out how to utilize different render passes
         pipelineInfo.renderPass = device->getPresentRenderPass();
@@ -652,7 +657,6 @@ namespace RT64
 			SS("    if (normalTexIndex >= 0) {");
 			SS("        float uvDetailScale = instanceMaterials[instanceId].uvDetailScale;");
 			SS("        float3 normalColor = gTextures[NonUniformResourceIndex(normalTexIndex)].SampleGrad(gTextureSampler, vertexUV * uvDetailScale, ddx * uvDetailScale, ddy * uvDetailScale).xyz;");
-			SS("        normalColor.y = 1.0f - normalColor.y;");
 			SS("        normalColor = (normalColor * 2.0f) - 1.0f;");
 			SS("        float3 newNormal = normalize(mul(normalColor, tbn));");
 			SS("        vertexNormal = newNormal;");
