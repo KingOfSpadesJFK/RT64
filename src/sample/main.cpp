@@ -66,6 +66,7 @@ struct {
 	RT64_LIGHT lights[16];
 	int lightCount;
 	bool showInspector;
+	RT64_INSPECTOR *inspector = nullptr;
 	RT64_DEVICE *device = nullptr;
 	RT64_SCENE *scene = nullptr;
 	RT64_SCENE_DESC sceneDesc;
@@ -116,7 +117,6 @@ void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods
 		{
 			case GLFW_KEY_F1:
 				RT64.showInspector = !RT64.showInspector;
-				RT64.lib.SetInspectorVisibility2(RT64.device, RT64.showInspector);
 				break;
 			case GLFW_KEY_F3:
 				Sample.daylightTime = 0.0f;
@@ -251,7 +251,7 @@ void draw(GLFWwindow* window ) {
 
 	glm::mat4 transMat = glm::identity<glm::mat4>();
 	memcpy(glm::value_ptr(transMat), RT64.transform.m, sizeof(RT64_MATRIX4));
-	transMat = glm::rotate(transMat, glm::radians(time / 64.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	transMat = glm::rotate(transMat, glm::radians(fmod(time / 64.0f, 360.0f)), glm::vec3(0.0f, 1.0f, 0.0f));
 	memcpy(RT64.transform.m, glm::value_ptr(transMat), sizeof(RT64_MATRIX4));
 
 	RT64.lib.SetInstanceDescription(RT64.instance, instDesc);
@@ -267,15 +267,15 @@ void draw(GLFWwindow* window ) {
 
 	// Inspector stuff
 	if (RT64.showInspector) {
-		RT64.lib.PrintClearInspector2(RT64.device);
-		RT64.lib.SetMaterialInspector2(RT64.device, &RT64.materialMods, "Sphere");
-		RT64.lib.SetSceneInspector2(RT64.device, &RT64.sceneDesc);
-		RT64.lib.SetLightsInspector2(RT64.device, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
+		RT64.lib.PrintClearInspector(RT64.inspector);
+		RT64.lib.SetMaterialInspector(RT64.inspector, &RT64.materialMods, "Sphere");
+		RT64.lib.SetSceneInspector(RT64.inspector, &RT64.sceneDesc);
+		RT64.lib.SetLightsInspector(RT64.inspector, RT64.lights, &RT64.lightCount, _countof(RT64.lights));
 		std::string print = "Draw time: ";
 		print.append(std::to_string(Sample.deltaTime));
 		print.append("\nRuntime: ");
 		print.append(std::to_string(Sample.runtime));
-		RT64.lib.PrintMessageInspector2(RT64.device, print.c_str());
+		RT64.lib.PrintMessageInspector(RT64.inspector, print.c_str());
 	}
 }
 
@@ -304,7 +304,6 @@ RT64_TEXTURE* loadTexturePNG(const char* path) {
 	texDesc.bytes = stbi_load(path, &texDesc.width, &texDesc.height, &texChannels, STBI_rgb_alpha);
 	texDesc.rowPitch = texDesc.width * 4;
 	texDesc.byteCount = texDesc.rowPitch * texDesc.height;
-	texDesc.name = path;
 	RT64_TEXTURE* texture = RT64.lib.CreateTexture(RT64.device, texDesc);
 	stbi_image_free((void*)(texDesc.bytes));
 	return texture;
@@ -698,7 +697,7 @@ int main(int argc, char *argv[]) {
 	if (!createRT64(window)) {
 		errorMessage(nullptr,
 			"Failed to initialize RT64! \n"
-			"Please make sure your GPU drivers are up to date and the driver supports Vulkan 1.3 \n"
+			"Please make sure your GPU drivers are up to date and the Vulkan 1.3 feature level is supported \n"
 #ifdef _WIN32
 			"Windows 10 version 2004 or newer is also required for this feature level to work properly\n"
 #else
@@ -717,23 +716,36 @@ int main(int argc, char *argv[]) {
 	RT64_VIEW_DESC viewDesc {};
 	viewDesc.diSamples = 0;
 	viewDesc.giSamples = 0;
-	viewDesc.giBounces = 1;
+	// viewDesc.giBounces = 1;
 	viewDesc.denoiserEnabled = false;
 	viewDesc.maxLights = 12;
 	viewDesc.motionBlurStrength = 0.0f;
-	viewDesc.tonemapMode = 4;
-	viewDesc.tonemapExposure = 2.5f;
-	viewDesc.tonemapWhite = 1.0f;
-	viewDesc.tonemapBlack = 0.0f;
-	viewDesc.tonemapGamma = 1.25f;
 	viewDesc.resolutionScale = 1.0f;
 	RT64.lib.SetViewDescription(RT64.view, viewDesc);
+
+	RT64_POST_FX_DESC postDesc {};
+	postDesc.tonemapMode = 5;
+	postDesc.tonemapExposure = 2.5f;
+	postDesc.tonemapWhite = 1.0f;
+	postDesc.tonemapBlack = 0.0f;
+	postDesc.tonemapGamma = 1.25f;
+	RT64.lib.SetPostEffects(RT64.view, postDesc);
 
 	// GLFW Window loop.
 	while (!glfwWindowShouldClose(window)) {
 		// Process any poll evenets.
         glfwPollEvents();
+
+		// Do not be a dumbass and do this inside a glfw callback like I was doing the past few months (as of october 2023)
+		if (!RT64.showInspector && RT64.inspector != nullptr) {
+			RT64.lib.DestroyInspector(RT64.inspector);
+			RT64.inspector = nullptr;
+		} else if ((RT64.showInspector && RT64.inspector == nullptr)) {
+			RT64.inspector = RT64.lib.CreateInspector(RT64.device);
+		}
+
 		draw(window);
+
 	}
 
 	destroyRT64();

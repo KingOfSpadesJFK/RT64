@@ -8,13 +8,12 @@
 
 // Tonemappers sourced from https://64.github.io/tonemapping/
 #define TONEMAP_MODE_RAW_IMAGE 0
-#define TONEMAP_MODE_REINHARD 1
-#define TONEMAP_MODE_REINHARD_LUMA 2
-#define TONEMAP_MODE_REINHARD_JODIE 3
-#define TONEMAP_MODE_UNCHARTED_2 4
-#define TONEMAP_MODE_ACES 5
-#define TONEMAP_MODE_SIMPLE 6
-#define TONEMAP_MODE_BLOOM_ONLY 7
+#define TONEMAP_MODE_SIMPLE 1
+#define TONEMAP_MODE_REINHARD 2
+#define TONEMAP_MODE_REINHARD_LUMA 3
+#define TONEMAP_MODE_REINHARD_JODIE 4
+#define TONEMAP_MODE_UNCHARTED_2 5
+#define TONEMAP_MODE_ACES 6
 
 // Recommended settings for tonemapping
 //  I say recommended, but its just my personal tastes
@@ -87,7 +86,7 @@ float3 Uncharted2(float3 rgb, float exp)
     float F = 0.30f;
     float3 color = ((rgb * exp * (A * rgb * exp + C * B) + D * E) / (rgb * exp * (A * rgb * exp + B) + D * F)) - E / F;
     float3 w = float3(11.2f, 11.2f, 11.2f);
-    float3 whiteScale = float3(1.0f, 1.0f, 1.0f) / (((11.2f * (A * 11.2f + C * B) + D * E) / (11.2f * (A * 11.2f + B) + D * F)) - E / F);
+    float3 whiteScale = float3(1.0f, 1.0f, 1.0f) / (((w * (A * w + C * B) + D * E) / (w * (A * w + B) + D * F)) - E / F);
     
     return color * whiteScale;
 }
@@ -111,40 +110,45 @@ float3 ACESFitted(float3 color)
     return color;
 }
 
-float3 Tonemapper(float3 rgb, float exposure)
-{
-    switch (tonemapMode)
-    {
-        case TONEMAP_MODE_REINHARD:
-            return Reinhard(rgb * exposure, exposure);
-        case TONEMAP_MODE_REINHARD_LUMA:
-            return ReinhardLuma(rgb * exposure, exposure);
-        case TONEMAP_MODE_REINHARD_JODIE:
-            return ReinhardJodie(rgb * exposure);
-        case TONEMAP_MODE_UNCHARTED_2:
-            return Uncharted2(rgb * 2.0f, exposure);
-        case TONEMAP_MODE_ACES:
-            return ACESFitted(rgb * exposure);
-        case TONEMAP_MODE_SIMPLE:
-            return rgb *= exposure;
-    }
-    
-    return rgb;
-}
-
 Texture2D<float4> gOutput : register(t0);
 SamplerState gSampler : register(s0);
 
 float4 PSMain(in float4 pos : SV_Position, in float2 uv : TEXCOORD0) : SV_TARGET {
-    float4 color = max(gOutput.SampleLevel(gSampler, uv, 0), 0.0f);
-    color.rgb = Tonemapper(max(color.rgb, 0.0f), tonemapExposure);
+    float3 color = max(gOutput.SampleLevel(gSampler, uv, 0), 0.0f).rgb;
     
-    // Post-tonemapping
-    if (tonemapMode != TONEMAP_MODE_RAW_IMAGE)
+    switch (abs(tonemapMode))
     {
-        // TODO: Saturation is weird. Might reimplement it when I find something better
-        color.rgb = WhiteBlackPoint(tonemapBlack, tonemapWhite, color.rgb);
-        color.rgb = pow(color.rgb, tonemapGamma);
+        case TONEMAP_MODE_SIMPLE:
+            color *= tonemapExposure;
+            break;
+        case TONEMAP_MODE_REINHARD:
+            color = Reinhard(color, tonemapExposure) * tonemapExposure;
+            break;
+        case TONEMAP_MODE_REINHARD_LUMA:
+            color = ReinhardLuma(color, tonemapExposure) * tonemapExposure;
+            break;
+        case TONEMAP_MODE_REINHARD_JODIE:
+            color = ReinhardJodie(color) * tonemapExposure;
+            break;
+        case TONEMAP_MODE_UNCHARTED_2:
+            color = Uncharted2(color * 2.0f, tonemapExposure);
+            break;
+        case TONEMAP_MODE_ACES:
+            color = ACESFitted(color * tonemapExposure);
+            break;
     }
-    return color;
+
+    if (tonemapMode > 0) {
+        // TODO: Saturation is weird. Might reimplement it when I find something better
+        color = WhiteBlackPoint(tonemapBlack, tonemapWhite, color);
+        color = pow(color, tonemapGamma);
+    }
+    
+    // Show clipping
+    if (tonemapMode < 0) {
+        if (color.r > 1.0f || color.g > 1.0f || color.b > 1.0f) {
+            color = float3(0.0f, 0.0f, 0.0f);
+        }
+    }
+    return float4(color, 1.0f);
 }

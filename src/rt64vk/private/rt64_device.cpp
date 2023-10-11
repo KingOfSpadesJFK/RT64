@@ -81,7 +81,6 @@ namespace RT64
         createDescriptorPool();
         createRayTracingPipeline();
 
-        inspector.init(this);
         fencesUp.fill(false);
 #endif
     }
@@ -851,44 +850,41 @@ namespace RT64
         submitInfo.pSignalSemaphores = signalSemaphores;
         submitInfo.commandBufferCount = 0;
         submitInfo.pCommandBuffers = nullptr;
+        
+        if (!oldInspectors.empty()) {
+            beginCommandBuffer(); // Begin the command buffer if it's not already
 
-        if (commandBufferActive) {
             double mouseX, mouseY;
             activeView = scenes[0]->getViews()[0];
             glfwGetCursorPos(window, &mouseX, &mouseY);
-            if (inspector.init(this)) {
-                if (showInspector) {
-                    VkRenderPassBeginInfo renderPassInfo{};
-                    renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-                    renderPassInfo.framebuffer = getCurrentSwapchainFramebuffer();
-                    renderPassInfo.renderArea.offset = {0, 0};
-                    renderPassInfo.renderArea.extent.width = getWidth();
-                    renderPassInfo.renderArea.extent.height = getHeight();
-                    std::array<VkClearValue, 2> clearValues{};
-                    clearValues[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
-                    clearValues[1].depthStencil = {1.0f, 0};
-                    renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
-                    renderPassInfo.pClearValues = clearValues.data();
-                    beginPresentRenderPass(renderPassInfo);
-                    inspector.render(activeView, mouseX, mouseY);
-                }
-                inspector.controlCamera(activeView, mouseX, mouseY);
-            }
-            if (!oldInspectors.empty()) {
-                for (Inspector* i : oldInspectors) {
-                    i->render(activeView, mouseX, mouseY);
-                }
-            }
 
-            // End the command buffer
-            endPresentRenderPass();
-            endOffscreenRenderPass();
-            endCommandBuffer();
+            VkRenderPassBeginInfo renderPassInfo{};
+            renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+            renderPassInfo.framebuffer = getCurrentSwapchainFramebuffer();
+            renderPassInfo.renderArea.offset = {0, 0};
+            renderPassInfo.renderArea.extent.width = getWidth();
+            renderPassInfo.renderArea.extent.height = getHeight();
+            std::array<VkClearValue, 2> clearValues{};
+            clearValues[0].color = {{0.0f, 0.0f, 0.0f, 0.0f}};
+            clearValues[1].depthStencil = {1.0f, 0};
+            renderPassInfo.clearValueCount = static_cast<uint32_t>(clearValues.size());
+            renderPassInfo.pClearValues = clearValues.data();
+            beginPresentRenderPass(renderPassInfo);
 
-            // Prepare submitting the command buffer
-            submitInfo.commandBufferCount = 1;
-            submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
+            for (Inspector* i : oldInspectors) {
+                i->render(activeView, mouseX, mouseY);
+                i->controlCamera(activeView, mouseX, mouseY);
+            }
         }
+
+        // End the command buffer
+        endPresentRenderPass();
+        endOffscreenRenderPass();
+        endCommandBuffer();
+
+        // Prepare submitting the command buffer
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffers[currentFrame];
 
         // Submit the queue
         VK_CHECK(vkQueueSubmit(graphicsQueue.queue, 1, &submitInfo, inFlightFences[currentFrame]));
@@ -1189,13 +1185,13 @@ namespace RT64
         createImageViews();
         resizeScenes();
         createFramebuffers();
-        if (showInspector) {
-            inspector.resize();
-        } else {
+        // if (showInspector) {
+        //     inspector.resize();
+        // } else {
             for (Inspector* i : oldInspectors) {
                 i->resize();
             }
-        }
+        // }
     }
 
     void Device::updateScenes() {
@@ -1381,9 +1377,6 @@ namespace RT64
             vkDestroySemaphore(vkDevice, renderFinishedSemaphores[i], nullptr);
             vkDestroyFence(vkDevice, inFlightFences[i], nullptr);
         }
-
-        // Destroy the inspector
-        inspector.destroy();
         
         rtAllocator.deinit();
 		vmaDestroyAllocator(allocator);
@@ -1748,6 +1741,41 @@ namespace RT64
         }
     }
 
+    void Device::copyImageToBuffer(VkImage image, VkBuffer buffer, uint32_t width, uint32_t height, VkCommandBuffer* commandBuffer) {
+        bool oneTime = !commandBuffer;
+        if (!commandBuffer) {
+            commandBuffer = beginSingleTimeCommands();
+        }
+
+        VkBufferImageCopy region{};
+        region.bufferOffset = 0;
+        region.bufferRowLength = 0;
+        region.bufferImageHeight = 0;
+        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        region.imageSubresource.mipLevel = 0;
+        region.imageSubresource.baseArrayLayer = 0;
+        region.imageSubresource.layerCount = 1;
+        region.imageOffset = {0, 0, 0};
+        region.imageExtent = {
+            width,
+            height,
+            1
+        };
+
+        vkCmdCopyImageToBuffer(
+            *commandBuffer,
+            image,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            buffer,
+            1,
+            &region
+        );
+
+        if (oneTime) {
+            endSingleTimeCommands(commandBuffer);
+        }
+    }
+
     // Copies an image into another
     //  If a pointer to a command buffer is passed into the function, this function will use the passed-in command buffer
     //  Otherwise, it would create a new command buffer just for this
@@ -1999,6 +2027,7 @@ namespace RT64
         return bufferView;
     }
 
+    // TODO: I should change this to return the handles instead of the pointers to the hadles.
     // Begin the use of a command buffer that runs temporarily
     // Returns the pointer to the new command buffer
     VkCommandBuffer* Device::beginSingleTimeCommands() { return beginSingleTimeCommands(nullptr); }
@@ -2153,46 +2182,46 @@ DLEXPORT void RT64_DrawDevice(RT64_DEVICE* devicePtr, int vsyncInterval, double 
 	RT64_CATCH_EXCEPTION();
 }
 
-DLEXPORT void RT64VK_SetSceneInspector(RT64_DEVICE* devicePtr, RT64_SCENE_DESC* sceneDesc) {
-    assert(devicePtr != nullptr);
-	RT64::Device* device = (RT64::Device*)(devicePtr);
-    RT64::Inspector& inspector = device->getInspector();
-    inspector.setSceneDescription(sceneDesc);
-}
+// DLEXPORT void RT64VK_SetSceneInspector(RT64_DEVICE* devicePtr, RT64_SCENE_DESC* sceneDesc) {
+//     assert(devicePtr != nullptr);
+// 	RT64::Device* device = (RT64::Device*)(devicePtr);
+//     RT64::Inspector& inspector = device->getInspector();
+//     inspector.setSceneDescription(sceneDesc);
+// }
 
-DLEXPORT void RT64VK_SetMaterialInspector(RT64_DEVICE* devicePtr, RT64_MATERIAL* material, const char* materialName) {
-    assert(devicePtr != nullptr);
-	RT64::Device* device = (RT64::Device*)(devicePtr);
-    RT64::Inspector& inspector = device->getInspector();
-    inspector.setMaterial(material, std::string(materialName));
-}
+// DLEXPORT void RT64VK_SetMaterialInspector(RT64_DEVICE* devicePtr, RT64_MATERIAL* material, const char* materialName) {
+//     assert(devicePtr != nullptr);
+// 	RT64::Device* device = (RT64::Device*)(devicePtr);
+//     RT64::Inspector& inspector = device->getInspector();
+//     inspector.setMaterial(material, std::string(materialName));
+// }
 
-DLEXPORT void RT64VK_SetLightsInspector(RT64_DEVICE* devicePtr, RT64_LIGHT* lights, int* lightCount, int maxLightCount) {
-    assert(devicePtr != nullptr);
-	RT64::Device* device = (RT64::Device*)(devicePtr);
-    RT64::Inspector& inspector = device->getInspector();
-    inspector.setLights(lights, lightCount, maxLightCount);
-}
+// DLEXPORT void RT64VK_SetLightsInspector(RT64_DEVICE* devicePtr, RT64_LIGHT* lights, int* lightCount, int maxLightCount) {
+//     assert(devicePtr != nullptr);
+// 	RT64::Device* device = (RT64::Device*)(devicePtr);
+//     RT64::Inspector& inspector = device->getInspector();
+//     inspector.setLights(lights, lightCount, maxLightCount);
+// }
 
-DLEXPORT void RT64VK_PrintClearInspector(RT64_DEVICE* devicePtr) {
-    assert(devicePtr != nullptr);
-	RT64::Device* device = (RT64::Device*)(devicePtr);
-    RT64::Inspector& inspector = device->getInspector();
-    inspector.printClear();
-}
+// DLEXPORT void RT64VK_PrintClearInspector(RT64_DEVICE* devicePtr) {
+//     assert(devicePtr != nullptr);
+// 	RT64::Device* device = (RT64::Device*)(devicePtr);
+//     RT64::Inspector& inspector = device->getInspector();
+//     inspector.printClear();
+// }
 
-DLEXPORT void RT64VK_PrintMessageInspector(RT64_DEVICE* devicePtr, const char* message) {
-    assert(devicePtr != nullptr);
-	RT64::Device* device = (RT64::Device*)(devicePtr);
-    RT64::Inspector& inspector = device->getInspector();
-    std::string messageStr(message);
-    inspector.printMessage(messageStr);
-}
+// DLEXPORT void RT64VK_PrintMessageInspector(RT64_DEVICE* devicePtr, const char* message) {
+//     assert(devicePtr != nullptr);
+// 	RT64::Device* device = (RT64::Device*)(devicePtr);
+//     RT64::Inspector& inspector = device->getInspector();
+//     std::string messageStr(message);
+//     inspector.printMessage(messageStr);
+// }
 
-DLEXPORT void RT64VK_SetInspectorVisibility(RT64_DEVICE* devicePtr, bool showInspector) {
-    assert(devicePtr != nullptr);
-	RT64::Device* device = (RT64::Device*)(devicePtr);
-    device->setInspectorVisibility(showInspector);
-}
+// DLEXPORT void RT64VK_SetInspectorVisibility(RT64_DEVICE* devicePtr, bool showInspector) {
+//     assert(devicePtr != nullptr);
+// 	RT64::Device* device = (RT64::Device*)(devicePtr);
+//     device->setInspectorVisibility(showInspector);
+// }
 
 #endif

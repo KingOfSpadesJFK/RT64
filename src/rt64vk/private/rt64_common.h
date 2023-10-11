@@ -5,7 +5,7 @@
 #ifndef __RT64COMMON
 #define __RT64COMMON
 
-#ifdef _WIN32
+#ifdef __WIN32__
 	#define NOMINMAX
 	#define VK_USE_PLATFORM_WIN32_KHR
 #endif
@@ -21,18 +21,18 @@
 #define RT64_VULKAN_VERSION VK_API_VERSION_1_3
 #include <vulkan/vulkan.hpp>
 
-#ifndef _WIN32
+#ifdef __WIN32__
+	#include "../contrib/dxc/include/win/dxcapi.h"
+#else
 	#include <bits/stl_algo.h>
 	#include "../contrib/dxc/include/linux/dxcapi.h"
-#else
-	#include "../contrib/dxc/include/win/dxcapi.h"
 #endif
 
 #include "../contrib/VulkanMemoryAllocator/vk_mem_alloc.h"
 
 #include "../public/rt64.h"
 
-#ifdef _WIN32
+#ifdef __WIN32__
 	#define DLEXPORT extern "C" __declspec(dllexport)
 #else
 	#define DLEXPORT extern "C" __attribute__((visibility("default")))
@@ -424,7 +424,7 @@ namespace RT64 {
 					viewInfo.subresourceRange.baseArrayLayer = 0;
 					viewInfo.subresourceRange.layerCount = 1;
 					vkCreateImageView(allocatorInfo.device, &viewInfo, nullptr, &imageView);
-					descriptorInfo = { nullptr, imageView, layouts[0] };
+					descriptorInfo = { VK_NULL_HANDLE, imageView, layouts[0] };
 				}
 			}
 

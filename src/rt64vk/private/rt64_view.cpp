@@ -236,17 +236,19 @@ namespace RT64
         device->allocateImage(&rtTransparent, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
 
         imageInfo.format = VK_FORMAT_R32_SINT;
+        imageInfo.tiling = VK_IMAGE_TILING_LINEAR;
         imageInfo.usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT| VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         device->allocateImage(&rtInstanceId, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         device->allocateImage(&rtFirstInstanceId, imageInfo, VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE, allocFlags);
         
         // Create a buffer big enough to read the resource back.
         uint32_t rowPadding;
-        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         CalculateTextureRowWidthPadding((uint32_t)(imageInfo.extent.width * 4), rtFirstInstanceIdRowWidth, rowPadding);
-        device->allocateBuffer( rtFirstInstanceIdRowWidth * imageInfo.extent.height, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, allocFlags, 
+        device->allocateBuffer( imageInfo.extent.width * imageInfo.extent.height * 4, VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VMA_MEMORY_USAGE_AUTO_PREFER_HOST, allocFlags, 
             &rtFirstInstanceIdReadback );
 
+        imageInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+        imageInfo.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         imageInfo.format = VK_FORMAT_R16G16B16A16_SFLOAT;
         if (upscaleActive) {
             imageInfo.extent.width = screenWidth;
@@ -588,7 +590,7 @@ namespace RT64
             current->objectToWorldPrevious = inst.transformPrevious;
 
             // Store matrix to transform normal.
-            glm::mat4 upper3x3 = current->objectToWorld;
+            glm::mat4 upper3x3 = inst.transform;
             upper3x3[0][3] = 0.f;
             upper3x3[1][3] = 0.f;
             upper3x3[2][3] = 0.f;
@@ -597,8 +599,8 @@ namespace RT64
             upper3x3[3][2] = 0.f;
             upper3x3[3][3] = 1.f;
 
-            upper3x3 = glm::transpose(upper3x3);
-            current->objectToWorldNormal = upper3x3;
+            // upper3x3 = glm::transpose(glm::inverse(upper3x3));
+            current->objectToWorldNormal = glm::inverseTranspose(upper3x3);
         };
 
         // Store the transforms
@@ -620,7 +622,7 @@ namespace RT64
 
     void View::createInstanceMaterialsBuffer() {
         uint32_t totalInstances = static_cast<uint32_t>(rtInstances.size() + rasterBgInstances.size() + rasterFgInstances.size());
-        uint32_t newBufferSize = totalInstances * sizeof(RT64_MATERIAL);
+        uint32_t newBufferSize = totalInstances * sizeof(Material);
         if (activeInstancesBufferMaterialsSize != newBufferSize) {
             activeInstancesBufferMaterials.destroyResource();
             device->allocateBuffer(
@@ -634,7 +636,7 @@ namespace RT64
     }
 
     void View::updateInstanceMaterialsBuffer() {
-        RT64_MATERIAL* current = nullptr;
+        Material* current = nullptr;
         void* pData = activeInstancesBufferMaterials.mapMemory(reinterpret_cast<void**>(&current));
 
         for (const RenderInstance& inst : rtInstances) {
@@ -1045,12 +1047,38 @@ namespace RT64
                 // renderInstance.bottomLevelAS = usedMesh->getBottomLevelASResult();
                 renderInstance.transform = instance->getTransform();
                 renderInstance.transformPrevious = instance->getPreviousTransform();
-                renderInstance.material = instance->getMaterial();
                 renderInstance.shader = instance->getShader();
                 renderInstance.indexCount = usedMesh->getIndexCount();
                 renderInstance.vertexBuffer = &usedMesh->getVertexBuffer().getBuffer();
                 renderInstance.indexBuffer = &usedMesh->getIndexBuffer().getBuffer();
                 renderInstance.flags = (instFlags & RT64_INSTANCE_DISABLE_BACKFACE_CULLING) ? VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR : 0;
+
+                // Convert the RT64_Material to the Material struct
+                RT64_MATERIAL instanceMat = instance->getMaterial();
+                Material vkMaterial;
+                vkMaterial.diffuseColorMix = instanceMat.diffuseColorMix;
+                vkMaterial.specularColor = instanceMat.specularColor;
+                vkMaterial.selfLight = instanceMat.selfLight;
+                vkMaterial.fogColor = instanceMat.fogColor;
+                vkMaterial.ignoreNormalFactor = instanceMat.ignoreNormalFactor;
+                vkMaterial.uvDetailScale = instanceMat.uvDetailScale;
+                vkMaterial.reflectionFactor = instanceMat.reflectionFactor;
+                vkMaterial.reflectionFresnelFactor = instanceMat.reflectionFresnelFactor;
+                vkMaterial.reflectionShineFactor = instanceMat.reflectionShineFactor;
+                vkMaterial.refractionFactor = instanceMat.refractionFactor;
+                vkMaterial.specularExponent = instanceMat.specularExponent;
+                vkMaterial.solidAlphaMultiplier = instanceMat.solidAlphaMultiplier;
+                vkMaterial.shadowAlphaMultiplier = instanceMat.shadowAlphaMultiplier;
+                vkMaterial.depthBias = instanceMat.depthBias;
+                vkMaterial.shadowRayBias = instanceMat.shadowRayBias;
+                vkMaterial.lightGroupMaskBits = instanceMat.lightGroupMaskBits;
+                vkMaterial.fogMul = instanceMat.fogMul;
+                vkMaterial.fogOffset = instanceMat.fogOffset;
+                vkMaterial.fogEnabled = instanceMat.fogEnabled;
+                vkMaterial.lockMask = instanceMat.lockMask;
+                vkMaterial.enabledAttributes = instanceMat.enabledAttributes;
+
+                renderInstance.material = vkMaterial;
                 renderInstance.material.diffuseTexIndex = getTextureIndex(instance->getDiffuseTexture());
                 renderInstance.material.normalTexIndex = getTextureIndex(instance->getNormalTexture());
                 renderInstance.material.specularTexIndex = getTextureIndex(instance->getSpecularTexture());
@@ -1371,9 +1399,9 @@ namespace RT64
             }
 
             globalParamsData.viewport.x = rtViewport.x;
-            globalParamsData.viewport.y = rtViewport.y;
+            globalParamsData.viewport.y = rtViewport.y - rtViewport.height;
             globalParamsData.viewport.z = rtViewport.width;
-            globalParamsData.viewport.w = rtViewport.height;
+            globalParamsData.viewport.w = -rtViewport.height;
             updateFilterParamsBuffer();
         }
 
@@ -2018,6 +2046,55 @@ namespace RT64
         return { rayDirection.x, rayDirection.y, rayDirection.z };
     }
 
+    RT64_INSTANCE* View::getRaytracedInstanceAt(int x, int y) {
+        int screenWidth = scene->getDevice()->getWidth();
+        int screenHeight = scene->getDevice()->getHeight();
+        float xScale = (float)(rtWidth) / (float)(screenWidth);
+        float yScale = (float)(rtHeight) / (float)(screenHeight);
+
+        // Check resource's bounds.
+        x = lround(x * xScale);
+        y = lround(y * yScale);
+        if ((x < 0) || (x >= rtWidth) || (y < 0) || (y >= rtHeight)) {
+            return nullptr;
+        }
+
+        // Update readback resource if necessary this frame.
+        if (!rtFirstInstanceIdReadbackUpdated) {
+            VkCommandBuffer* commandBuffer = device->beginSingleTimeCommands();
+            device->transitionImageLayout(rtFirstInstanceId, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                VK_ACCESS_TRANSFER_READ_BIT,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                commandBuffer);
+            device->copyImageToBuffer(rtFirstInstanceId.getImage(),
+                rtFirstInstanceIdReadback.getBuffer(), 
+                rtFirstInstanceId.getDimensions().width, 
+                rtFirstInstanceId.getDimensions().height, 
+                commandBuffer);
+            device->endSingleTimeCommands(commandBuffer);
+
+            rtFirstInstanceIdReadbackUpdated = true;
+        }
+
+        // Map the resource read the pixel.
+        size_t index = (rtWidth * y + x) * 4;
+        int32_t instanceId = 0;
+        uint8_t* pData;
+        // D3D12_CHECK(rtFirstInstanceIdReadback.Get()->Map(0, nullptr, (void **)(&pData)));
+        rtFirstInstanceIdReadback.mapMemory((void**)&pData);
+        memcpy(&instanceId, pData + index, sizeof(instanceId));
+        // rtFirstInstanceIdReadback.Get()->Unmap(0, nullptr);
+        rtFirstInstanceIdReadback.unmapMemory();
+
+        // Check the matching instance.
+        if ((instanceId >= 0) && (instanceId < rtInstances.size())) {
+            return (RT64_INSTANCE *)(rtInstances[instanceId].instance);
+        }
+        else {
+            return nullptr;
+        }
+    }
+
     void View::resize() { 
         recreateRTBuffers = true;
     }
@@ -2053,22 +2130,10 @@ namespace RT64
         this->farDist = farDist;
 
         globalParamsData.view = {
-            viewMatrix.m[0][0], 
-            viewMatrix.m[0][1],
-            viewMatrix.m[0][2], 
-            viewMatrix.m[0][3],
-            viewMatrix.m[1][0], 
-            viewMatrix.m[1][1], 
-            viewMatrix.m[1][2], 
-            viewMatrix.m[1][3],
-            viewMatrix.m[2][0], 
-            viewMatrix.m[2][1], 
-            viewMatrix.m[2][2], 
-            viewMatrix.m[2][3],
-            viewMatrix.m[3][0], 
-            viewMatrix.m[3][1], 
-            viewMatrix.m[3][2], 
-            viewMatrix.m[3][3],
+            viewMatrix.m[0][0], viewMatrix.m[0][1], viewMatrix.m[0][2], viewMatrix.m[0][3],
+            viewMatrix.m[1][0], viewMatrix.m[1][1], viewMatrix.m[1][2], viewMatrix.m[1][3],
+            viewMatrix.m[2][0], viewMatrix.m[2][1], viewMatrix.m[2][2], viewMatrix.m[2][3],
+            viewMatrix.m[3][0], viewMatrix.m[3][1], viewMatrix.m[3][2], viewMatrix.m[3][3],
         };
 
         globalParamsData.projection = glm::perspective(fovRadians, (float)this->device->getAspectRatio(), nearDist, farDist);
@@ -2354,6 +2419,16 @@ DLEXPORT void RT64_SetViewPerspective(RT64_VIEW* viewPtr, RT64_MATRIX4 viewMatri
 	view->setPerspectiveCanReproject(canReproject);
 }
 
+DLEXPORT void RT64_SetPostEffects(RT64_VIEW *viewPtr, RT64_POST_FX_DESC postDesc) {
+    assert(viewPtr != nullptr);
+    RT64::View *view = (RT64::View *)(viewPtr);
+    view->setTonemappingMode(postDesc.tonemapMode);
+    view->setTonemappingExposure(postDesc.tonemapExposure);
+    view->setTonemappingBlack(postDesc.tonemapBlack);
+    view->setTonemappingWhite(postDesc.tonemapWhite);
+    view->setTonemappingGamma(postDesc.tonemapGamma);
+}
+
 DLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc) {
 	assert(viewPtr != nullptr);
 	RT64::View *view = (RT64::View *)(viewPtr);
@@ -2362,12 +2437,6 @@ DLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDes
 	view->setMaxLights(viewDesc.maxLights);
 	view->setDISamples(viewDesc.diSamples);
 	view->setGISamples(viewDesc.giSamples);
-	view->setGIBounces(viewDesc.giBounces);
-    view->setTonemappingMode(viewDesc.tonemapMode);
-    view->setTonemappingExposure(viewDesc.tonemapExposure);
-    view->setTonemappingBlack(viewDesc.tonemapBlack);
-    view->setTonemappingWhite(viewDesc.tonemapWhite);
-    view->setTonemappingGamma(viewDesc.tonemapGamma);
 	view->setDenoiserEnabled(viewDesc.denoiserEnabled);
 	
 	switch (viewDesc.upscaler) {
@@ -2429,6 +2498,12 @@ DLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDes
 	}
 
 	view->setUpscalerSharpness(viewDesc.upscalerSharpness);
+}
+
+DLEXPORT RT64_INSTANCE* RT64_GetViewRaytracedInstanceAt(RT64_VIEW *viewPtr, int x, int y) {
+	assert(viewPtr != nullptr);
+	RT64::View *view = (RT64::View *)(viewPtr);
+	return view->getRaytracedInstanceAt(x, y);
 }
 
 DLEXPORT bool RT64_GetViewUpscalerSupport(RT64_VIEW* viewPtr, int upscaler) {

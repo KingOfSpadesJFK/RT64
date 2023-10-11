@@ -107,6 +107,7 @@ namespace RT64 {
 	}
 
 	void Inspector::destroy() {
+		ImGui_ImplGlfw_RestoreCallbacks(device->getWindow());
 		ImGui_ImplVulkan_Shutdown();
 		ImGui_ImplGlfw_Shutdown();
 		ImGui::DestroyContext();
@@ -128,11 +129,11 @@ namespace RT64 {
 			renderViewParams(activeView);
 			renderSceneInspector();
 			renderPostInspector(activeView);
-			renderMaterialInspector();
 			renderLightInspector();
 			renderCameraControl();
 			ImGui::EndTabBar();
 		}
+		renderMaterialInspector();
 		renderPrint();
 		ImGui::End();
 
@@ -284,7 +285,7 @@ namespace RT64 {
 			float tonemapGamma = view->getTonemappingGamma();
 			// bool eyeAdaption = view->getEyeAdaptionEnabledFlag();
 
-			ImGui::Combo("Tonemapping Mode", &tonemapMode, "Raw Image\0Reinhard Tonemapper\0Reinhard-Luma\0Reinhard-Jodie\0Uncharted 2\0ACES Filmic\0Simple\0");
+			ImGui::Combo("Tonemapping Mode", &tonemapMode, "Raw Image\0Simple\0Reinhard Tonemapper\0Reinhard-Luma\0Reinhard-Jodie\0Uncharted 2\0ACES Filmic\0");
 			ImGui::DragFloat("Exposure", &tonemapExposure, 0.01f, 0.0f, 20.0f);
 			ImGui::DragFloat("White Point", &tonemapWhite, 0.01f, 0.0f, 10.0f);
 			ImGui::DragFloat("Black Level", &tonemapBlack, 0.01f, 0.0f, 10.0f);
@@ -340,7 +341,8 @@ namespace RT64 {
 	}
 
 	void Inspector::renderMaterialInspector() {
-		if (material != nullptr && ImGui::BeginTabItem("Material")) {
+		if (material != nullptr) {
+			ImGui::Separator();
 			ImGui::BeginChild("MaterialInspector", ImVec2(0, ImGui::GetWindowHeight() * .75 - ImGui::GetFrameHeightWithSpacing() * 2.0));
 			ImGui::Text("Material Inspector (%s)", materialName.c_str());
 
@@ -421,7 +423,6 @@ namespace RT64 {
 			pushInt("Light group mask bits", RT64_ATTRIBUTE_LIGHT_GROUP_MASK_BITS, (int *)(&material->lightGroupMaskBits), &material->enabledAttributes);
 
 			ImGui::EndChild();
-			ImGui::EndTabItem();
 		}
 	}
 

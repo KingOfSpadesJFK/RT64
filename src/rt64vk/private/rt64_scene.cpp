@@ -134,11 +134,29 @@ namespace RT64
         void* lightBufferAddr = lightsBuffer.mapMemory((void**)&pData);
 
         if (lightArray != nullptr) {
-            memcpy(pData, lightArray, sizeof(RT64_LIGHT) * lightCount);
+            // Convert the RT64_LIGHT array to a vector of Light structs.
+            //  For compatibility with Vulkan and RT64DX
+            std::vector<Light> vkLights;
+            vkLights.resize(lightCount);
+            for (int i = 0; i < lightCount; i++) {
+                RT64_LIGHT* rt64Light = &lightArray[i];
+                Light& lightStruct = vkLights[i];
+                lightStruct.position = rt64Light->position;
+                lightStruct.diffuseColor = rt64Light->diffuseColor;
+                lightStruct.specularColor = rt64Light->specularColor;
+                lightStruct.attenuationRadius = rt64Light->attenuationRadius;
+                lightStruct.pointRadius = rt64Light->pointRadius;
+                lightStruct.shadowOffset = rt64Light->shadowOffset;
+                lightStruct.attenuationExponent = rt64Light->attenuationExponent;
+                lightStruct.flickerIntensity = rt64Light->flickerIntensity;
+                lightStruct.groupBits = rt64Light->groupBits;
+            }
+            
+            memcpy(pData, vkLights.data(), sizeof(Light) * lightCount);
 
             // Modify light colors with flicker intensity if necessary.
             while (i < lightCount) {
-                RT64_LIGHT *light = ((RT64_LIGHT*)(pData));
+                Light *light = ((Light*)(pData));
                 const float flickerIntensity = light->flickerIntensity;
                 if (flickerIntensity > 0.0) {
                     const float flickerMult = 1.0f + ((randomDistribution(randomEngine) * 2.0f - 1.0f) * flickerIntensity);
@@ -147,7 +165,7 @@ namespace RT64
                     light->diffuseColor.z *= flickerMult;
                 }
 
-                pData += sizeof(RT64_LIGHT);
+                pData += sizeof(Light);
                 i++;
             }
         }

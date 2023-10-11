@@ -29,6 +29,35 @@ namespace RT64
 
 	class View {
         private:
+            struct Material {
+                RT64_VECTOR4 diffuseColorMix;
+                alignas(16) RT64_VECTOR3 specularColor;
+                alignas(16) RT64_VECTOR3 selfLight;
+                alignas(16) RT64_VECTOR3 fogColor;
+                int diffuseTexIndex;
+                int normalTexIndex;
+                int specularTexIndex;
+                float ignoreNormalFactor;
+                float uvDetailScale;
+                float reflectionFactor;
+                float reflectionFresnelFactor;
+                float reflectionShineFactor;
+                float refractionFactor;
+                float specularExponent;
+                float solidAlphaMultiplier;
+                float shadowAlphaMultiplier;
+                float depthBias;
+                float shadowRayBias;
+                unsigned int lightGroupMaskBits;
+                float fogMul;
+                float fogOffset;
+                unsigned int fogEnabled;
+                float lockMask;
+
+                // Flag containing all attributes that are actually used by this material.
+                int enabledAttributes;
+            };
+
             struct RenderInstance {
                 Instance* instance = nullptr;
                 VkBuffer* vertexBuffer = nullptr;
@@ -37,7 +66,7 @@ namespace RT64
                 nvvk::AccelKHR* blas = nullptr;
                 glm::mat4 transform {};
                 glm::mat4 transformPrevious {};
-                RT64_MATERIAL material;
+                Material material;
                 Shader* shader;
                 VkRect2D scissorRect;
                 VkViewport viewport;
@@ -125,7 +154,7 @@ namespace RT64
             int rtHeight;
             float resolutionScale = 1.0f;
             unsigned int rtFirstInstanceIdRowWidth;
-            bool rtFirstInstanceIdReadbackUpdated;
+            bool rtFirstInstanceIdReadbackUpdated = false;
             bool rtEnabled = true;
             bool rtSwap = false;
             bool rtSkipReprojection = false;
@@ -233,6 +262,7 @@ namespace RT64
             VkImageView& getDepthImageView();
             AllocatedBuffer& getGlobalParamsBuffer();
             RT64_VECTOR3 getRayDirectionAt(int px, int py);
+            RT64_INSTANCE* getRaytracedInstanceAt(int x, int y);
 		    void renderInspector(Inspector* inspector);
             void setSkyPlaneTexture(Texture* texture);
             // Getters

@@ -133,7 +133,6 @@ DLEXPORT RT64_TEXTURE* RT64_CreateTexture(RT64_DEVICE *devicePtr, RT64_TEXTURE_D
 
 	// Try to load the texture data.
 	try {
-        texture->setName(textureDesc.name);
 		switch (textureDesc.format) {
             case RT64_TEXTURE_FORMAT_RGBA8:
                 texture->setRGBA8(textureDesc.bytes, textureDesc.byteCount, textureDesc.width, textureDesc.height, textureDesc.rowPitch, true);

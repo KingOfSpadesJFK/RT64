@@ -12,6 +12,19 @@ namespace RT64 {
 	class Instance;
 	class View;
 
+	// A light struct that's compatible with Vulkan's memory stride requirements.
+	typedef struct {
+		alignas(16) RT64_VECTOR3 position;
+		alignas(16) RT64_VECTOR3 diffuseColor;
+		alignas(16) RT64_VECTOR3 specularColor;
+		float attenuationRadius;
+		float pointRadius;
+		float shadowOffset;
+		float attenuationExponent;
+		float flickerIntensity;
+		unsigned int groupBits;
+	} Light;
+
 	class Scene {
 	private:
 		Device* device;

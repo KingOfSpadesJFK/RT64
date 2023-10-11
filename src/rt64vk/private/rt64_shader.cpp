@@ -129,7 +129,7 @@ void getVertexData(std::stringstream &ss, bool vertexPosition, bool vertexNormal
 		SS("vertexNormal = any(vertexNormal) ? normalize(vertexNormal) : triangleNormal;");
 
 		// Transform the triangle normal.
-		SS("triangleNormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(triangleNormal, 0.f)).xyz);");
+		SS("triangleNormal = normalize(mul(float4(triangleNormal, 0.f), instanceTransforms[instanceId].objectToWorldNormal).xyz);");
 	}
 
 	if (vertexUV) {
@@ -386,7 +386,7 @@ namespace RT64
 		}
 		SS(") {");
 		if (use3DTransforms) {
-			SS("    oPosition = mul(projection, mul(view, mul(instanceTransforms[pc.instanceId].objectToWorld, float4(iPosition.xyz, 1.0))));");
+			SS("    oPosition = mul(projection, mul(view, mul(float4(iPosition.xyz, 1.0), instanceTransforms[pc.instanceId].objectToWorld)));");
 		} else {
 			SS("    oPosition = iPosition;");
 		}
@@ -645,13 +645,11 @@ namespace RT64
 			SS("    resultColor.a *= round(nextRand(seed));");
 		}
 		
-		SS("vertexNormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexNormal, 0.f)).xyz);");
-		SS("float normalSign = (dot(triangleNormal, WorldRayDirection()) <= 0.0f) ? 1.0f : -1.0f;");
-		SS("vertexNormal *= normalSign;");
+		SS("vertexNormal = normalize(mul(float4(vertexNormal, 0.f), instanceTransforms[instanceId].objectToWorldNormal).xyz);");
 		
 		if (vertexUV && normalMapEnabled) {
-			SS("    vertexTangent = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexTangent, 0.f)).xyz) * normalSign;");
-			SS("    vertexBinormal = normalize(mul(instanceTransforms[instanceId].objectToWorldNormal, float4(vertexBinormal, 0.f)).xyz) * normalSign;");
+			SS("    vertexTangent = normalize(mul(float4(vertexTangent, 0.f), instanceTransforms[instanceId].objectToWorldNormal).xyz);");
+			SS("    vertexBinormal = normalize(mul(float4(vertexBinormal, 0.f), instanceTransforms[instanceId].objectToWorldNormal).xyz);");
 			SS("    float3x3 tbn = float3x3(vertexTangent, vertexBinormal, vertexNormal);");
 			SS("    int normalTexIndex = instanceMaterials[instanceId].normalTexIndex;");
 			SS("    if (normalTexIndex >= 0) {");
@@ -663,8 +661,8 @@ namespace RT64
 			SS("    }");
 		}
 
-		SS("	float3 prevWorldPos = mul(instanceTransforms[instanceId].objectToWorldPrevious, float4(vertexPosition, 1.0f)).xyz;");
-		SS("	float3 curWorldPos = mul(instanceTransforms[instanceId].objectToWorld, float4(vertexPosition, 1.0f)).xyz;");
+		SS("	float3 prevWorldPos = mul(float4(vertexPosition, 1.0f), instanceTransforms[instanceId].objectToWorldPrevious).xyz;");
+		SS("	float3 curWorldPos = mul(float4(vertexPosition, 1.0f), instanceTransforms[instanceId].objectToWorld).xyz;");
 		SS("	float3 vertexFlow = curWorldPos - prevWorldPos;");
 		SS("    float3 vertexSpecular = float3(1.0f, 1.0f, 1.0f);");
 		if (vertexUV && specularMapEnabled) {
