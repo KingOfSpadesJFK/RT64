@@ -116,7 +116,7 @@ namespace RT64
         static std::uniform_real_distribution<float> randomDistribution(0.0f, 1.0f);
 
         assert(lightCount > 0);
-        VkDeviceSize newSize = ROUND_UP(sizeof(RT64_LIGHT) * lightCount, 256);
+        VkDeviceSize newSize = sizeof(Light) * lightCount;
         if (newSize != lightsBufferSize) {
             lightsBuffer.destroyResource();
             getDevice()->allocateBuffer(
@@ -130,44 +130,36 @@ namespace RT64
         }
 
         uint64_t* pData;
-        VkDeviceSize i = 0;
         void* lightBufferAddr = lightsBuffer.mapMemory((void**)&pData);
-
         if (lightArray != nullptr) {
             // Convert the RT64_LIGHT array to a vector of Light structs.
             //  For compatibility with Vulkan and RT64DX
             std::vector<Light> vkLights;
             vkLights.resize(lightCount);
-            for (int i = 0; i < lightCount; i++) {
-                RT64_LIGHT* rt64Light = &lightArray[i];
+            for (VkDeviceSize i = 0; i < lightCount; i++) {
+                RT64_LIGHT& rt64Light = lightArray[i];
                 Light& lightStruct = vkLights[i];
-                lightStruct.position = rt64Light->position;
-                lightStruct.diffuseColor = rt64Light->diffuseColor;
-                lightStruct.specularColor = rt64Light->specularColor;
-                lightStruct.attenuationRadius = rt64Light->attenuationRadius;
-                lightStruct.pointRadius = rt64Light->pointRadius;
-                lightStruct.shadowOffset = rt64Light->shadowOffset;
-                lightStruct.attenuationExponent = rt64Light->attenuationExponent;
-                lightStruct.flickerIntensity = rt64Light->flickerIntensity;
-                lightStruct.groupBits = rt64Light->groupBits;
+                lightStruct.position = rt64Light.position;
+                lightStruct.diffuseColor = rt64Light.diffuseColor;
+                lightStruct.specularColor = rt64Light.specularColor;
+                lightStruct.attenuationRadius = rt64Light.attenuationRadius;
+                lightStruct.pointRadius = rt64Light.pointRadius;
+                lightStruct.shadowOffset = rt64Light.shadowOffset;
+                lightStruct.attenuationExponent = rt64Light.attenuationExponent;
+                lightStruct.flickerIntensity = rt64Light.flickerIntensity;
+                lightStruct.groupBits = rt64Light.groupBits;
+
+                // Modify light colors with flicker intensity if necessary.
+                const float flickerIntensity = lightStruct.flickerIntensity;
+                if (flickerIntensity > 0.0) {
+                    const float flickerMult = 1.0f + ((randomDistribution(randomEngine) * 2.0f - 1.0f) * flickerIntensity);
+                    lightStruct.diffuseColor.x *= flickerMult;
+                    lightStruct.diffuseColor.y *= flickerMult;
+                    lightStruct.diffuseColor.z *= flickerMult;
+                }
             }
             
             memcpy(pData, vkLights.data(), sizeof(Light) * lightCount);
-
-            // Modify light colors with flicker intensity if necessary.
-            while (i < lightCount) {
-                Light *light = ((Light*)(pData));
-                const float flickerIntensity = light->flickerIntensity;
-                if (flickerIntensity > 0.0) {
-                    const float flickerMult = 1.0f + ((randomDistribution(randomEngine) * 2.0f - 1.0f) * flickerIntensity);
-                    light->diffuseColor.x *= flickerMult;
-                    light->diffuseColor.y *= flickerMult;
-                    light->diffuseColor.z *= flickerMult;
-                }
-
-                pData += sizeof(Light);
-                i++;
-            }
         }
 
         lightsBuffer.unmapMemory();

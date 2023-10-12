@@ -22,6 +22,6 @@ float4 ComputeFogFromOrigin(uint instanceId, float3 position, float3 origin) {
 	float fogMul = instanceMaterials[instanceId].fogMul;
 	float fogOffset = instanceMaterials[instanceId].fogOffset;
 	float distance = length(position - origin);
-	fogColor.a = ((distance + fogOffset) / fogMul) * 0.5f;
+	fogColor.a = saturate(((distance + fogOffset) / fogMul) * 0.5f);
 	return fogColor;
 }
