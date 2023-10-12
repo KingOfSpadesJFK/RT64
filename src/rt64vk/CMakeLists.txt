@@ -94,7 +94,7 @@ target_include_directories(rt64vk PRIVATE
     ${DLSS_DIR}/include
     ${FSR_DIR}/include
 )
-target_link_libraries(rt64vk
+target_link_libraries(rt64vk PRIVATE
     ${VULKAN_LIBRARY}
     ${GLFW_LIBRARY}
     ${DXC_LIBRARY}

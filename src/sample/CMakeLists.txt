@@ -13,22 +13,22 @@ add_executable(sample
     ${SAMPLE_DIR}/main.cpp
 )
 if (UNIX)
-    target_link_libraries(sample 
-        rt64vk
-    )
+    # Vulkan and GLFW
+    set(VULKAN_LIBRARY vulkan)
+    set(GLFW_LIBRARY glfw)
 else()
     file(GLOB VULKAN_LIBRARY ${VK_SDK_PATH}\\Lib/*.lib)
     set(GLFW_LIBRARY ${PROJECT_SOURCE_DIR}/src/contrib/glfw/lib/glfw3dll.lib)
-    target_link_libraries(sample 
-        ${VULKAN_LIBRARY}
-        ${GLFW_LIBRARY}
-    )
 endif()
 target_include_directories(sample PRIVATE 
     ${GLFW_INCLUDE}
     ${VULKAN_INCLUDE}
     ${SAMPLE_DIR}/contrib/tinygltf
     ${LIBRT64VK_DIR}/public
+)
+target_link_libraries(sample PRIVATE
+    ${VULKAN_LIBRARY}
+    ${GLFW_LIBRARY}
 )
 # Copy the res files into the build folder
 file(COPY ${SAMPLE_DIR}/res DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
