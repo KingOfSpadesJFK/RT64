@@ -1126,8 +1126,8 @@ namespace RT64
             createInstanceTransformsBuffer();
             createInstanceMaterialsBuffer();
             
-            // Create the buffer containing the raytracing result (or atleast soon), 
-            //  and create the descriptor sets referencing the resources used 
+            // Create the buffer containing the raytracing result, and 
+            //  create the descriptor sets referencing the resources used 
             //  by the raytracing, such as the acceleration structure
             updateShaderDescriptorSets(updateDescriptors);
             
@@ -1206,7 +1206,7 @@ namespace RT64
         missRegion.stride = handleSizeAligned;
         missRegion.size = ROUND_UP(missCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
 
-        // Stride is the size of the handle + the addresses to the vertex/index buffer
+        // Stride is the size of the handle + the addresses to the vertex and index buffers
         // hitRegion.size and hitCount will differ 
         //  - hitRegion.size is how many rtInstances there are
         //  - hitCount is how many hit shaders there are in the pipeline
@@ -2164,6 +2164,21 @@ namespace RT64
             auto viewport = device->getViewport();
             auto scissors = device->getScissors();
 
+            // Set up the im3d descriptor set
+            std::vector<VkWriteDescriptorSet> descriptorWrites;
+            VkDescriptorSet& descriptorSet = device->getIm3dDescriptorSet();
+            VkWriteDescriptorSet write {};
+            descriptorWrites.push_back(rtHitDistAndFlow.generateDescriptorWrite(1, UAV_INDEX(gHitDistAndFlow) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtHitColor.generateDescriptorWrite(1, UAV_INDEX(gHitColor) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtHitNormal.generateDescriptorWrite(1, UAV_INDEX(gHitNormal) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtHitSpecular.generateDescriptorWrite(1, UAV_INDEX(gHitSpecular) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(rtHitInstanceId.generateDescriptorWrite(1, UAV_INDEX(gHitInstanceId) + UAV_SHIFT, VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER, descriptorSet));
+            descriptorWrites.push_back(globalParamsBuffer.generateDescriptorWrite(1, CBV_INDEX(gParams) + CBV_SHIFT, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorSet));
+
+            // Write to the im3d descriptor set
+            vkUpdateDescriptorSets(device->getVkDevice(), static_cast<uint32_t>(descriptorWrites.size()), descriptorWrites.data(), 0, nullptr);
+            descriptorWrites.clear();
+
             unsigned int totalVertexCount = 0;
             for (Im3d::U32 i = 0, n = Im3d::GetDrawListCount(); i < n; ++i) {
                 auto &drawList = Im3d::GetDrawLists()[i];
@@ -2190,7 +2205,7 @@ namespace RT64
                 // Copy im3d draw lists to vertex buffer.
                 void* pData;
                 uint8_t* pIm3Ddata = (uint8_t*)im3dVertexBuffer.mapMemory(&pData);
-                for (int i = 0; i < Im3d::GetDrawListCount(); i++) {
+                for (int i = 0, n = Im3d::GetDrawListCount(); i < n; i++) {
                     auto& drawList = Im3d::GetDrawLists()[i];
                     size_t copySize = sizeof(Im3d::VertexData) * drawList.m_vertexCount;
                     memcpy(pIm3Ddata, drawList.m_vertexData, copySize);
@@ -2250,8 +2265,7 @@ namespace RT64
                     vkCmdDraw(commandBuffer, drawList.m_vertexCount, 1, vertexOffset, 0);
 				    vertexOffset += drawList.m_vertexCount;
                 }
-
-                // vkCmdEndRenderPass(commandBuffer);
+                // Keep the render pass active for the inspector to draw.
             }
         }
     }

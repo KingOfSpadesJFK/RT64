@@ -591,6 +591,14 @@ namespace RT64 {
 	}
 
 	Device* Inspector::getDevice() { return device; }
+
+#ifdef __WIN32__
+	extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+	bool Inspector::handleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
+		return ImGui_ImplWin32_WndProcHandler(device->getHwnd(), msg, wParam, lParam);
+	}
+#endif
 };
 
 // Library Exports
@@ -603,6 +611,14 @@ DLEXPORT RT64_INSPECTOR* RT64_CreateInspector(RT64_DEVICE* devicePtr) {
 	device->addInspectorOld(inspector);
     return (RT64_INSPECTOR*)(inspector);
 }
+
+#ifdef __WIN32__
+DLLEXPORT bool RT64_HandleMessageInspector(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam) {
+    assert(inspectorPtr != nullptr);
+    RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
+    return inspector->handleMessage(msg, wParam, lParam);
+}
+#endif
 
 DLEXPORT void RT64_SetSceneInspector(RT64_INSPECTOR* inspectorPtr, RT64_SCENE_DESC* sceneDesc) {
     assert(inspectorPtr != nullptr);

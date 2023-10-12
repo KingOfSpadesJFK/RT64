@@ -112,7 +112,7 @@ namespace RT64
             void createSyncObjects();
             void createRayTracingPipeline();
             void createDescriptorPool();
-            void loadAssets();
+            void preparePipelines();
 
             void initRayTracing();
             void recreateSwapChain();

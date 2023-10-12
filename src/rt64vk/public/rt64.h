@@ -309,6 +309,9 @@ typedef void (*DestroyMeshPtr)(RT64_MESH* meshPtr);
 typedef RT64_SHADER *(*CreateShaderPtr)(RT64_DEVICE *devicePtr, unsigned int shaderId, unsigned int filter, unsigned int hAddr, unsigned int vAddr, int flags);
 typedef void (*DestroyShaderPtr)(RT64_SHADER *shaderPtr);
 typedef RT64_INSTANCE* (*CreateInstancePtr)(RT64_SCENE* scenePtr);
+#ifdef __WIN32__
+typedef bool (*HandleMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam);
+#endif
 typedef void (*SetInstanceDescriptionPtr)(RT64_INSTANCE* instancePtr, RT64_INSTANCE_DESC instanceDesc);
 typedef void (*DestroyInstancePtr)(RT64_INSTANCE* instancePtr);
 typedef RT64_TEXTURE* (*CreateTexturePtr)(RT64_DEVICE* devicePtr, RT64_TEXTURE_DESC textureDesc);
@@ -370,6 +373,9 @@ typedef struct {
 	// SetLightsInspectorPtr2 SetLightsInspector2;
 	// SetInspectorVisibilityPtr2 SetInspectorVisibility2;
 	CreateInspectorPtr CreateInspector;
+#ifdef __WIN32__
+	HandleMessageInspectorPtr HandleMessageInspector;
+#endif
 	PrintClearInspectorPtr PrintClearInspector;
 	PrintMessageInspectorPtr PrintMessageInspector;
 	SetSceneInspectorPtr SetSceneInspector;
@@ -450,6 +456,9 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		// lib.PrintMessageInspector2 = (PrintMessageInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_PrintMessageInspector"));
 		// lib.SetInspectorVisibility2 = (SetInspectorVisibilityPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetInspectorVisibility"));
 		lib.CreateInspector = (CreateInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_CreateInspector"));
+#ifdef __WIN32__
+		lib.HandleMessageInspector = (HandleMessageInspectorPtr)(GetProcAddress(lib.handle, "RT64_HandleMessageInspector"));
+#endif
 		lib.SetSceneInspector = (SetSceneInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetSceneInspector"));
 		lib.SetMaterialInspector = (SetMaterialInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetMaterialInspector"));
 		lib.SetLightsInspector = (SetLightsInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetLightsInspector"));

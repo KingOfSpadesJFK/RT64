@@ -75,7 +75,7 @@ namespace RT64
         createDxcCompiler();
 
         generateSamplers();
-        loadAssets();
+        preparePipelines();
 
         initRayTracing();
         createDescriptorPool();
@@ -145,9 +145,9 @@ namespace RT64
         samplerInfo.anisotropyEnable = samplerAnisotropy > 1.0f ? VK_TRUE : VK_FALSE;
         samplerInfo.maxAnisotropy = samplerAnisotropy;
         samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-        samplerInfo.unnormalizedCoordinates = VK_TRUE;
+        samplerInfo.unnormalizedCoordinates = VK_FALSE;
         samplerInfo.compareEnable = VK_FALSE;
-        samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+        samplerInfo.compareOp = VK_COMPARE_OP_NEVER;
         samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
         samplerInfo.mipLodBias = 0.0f;
         samplerInfo.minLod = 0.0f;
@@ -169,10 +169,9 @@ namespace RT64
         RT64_LOG_PRINTF("Sampler creation finished!");
     }
 
-    // Loads the appropriate assets for rendering, such as the 
-    //  the statically loaded shader modules and descriptor set
-    //  layouts and blue noise
-    void Device::loadAssets() {
+    // Prepares the pipelines by creating all the necessary shader modules
+    //  and descriptor sets. It also loads the blue noise.
+    void Device::preparePipelines() {
 	    RT64_LOG_PRINTF("Asset loading started");
         vkGetPhysicalDeviceProperties(physicalDevice, &physDeviceProperties);
 
@@ -524,12 +523,12 @@ namespace RT64
             // Define the vertex layout.
             VkVertexInputBindingDescription vertexBind{};
             vertexBind.binding = 0;
-            vertexBind.stride = sizeof(float) * 8;
+            vertexBind.stride = sizeof(float) * 4 + sizeof(char) * 4;
             vertexBind.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
             // Create the attributes for the vertex inputs
             std::vector<VkVertexInputAttributeDescription> attributes;
     		attributes.push_back({0, 0, VK_FORMAT_R32G32B32A32_SFLOAT, 0});
-	    	attributes.push_back({1, 0, VK_FORMAT_R8G8B8A8_UNORM, sizeof(float)});
+	    	attributes.push_back({1, 0, VK_FORMAT_R8G8B8A8_UNORM, 16});
 
             // Bind the vertex inputs
             VkPipelineVertexInputStateCreateInfo im3dVertexInputInfo{ VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO };
@@ -540,7 +539,7 @@ namespace RT64
 
             VkPipelineColorBlendAttachmentState im3dColorBlendAttachment{};
             im3dColorBlendAttachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-            im3dColorBlendAttachment.blendEnable = VK_TRUE;
+            im3dColorBlendAttachment.blendEnable = VK_FALSE;
             im3dColorBlendAttachment.colorBlendOp = VK_BLEND_OP_ADD;
             im3dColorBlendAttachment.alphaBlendOp = VK_BLEND_OP_ADD;
             im3dColorBlendAttachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_COLOR;
@@ -549,7 +548,7 @@ namespace RT64
             im3dColorBlendAttachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
 
             VkPipelineColorBlendStateCreateInfo im3dColorBlending{ VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO };
-            colorBlending.logicOpEnable = VK_TRUE;
+            colorBlending.logicOpEnable = VK_FALSE;
             colorBlending.logicOp = VK_LOGIC_OP_COPY;
             colorBlending.attachmentCount = 1;
             colorBlending.pAttachments = &im3dColorBlendAttachment;
@@ -559,7 +558,7 @@ namespace RT64
             colorBlending.blendConstants[3] = 0.0f;
 
             // Just a function for pipeline (layout) creation
-            auto createPipeline = [this, &im3dStages, &im3dVertexInputInfo, im3dColorBlending]
+            auto createPipeline = [this, &im3dStages, &im3dVertexInputInfo, &im3dColorBlending]
             (VkGraphicsPipelineCreateInfo pipelineInfo, VkDescriptorSetLayout& descLayout, VkPipelineLayout& pipelineLayout, VkPipeline& pipeline) {
                 // Create the pipeline layout
                 VkPipelineLayoutCreateInfo pipelineLayoutInfo{ VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO };
@@ -577,20 +576,16 @@ namespace RT64
             };
 
             createPipeline(pipelineInfo, im3dDescriptorSetLayout, im3dPipelineLayout, im3dPipeline);
-            im3dStages.pop_back();
-
+            
             // Create the shader module for the geo points shader
             createShaderModule(Im3DGSPoints_SPIRV, sizeof(Im3DGSPoints_SPIRV), GS_ENTRY, VK_SHADER_STAGE_GEOMETRY_BIT, im3dGSPointsStage, im3dGSPointsModule, &im3dStages);
-            im3dStages.push_back(im3dPSStage);
             // Create the pipeline (layout) for the points shader
             inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
             createPipeline(pipelineInfo, im3dDescriptorSetLayout, im3dPointsPipelineLayout, im3dPointsPipeline);
             im3dStages.pop_back();
-            im3dStages.pop_back();
 
             // Create the shader module for the geo lines shader
             createShaderModule(Im3DGSLines_SPIRV, sizeof(Im3DGSLines_SPIRV), GS_ENTRY, VK_SHADER_STAGE_GEOMETRY_BIT, im3dGSLinesStage, im3dGSLinesModule, &im3dStages);
-            im3dStages.push_back(im3dPSStage);
             // Create the pipeline (layout) for the lines shader
             inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_LINE_LIST;
             createPipeline(pipelineInfo, im3dDescriptorSetLayout, im3dLinesPipelineLayout, im3dLinesPipeline);
