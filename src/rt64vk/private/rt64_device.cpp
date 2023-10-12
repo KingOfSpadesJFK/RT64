@@ -1278,7 +1278,7 @@ namespace RT64
             }
             return VK_PRESENT_MODE_FIFO_KHR;
         }
-        return VK_PRESENT_MODE_IMMEDIATE_KHR;
+        return VK_PRESENT_MODE_IMMEDIATE_KHR;   // This crashes on wayland, but idk if it's a Wayland Moment or an Nvidia Moment
     }
     
     VkExtent2D Device::chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities) 
