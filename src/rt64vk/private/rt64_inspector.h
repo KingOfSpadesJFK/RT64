@@ -63,5 +63,6 @@ namespace RT64 {
 		    bool handleMessage(UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
             Device* getDevice();
+            bool handleMessage(UINT msg, WPARAM wParam, LPARAM lParam);
 	};
 };

@@ -23,13 +23,7 @@
 #include <nvvk/raytraceKHR_vk.hpp>
 #include <nvvk/resourceallocator_vk.hpp>
 #include <unordered_map>
-#include <unordered_set>
-#include <GLFW/glfw3.h>
-#include <imgui/backends/imgui_impl_glfw.h>
 #include <imgui/backends/imgui_impl_vulkan.h>
-
-#ifdef _WIN32
-#endif
 
 #define MAX_FRAMES_IN_FLIGHT    2
 
@@ -40,10 +34,11 @@
 
 // The windows
 #ifdef _WIN32
-//  #define RT64_WINDOW HWND
-#define RT64_WINDOW  GLFWwindow
+#define RT64_WINDOW  HWND
 #else
-#define RT64_WINDOW GLFWwindow
+#include <GLFW/glfw3.h>
+#include <imgui/backends/imgui_impl_glfw.h>
+#define RT64_WINDOW GLFWwindow*
 #endif
 
 namespace RT64
@@ -97,7 +92,7 @@ namespace RT64
             VkPresentModeKHR chooseSwapPresentMode(const std::vector<VkPresentModeKHR>& availablePresentModes);
             VkExtent2D chooseSwapExtent(const VkSurfaceCapabilitiesKHR& capabilities);
 
-            static void framebufferResizeCallback(RT64_WINDOW* window, int width, int height);
+            static void framebufferResizeCallback(RT64_WINDOW window, int width, int height);
 
 #ifndef RT64_MINIMAL
             void createDxcCompiler();
@@ -124,7 +119,7 @@ namespace RT64
             void loadBlueNoise();
             void generateSamplers();
 
-            RT64_WINDOW* window;
+            RT64_WINDOW window;
             VkSurfaceKHR vkSurface;
             int width;
             int height;
@@ -282,13 +277,13 @@ namespace RT64
             const bool enableValidationLayers = true;
 #endif
 
-            Device(RT64_WINDOW* window);
+            Device(RT64_WINDOW window);
 		    virtual ~Device();
 
 #ifndef RT64_MINIMAL
 
             /********************** Getters **********************/
-            RT64_WINDOW* getWindow() const;
+            RT64_WINDOW getWindow();
 		    VkInstance& getVkInstance();
 		    VkDevice& getVkDevice();
 		    VkPhysicalDevice& getPhysicalDevice();

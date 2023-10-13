@@ -14,8 +14,13 @@
 #include "../contrib/im3d/im3d_math.h"
 
 #include "../contrib/imgui/imgui.h"
-#include "../contrib/imgui/backends/imgui_impl_glfw.h"
 #include "../contrib/imgui/backends/imgui_impl_vulkan.h"
+#ifdef _WIN32
+#include "../contrib/imgui/backends/imgui_impl_win32.h"
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+#else
+#include "../contrib/imgui/backends/imgui_impl_glfw.h"
+#endif
 
 #include <algorithm>
 #include <filesystem>
@@ -31,7 +36,23 @@ std::string dateAsFilename() {
 }
 
 namespace RT64 {
-	Inspector::Inspector() {}
+	Inspector::Inspector() {
+		device = nullptr;
+		prevCursorX = prevCursorY = 0;
+		cameraControl = false;
+		invertCameraX = false;
+		invertCameraY = false;
+		cameraPanX = 0.0f;
+		cameraPanY = 0.0f;
+		cameraPanSpeed = 1.0f;
+		cameraRoll = 0.f;
+		dumpFrameCount = 0;
+		sceneDesc = nullptr;
+		material = nullptr;
+		lights = nullptr;
+		lightCount = 0;
+		maxLightCount = 0;
+	}
 
 	bool Inspector::init(Device* device) {
 		if (initialized) { return true; }
@@ -42,8 +63,8 @@ namespace RT64 {
 		invertCameraY = false;
 		cameraPanX = 0.0f;
 		cameraPanY = 0.0f;
-		cameraRoll = 0.0f;
 		cameraPanSpeed = 1.0f;
+		cameraRoll = 0.f;
 		dumpFrameCount = 0;
 		sceneDesc = nullptr;
 		material = nullptr;
@@ -88,7 +109,11 @@ namespace RT64 {
 
 		ImGui_ImplVulkan_InitInfo initInfo = device->generateImguiInitInfo();
         initInfo.DescriptorPool = descPool;
+#ifndef _WIN32
 		ImGui_ImplGlfw_InitForVulkan(device->getWindow(), true);
+#else
+		ImGui_ImplWin32_Init(device->getWindow());
+#endif
 		ImGui_ImplVulkan_Init(&initInfo, device->getPresentRenderPass());
 
 		ImGui_ImplVulkan_CreateDeviceObjects();
@@ -109,7 +134,11 @@ namespace RT64 {
 	void Inspector::destroy() {
 		ImGui_ImplGlfw_RestoreCallbacks(device->getWindow());
 		ImGui_ImplVulkan_Shutdown();
+#ifndef _WIN32
 		ImGui_ImplGlfw_Shutdown();
+#else
+		ImGui_ImplWin32_Shutdown();
+#endif
 		ImGui::DestroyContext();
 		vkDestroyDescriptorPool(device->getVkDevice(), descPool, nullptr);
 		initialized = false;
@@ -120,7 +149,11 @@ namespace RT64 {
 		
 		// Start the frame.
 		ImGui_ImplVulkan_NewFrame();
+#ifndef _WIN32
 		ImGui_ImplGlfw_NewFrame();
+#else
+		ImGui_ImplWin32_NewFrame();
+#endif
 		ImGui::NewFrame();
 		Im3d::NewFrame();
 
@@ -472,6 +505,12 @@ namespace RT64 {
 		}
 	}
 
+#ifdef _WIN32
+#define GET_MIDDLE_MOUSE	GetAsyncKeyState(VK_MBUTTON) & 0x8000
+#else
+#define GET_MIDDLE_MOUSE	glfwGetMouseButton(device->getWindow(), GLFW_MOUSE_BUTTON_MIDDLE)
+#endif
+
 	void Inspector::controlCamera(View *view, long cursorX, long cursorY) {
 		view->setPerspectiveControlActive(cameraControl);
 		if (cameraControl) {
@@ -480,8 +519,13 @@ namespace RT64 {
 			}
 			else if (!ImGui::GetIO().WantCaptureMouse) {
 				float cameraSpeed = (view->getFarDistance() - view->getNearDistance()) / 5.0f * cameraPanSpeed;
+#ifdef _WIN32
+				bool leftAlt = GetAsyncKeyState(VK_LMENU) & 0x8000;
+				bool leftCtrl = GetAsyncKeyState(VK_LCONTROL) & 0x8000;
+#else
 				bool leftAlt = glfwGetKey(device->getWindow(), GLFW_KEY_LEFT_ALT);
 				bool leftCtrl = glfwGetKey(device->getWindow(), GLFW_KEY_LEFT_CONTROL);
+#endif
 				float localX = (cursorX - prevCursorX) / (float)(view->getWidth());
 				float localY = (cursorY - prevCursorY) / (float)(view->getHeight());
 				localX += cameraPanX;
@@ -489,7 +533,7 @@ namespace RT64 {
 				if (invertCameraX) { localX *= -1.0f; }
 				if (invertCameraY) { localY *= -1.0f; }
 
-				if (glfwGetMouseButton(device->getWindow(), GLFW_MOUSE_BUTTON_MIDDLE)) {
+				if (GET_MIDDLE_MOUSE) {
 					if (leftCtrl) {
 						view->movePerspective({ 0.0f, 0.0f, (-localY) * cameraSpeed });
 					}
@@ -546,6 +590,12 @@ namespace RT64 {
 		}
 	}
 
+#ifdef _WIN32
+#define GET_LEFT_MOUSE	GetAsyncKeyState(VK_LBUTTON) & 0x8000
+#else
+#define GET_LEFT_MOUSE	glfwGetMouseButton(device->getWindow(), GLFW_MOUSE_BUTTON_LEFT)
+#endif
+
 	void Inspector::setupWithView(View *view, long cursorX, long cursorY) {
 		assert(view != nullptr);
 		Im3d::AppData& appData = Im3d::GetAppData();
@@ -564,7 +614,7 @@ namespace RT64 {
 		appData.m_snapScale = 0.0f;
 		appData.m_cursorRayOrigin = Im3d::Vec3(viewPos.x, viewPos.y, viewPos.z);
 		appData.m_cursorRayDirection = Im3d::Vec3(rayDir.x, rayDir.y, rayDir.z);
-		appData.m_keyDown[Im3d::Mouse_Left] = (glfwGetMouseButton(device->getWindow(), GLFW_MOUSE_BUTTON_LEFT)) != 0;
+		appData.m_keyDown[Im3d::Mouse_Left] = (GET_LEFT_MOUSE) != 0;
 	}
 
 	void Inspector::setSceneDescription(RT64_SCENE_DESC* sceneDesc) {

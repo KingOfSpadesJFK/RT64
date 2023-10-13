@@ -4,8 +4,7 @@
 # Include third party libraries
 if(UNIX)
 else()
-    set(VULKAN_INCLUDE ${VK_SDK_PATH}\\Include) 
-    set(GLFW_INCLUDE ${PROJECT_SOURCE_DIR}/src/contrib/glfw/include)
+    set(VULKAN_INCLUDE ${VK_SDK_PATH}\\Include)
 endif()
 
 # Add the sample as a target
@@ -18,10 +17,11 @@ if (UNIX)
     set(GLFW_LIBRARY glfw)
 else()
     file(GLOB VULKAN_LIBRARY ${VK_SDK_PATH}\\Lib/*.lib)
-    set(GLFW_LIBRARY ${PROJECT_SOURCE_DIR}/src/contrib/glfw/lib/glfw3dll.lib)
+    target_link_libraries(sample 
+        ${VULKAN_LIBRARY}
+    )
 endif()
 target_include_directories(sample PRIVATE 
-    ${GLFW_INCLUDE}
     ${VULKAN_INCLUDE}
     ${SAMPLE_DIR}/contrib/tinygltf
     ${LIBRT64VK_DIR}/public

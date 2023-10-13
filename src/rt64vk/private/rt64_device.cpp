@@ -50,13 +50,15 @@
 namespace RT64
 {
 
-    Device::Device(RT64_WINDOW* inWindow) {
+    Device::Device(RT64_WINDOW inWindow) {
 	    RT64_LOG_OPEN("rt64.log");
 
 #ifndef RT64_MINIMAL
         window = inWindow;
+    #ifndef _WIN32
         glfwSetWindowUserPointer(window, this);
         glfwSetFramebufferSizeCallback(window, framebufferResizeCallback);
+    #endif
 #endif
 
         createVkInstanceNV();
@@ -90,6 +92,7 @@ namespace RT64
         contextInfo.setVersion(1, 3);               
 
         // Vulkan required extensions
+#ifndef _WIN32
         assert(glfwVulkanSupported() == 1);
         uint32_t count{0};
         auto     reqExtensions = glfwGetRequiredInstanceExtensions(&count);
@@ -97,6 +100,11 @@ namespace RT64
         // Requesting Vulkan extensions and layers        // Using Vulkan 1.3
         for(uint32_t ext_id = 0; ext_id < count; ext_id++)  // Adding required extensions (surface, win32, linux, ..)
             contextInfo.addInstanceExtension(reqExtensions[ext_id]);
+#else
+        contextInfo.addInstanceExtension(VK_KHR_SURFACE_EXTENSION_NAME);              // Extension for surfaces
+        contextInfo.addInstanceExtension(VK_KHR_WIN32_SURFACE_EXTENSION_NAME);        // Extension for win32 surfaces
+
+#endif
         contextInfo.addInstanceLayer("VK_LAYER_LUNARG_monitor", true);              // FPS in titlebar
         contextInfo.addInstanceExtension(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, true);  // Allow debug names
         contextInfo.addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);            // Enabling ability to present rendering
@@ -816,6 +824,9 @@ namespace RT64
         // Handle resizing
         if (updateSize(result, vsyncInterval, "failed to acquire swap chain image!")) {
             // don't draw the image if resized
+#ifdef _WIN32
+            RedrawWindow(window, NULL, NULL, RDW_INVALIDATE);
+#endif
             return;
         }
 
@@ -851,7 +862,15 @@ namespace RT64
 
             double mouseX, mouseY;
             activeView = scenes[0]->getViews()[0];
+#ifndef _WIN32
             glfwGetCursorPos(window, &mouseX, &mouseY);
+#else
+            POINT cursorPos = {};
+            GetCursorPos(&cursorPos);
+            ScreenToClient(window, &cursorPos);
+            mouseX = cursorPos.x;
+            mouseY = cursorPos.y;
+#endif
 
             VkRenderPassBeginInfo renderPassInfo{};
             renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -904,6 +923,9 @@ namespace RT64
         currentFrame = (currentFrame + 1) % MAX_FRAMES_IN_FLIGHT;
 #ifdef RT64_DEBUG
         std::cout << "============================================\n";
+#endif
+#ifdef _WIN32
+        RedrawWindow(window, NULL, NULL, RDW_INVALIDATE);
 #endif
     }
 
@@ -1165,12 +1187,26 @@ namespace RT64
 
     // Y'know, if u ever wanna like resize ur window
     void Device::recreateSwapChain() {
+        RT64_LOG_PRINTF("Starting device size update");
+#ifndef _WIN32
         int w, h = 0;
-        glfwGetFramebufferSize(window, &w, &h);
+        glfwGetFramebufferSize(&window, &w, &h);
         while (w == 0 || h == 0) {
-            glfwGetFramebufferSize(window, &w, &h);
+            glfwGetFramebufferSize(&window, &w, &h);
             glfwWaitEvents();
         }
+#else
+
+        RECT rect;
+        GetClientRect(window, &rect);
+        int w = rect.right - rect.left;
+        int h = rect.bottom - rect.top;
+        while (w == 0 || h == 0) {
+            GetClientRect(window, &rect);
+            w = rect.right - rect.left;
+            h = rect.bottom - rect.top;
+        }
+#endif
 
         vkDeviceWaitIdle(vkDevice);
 
@@ -1187,6 +1223,7 @@ namespace RT64
                 i->resize();
             }
         // }
+        RT64_LOG_PRINTF("Finished device size update");
     }
 
     void Device::updateScenes() {
@@ -1227,8 +1264,17 @@ namespace RT64
     }
 
 #ifndef RT64_MINIMAL
-    void Device::createSurface() { 
+    void Device::createSurface() 
+    { 
+
+#ifdef _WIN32
+        VkWin32SurfaceCreateInfoKHR createInfo { VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR };
+        createInfo.hwnd = window;
+        createInfo.hinstance = GetModuleHandle(nullptr);
+        vkCreateWin32SurfaceKHR(vkInstance, &createInfo, nullptr, &vkSurface);
+#else
         VK_CHECK(glfwCreateWindowSurface(vkInstance, window, nullptr, &vkSurface));
+#endif
     }
 #endif
 
@@ -1282,7 +1328,14 @@ namespace RT64
             return capabilities.currentExtent;
         } else {
             int width, height;
+#ifndef _WIN32
             glfwGetFramebufferSize(window, &width, &height);
+#else
+            RECT rect;
+            GetClientRect(window, &rect);
+            width = rect.right - rect.left;
+            height = rect.bottom - rect.top;
+#endif
 
             VkExtent2D actualExtent = {
                 static_cast<uint32_t>(width),
@@ -1312,12 +1365,14 @@ namespace RT64
     }
 
 #ifndef RT64_MINIMAL
+#ifndef _WIN32
     void Device::framebufferResizeCallback(GLFWwindow* glfwWindow, int width, int height) {
         auto rt64Device = reinterpret_cast<Device*>(glfwGetWindowUserPointer(glfwWindow));
         rt64Device->framebufferResized = true;
         rt64Device->width = width;
         rt64Device->height = height;
     }
+#endif
 #endif
 
     Device::~Device() {
@@ -1436,8 +1491,10 @@ namespace RT64
 #endif
         vkctx.deinit();
         // Destroy the window
+#ifndef _WIN32
         glfwDestroyWindow(window);
         glfwTerminate();
+#endif
         RT64_LOG_CLOSE();
     }
 
@@ -1447,7 +1504,7 @@ namespace RT64
 
     /********************** Getters **********************/
     // Returns the device's Window
-    RT64_WINDOW* Device::getWindow() const { return window; }
+    RT64_WINDOW Device::getWindow() { return window; }
     // Returns Vulkan instance
     VkInstance& Device::getVkInstance() { return vkInstance; }
     // Returns Vulkan device
@@ -2152,7 +2209,7 @@ namespace RT64
 
 DLEXPORT RT64_DEVICE* RT64_CreateDevice(void* window) {
 	try {
-		return (RT64_DEVICE*)(new RT64::Device(static_cast<RT64_WINDOW*>(window)));
+		return (RT64_DEVICE*)(new RT64::Device(static_cast<RT64_WINDOW>(window)));
 	}
 	RT64_CATCH_EXCEPTION();
 	return nullptr;
