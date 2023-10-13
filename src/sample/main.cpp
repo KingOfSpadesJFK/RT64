@@ -5,7 +5,7 @@
 #include "rt64.h"
 
 #define WINDOW_TITLE "RT64 Sample"
-#ifndef _WIN32
+#ifndef __WIN32__
 #include <GLFW/glfw3.h>
 #endif
 #include <glm/glm.hpp>
@@ -19,11 +19,11 @@
 // #define TINYGLTF_NOEXCEPTION // optional. disable exception handling.
 // #include "contrib/tinygltf/tiny_gltf.h"
 
-#ifndef _WIN32
+#ifndef __WIN32__
 #define _countof(array) (sizeof(array) / sizeof(array[0]))
 #endif
 
-#ifdef _WIN32
+#ifdef __WIN32__
 #define NOMINMAX
 #include <Windows.h>
 static void infoMessage(HWND hWnd, const char *message) {
@@ -89,7 +89,7 @@ struct {
 } RT64;
 
 struct {
-#ifdef _WIN32
+#ifdef __WIN32__
 	std::chrono::steady_clock::time_point startTime = std::chrono::high_resolution_clock::now();;
 #else
 	std::chrono::_V2::system_clock::time_point startTime = std::chrono::high_resolution_clock::now();;
@@ -112,7 +112,7 @@ struct {
 // 		fprintf(stdout, "GetViewRaytracedInstanceAt: %p\n", instance);
 // 		break;
 
-#ifndef _WIN32
+#ifndef __WIN32__
 void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	if (action == GLFW_PRESS) {
 		switch (key)
@@ -279,7 +279,7 @@ void draw() {
 }
 
 
-#ifdef _WIN32
+#ifdef __WIN32__
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 	if (RT64.device != nullptr && RT64.lib.HandleMessageInspector2(RT64.device, message, wParam, lParam)) {
 		return true;
@@ -734,13 +734,13 @@ void setupSponza()
 
 int main(int argc, char *argv[]) {
 	// Show a basic message to the user so they know what the sample is meant to do.
-#ifdef _WIN32
+#ifdef __WIN32__
 	infoMessage(NULL, 
 		"This sample application will test if your system has the required hardware to run RT64.\n"
 	 	"If you see some shapes on the screen after clicking the Enter key, then you're good to go!");
 #endif
 
-#ifndef _WIN32
+#ifndef __WIN32__
 	// Set-up window.
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -780,7 +780,7 @@ int main(int argc, char *argv[]) {
 		errorMessage(nullptr,
 			"Failed to initialize RT64! \n"
 			"Please make sure your GPU drivers are up to date and the Vulkan 1.3 feature level is supported \n"
-#ifdef _WIN32
+#ifdef __WIN32__
 			"Windows 10 version 2004 or newer is also required for this feature level to work properly\n"
 #else
 			"Linux Kernel version 6.0 or newer is recommended for this feature level to work properly\n"
@@ -813,15 +813,7 @@ int main(int argc, char *argv[]) {
 	postDesc.tonemapGamma = 1.25f;
 	RT64.lib.SetPostEffects(RT64.view, postDesc);
 
-	RT64_POST_FX_DESC postDesc {};
-	postDesc.tonemapMode = 5;
-	postDesc.tonemapExposure = 2.5f;
-	postDesc.tonemapWhite = 1.0f;
-	postDesc.tonemapBlack = 0.0f;
-	postDesc.tonemapGamma = 1.25f;
-	RT64.lib.SetPostEffects(RT64.view, postDesc);
-
-#ifndef _WIN32
+#ifndef __WIN32__
 #define LOOP_CASE	!glfwWindowShouldClose(window)
 #else
 	MSG msg = {};
@@ -831,7 +823,7 @@ int main(int argc, char *argv[]) {
 	// Window loop.
 	while (LOOP_CASE) {
 		// Process any poll evenets.
-#ifndef _WIN32
+#ifndef __WIN32__
         glfwPollEvents();
 
 		// Do not be a dumbass and do this inside a glfw callback like I was doing the past few months (as of october 2023)
@@ -842,13 +834,13 @@ int main(int argc, char *argv[]) {
 			RT64.inspector = RT64.lib.CreateInspector(RT64.device);
 		}
 
-		draw(window);
-
+		draw();
+#endif
 	}
 
 	destroyRT64();
 
-#ifdef _WIN32
+#ifdef __WIN32__
 	return static_cast<char>(msg.wParam);
 #endif
 }

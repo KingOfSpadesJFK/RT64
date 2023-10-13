@@ -15,7 +15,7 @@
 
 #include "../contrib/imgui/imgui.h"
 #include "../contrib/imgui/backends/imgui_impl_vulkan.h"
-#ifdef _WIN32
+#ifdef __WIN32__
 #include "../contrib/imgui/backends/imgui_impl_win32.h"
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 #else
@@ -109,7 +109,7 @@ namespace RT64 {
 
 		ImGui_ImplVulkan_InitInfo initInfo = device->generateImguiInitInfo();
         initInfo.DescriptorPool = descPool;
-#ifndef _WIN32
+#ifndef __WIN32__
 		ImGui_ImplGlfw_InitForVulkan(device->getWindow(), true);
 #else
 		ImGui_ImplWin32_Init(device->getWindow());
@@ -134,7 +134,7 @@ namespace RT64 {
 	void Inspector::destroy() {
 		ImGui_ImplGlfw_RestoreCallbacks(device->getWindow());
 		ImGui_ImplVulkan_Shutdown();
-#ifndef _WIN32
+#ifndef __WIN32__
 		ImGui_ImplGlfw_Shutdown();
 #else
 		ImGui_ImplWin32_Shutdown();
@@ -149,7 +149,7 @@ namespace RT64 {
 		
 		// Start the frame.
 		ImGui_ImplVulkan_NewFrame();
-#ifndef _WIN32
+#ifndef __WIN32__
 		ImGui_ImplGlfw_NewFrame();
 #else
 		ImGui_ImplWin32_NewFrame();
@@ -225,7 +225,7 @@ namespace RT64 {
 				"Foreground Color\0Background Color\0Instance ID\0Direct light raw\0Direct light filtered\0Indirect light raw\0Indirect light filtered\0"
 				"Reflection\0Refraction\0Transparent\0Motion vectors\0Reactive mask\0Lock mask\0Depth\0");
 
-#ifdef _WIN32
+#ifdef __WIN32__
 			ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FSR 2\0NVIDIA DLSS\0"/* Intel XeSS\0" */);
 #else
 			ImGui::Combo("Upscale Mode", &upscaleMode, "Bilinear\0AMD FSR 2\0"/* NVIDIA DLSS\0Intel XeSS\0" */);
@@ -505,7 +505,7 @@ namespace RT64 {
 		}
 	}
 
-#ifdef _WIN32
+#ifdef __WIN32__
 #define GET_MIDDLE_MOUSE	GetAsyncKeyState(VK_MBUTTON) & 0x8000
 #else
 #define GET_MIDDLE_MOUSE	glfwGetMouseButton(device->getWindow(), GLFW_MOUSE_BUTTON_MIDDLE)
@@ -519,7 +519,7 @@ namespace RT64 {
 			}
 			else if (!ImGui::GetIO().WantCaptureMouse) {
 				float cameraSpeed = (view->getFarDistance() - view->getNearDistance()) / 5.0f * cameraPanSpeed;
-#ifdef _WIN32
+#ifdef __WIN32__
 				bool leftAlt = GetAsyncKeyState(VK_LMENU) & 0x8000;
 				bool leftCtrl = GetAsyncKeyState(VK_LCONTROL) & 0x8000;
 #else
@@ -590,7 +590,7 @@ namespace RT64 {
 		}
 	}
 
-#ifdef _WIN32
+#ifdef __WIN32__
 #define GET_LEFT_MOUSE	GetAsyncKeyState(VK_LBUTTON) & 0x8000
 #else
 #define GET_LEFT_MOUSE	glfwGetMouseButton(device->getWindow(), GLFW_MOUSE_BUTTON_LEFT)

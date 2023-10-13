@@ -1188,11 +1188,11 @@ namespace RT64
     // Y'know, if u ever wanna like resize ur window
     void Device::recreateSwapChain() {
         RT64_LOG_PRINTF("Starting device size update");
-#ifndef _WIN32
+#ifndef __WIN32__
         int w, h = 0;
-        glfwGetFramebufferSize(&window, &w, &h);
+        glfwGetFramebufferSize(window, &w, &h);
         while (w == 0 || h == 0) {
-            glfwGetFramebufferSize(&window, &w, &h);
+            glfwGetFramebufferSize(window, &w, &h);
             glfwWaitEvents();
         }
 #else
