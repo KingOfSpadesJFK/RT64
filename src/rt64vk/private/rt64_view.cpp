@@ -39,7 +39,7 @@ namespace RT64
         globalParamsData.giBounces = 1;
         globalParamsData.maxLights = 12;
         globalParamsData.motionBlurSamples = 32;
-        globalParamsData.tonemapMode = 1;
+        globalParamsData.tonemapMode = 0;
         globalParamsData.tonemapExposure = 1.0f;
         globalParamsData.tonemapGamma = 1.0f;
         globalParamsData.tonemapWhite = 1.0f;
@@ -2433,6 +2433,7 @@ DLEXPORT void RT64_SetViewPerspective(RT64_VIEW* viewPtr, RT64_MATRIX4 viewMatri
 	view->setPerspectiveCanReproject(canReproject);
 }
 
+#ifdef RT64_ENABLE_EXPERIMENTAL
 DLEXPORT void RT64_SetPostEffects(RT64_VIEW *viewPtr, RT64_POST_FX_DESC postDesc) {
     assert(viewPtr != nullptr);
     RT64::View *view = (RT64::View *)(viewPtr);
@@ -2442,6 +2443,7 @@ DLEXPORT void RT64_SetPostEffects(RT64_VIEW *viewPtr, RT64_POST_FX_DESC postDesc
     view->setTonemappingWhite(postDesc.tonemapWhite);
     view->setTonemappingGamma(postDesc.tonemapGamma);
 }
+#endif
 
 DLEXPORT void RT64_SetViewDescription(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc) {
 	assert(viewPtr != nullptr);

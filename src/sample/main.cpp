@@ -805,13 +805,13 @@ int main(int argc, char *argv[]) {
 	viewDesc.resolutionScale = 1.0f;
 	RT64.lib.SetViewDescription(RT64.view, viewDesc);
 
-	RT64_POST_FX_DESC postDesc {};
-	postDesc.tonemapMode = 5;
-	postDesc.tonemapExposure = 2.5f;
-	postDesc.tonemapWhite = 1.0f;
-	postDesc.tonemapBlack = 0.0f;
-	postDesc.tonemapGamma = 1.25f;
-	RT64.lib.SetPostEffects(RT64.view, postDesc);
+	// RT64_POST_FX_DESC postDesc {};
+	// postDesc.tonemapMode = 5;
+	// postDesc.tonemapExposure = 2.5f;
+	// postDesc.tonemapWhite = 1.0f;
+	// postDesc.tonemapBlack = 0.0f;
+	// postDesc.tonemapGamma = 1.25f;
+	// RT64.lib.SetPostEffects(RT64.view, postDesc);
 
 #ifndef __WIN32__
 #define LOOP_CASE	!glfwWindowShouldClose(window)

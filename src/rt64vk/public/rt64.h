@@ -194,6 +194,7 @@ typedef struct {
 	bool 			denoiserEnabled;
 } RT64_VIEW_DESC;
 
+#ifdef RT64_ENABLE_EXPERIMENTAL
 typedef struct {
 	int 			tonemapMode;
 	float 			tonemapExposure;
@@ -201,6 +202,7 @@ typedef struct {
 	float 			tonemapWhite;
 	float 			tonemapGamma;
 } RT64_POST_FX_DESC;
+#endif
 
 typedef struct {
 	RT64_MESH *mesh;
@@ -309,22 +311,12 @@ typedef void (*DestroyMeshPtr)(RT64_MESH* meshPtr);
 typedef RT64_SHADER *(*CreateShaderPtr)(RT64_DEVICE *devicePtr, unsigned int shaderId, unsigned int filter, unsigned int hAddr, unsigned int vAddr, int flags);
 typedef void (*DestroyShaderPtr)(RT64_SHADER *shaderPtr);
 typedef RT64_INSTANCE* (*CreateInstancePtr)(RT64_SCENE* scenePtr);
-#ifdef __WIN32__
-typedef bool (*HandleMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam);
-#endif
 typedef void (*SetInstanceDescriptionPtr)(RT64_INSTANCE* instancePtr, RT64_INSTANCE_DESC instanceDesc);
 typedef void (*DestroyInstancePtr)(RT64_INSTANCE* instancePtr);
 typedef RT64_TEXTURE* (*CreateTexturePtr)(RT64_DEVICE* devicePtr, RT64_TEXTURE_DESC textureDesc);
 typedef void (*DestroyTexturePtr)(RT64_TEXTURE* texture);
 typedef RT64_INSPECTOR* (*CreateInspectorPtr)(RT64_DEVICE* devicePtr);
-// typedef void (*SetSceneInspectorPtr2)(RT64_DEVICE *devicePtr, RT64_SCENE_DESC* sceneDesc);
-// typedef void (*SetMaterialInspectorPtr2)(RT64_DEVICE *devicePtr, RT64_MATERIAL* material, const char *materialName);
-// typedef void (*SetLightsInspectorPtr2)(RT64_DEVICE *devicePtr, RT64_LIGHT* lights, int *lightCount, int maxLightCount);
-// typedef void (*PrintClearInspectorPtr2)(RT64_DEVICE *devicePtr);
-// typedef void (*PrintMessageInspectorPtr2)(RT64_DEVICE *devicePtr, const char* message);
-// typedef void (*SetInspectorVisibilityPtr2)(RT64_DEVICE *devicePtr, bool showInspector);
-typedef RT64_INSPECTOR* (*CreateInspectorPtr)(RT64_DEVICE* devicePtr);
-#ifdef _WIN32
+#ifdef __WIN32__
 typedef bool (*HandleMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam);
 #endif
 typedef void (*SetSceneInspectorPtr)(RT64_INSPECTOR* inspectorPtr, RT64_SCENE_DESC* sceneDesc);
@@ -334,7 +326,9 @@ typedef void (*PrintClearInspectorPtr)(RT64_INSPECTOR *inspectorPtr);
 typedef void (*PrintMessageInspectorPtr)(RT64_INSPECTOR* inspectorPtr, const char* message);
 typedef void (*DestroyInspectorPtr)(RT64_INSPECTOR* inspectorPtr);
 // Experimental
+#ifdef RT64_ENABLE_EXPERIMENTAL
 typedef void (*SetPostEffectsPtr)(RT64_VIEW *viewPtr, RT64_POST_FX_DESC postDesc);
+#endif
 
 // Stores all the function pointers used in the RT64 library.
 typedef struct {
@@ -369,12 +363,6 @@ typedef struct {
 	DestroyInstancePtr DestroyInstance;
 	CreateTexturePtr CreateTexture;
 	DestroyTexturePtr DestroyTexture;
-	// PrintClearInspectorPtr2 PrintClearInspector2;
-	// PrintMessageInspectorPtr2 PrintMessageInspector2;
-	// SetSceneInspectorPtr2 SetSceneInspector2;
-	// SetMaterialInspectorPtr2 SetMaterialInspector2;
-	// SetLightsInspectorPtr2 SetLightsInspector2;
-	// SetInspectorVisibilityPtr2 SetInspectorVisibility2;
 	CreateInspectorPtr CreateInspector;
 #ifdef __WIN32__
 	HandleMessageInspectorPtr HandleMessageInspector;
@@ -385,8 +373,9 @@ typedef struct {
 	SetMaterialInspectorPtr SetMaterialInspector;
 	SetLightsInspectorPtr SetLightsInspector;
 	DestroyInspectorPtr DestroyInspector;
-	// Experimental
+#ifdef RT64_ENABLE_EXPERIMENTAL
 	SetPostEffectsPtr SetPostEffects;
+#endif
 #endif
 } RT64_LIBRARY;
 
@@ -452,24 +441,19 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.DestroyInstance = (DestroyInstancePtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyInstance"));
 		lib.CreateTexture = (CreateTexturePtr)(RT64_GetProcAddress(lib.handle, "RT64_CreateTexture"));
 		lib.DestroyTexture = (DestroyTexturePtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyTexture"));
-		// lib.SetSceneInspector2 = (SetSceneInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetSceneInspector"));
-		// lib.SetMaterialInspector2 = (SetMaterialInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetMaterialInspector"));
-		// lib.SetLightsInspector2 = (SetLightsInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetLightsInspector"));
-		// lib.PrintClearInspector2 = (PrintClearInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_PrintClearInspector"));
-		// lib.PrintMessageInspector2 = (PrintMessageInspectorPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_PrintMessageInspector"));
-		// lib.SetInspectorVisibility2 = (SetInspectorVisibilityPtr2)(RT64_GetProcAddress(lib.handle, "RT64VK_SetInspectorVisibility"));
 		lib.CreateInspector = (CreateInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_CreateInspector"));
-#ifdef __WIN32__
+	#ifdef __WIN32__
 		lib.HandleMessageInspector = (HandleMessageInspectorPtr)(GetProcAddress(lib.handle, "RT64_HandleMessageInspector"));
-#endif
+	#endif
 		lib.SetSceneInspector = (SetSceneInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetSceneInspector"));
 		lib.SetMaterialInspector = (SetMaterialInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetMaterialInspector"));
 		lib.SetLightsInspector = (SetLightsInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetLightsInspector"));
 		lib.PrintClearInspector = (PrintClearInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_PrintClearInspector"));
 		lib.PrintMessageInspector = (PrintMessageInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_PrintMessageInspector"));
 		lib.DestroyInspector = (DestroyInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyInspector"));
-		// Experimental
+	#ifdef RT64_ENABLE_EXPERIMENTAL
 		lib.SetPostEffects = (SetPostEffectsPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetPostEffects"));
+	#endif
 #endif
 	}
 	else {

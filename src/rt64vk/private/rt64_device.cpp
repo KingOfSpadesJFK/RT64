@@ -2234,46 +2234,4 @@ DLEXPORT void RT64_DrawDevice(RT64_DEVICE* devicePtr, int vsyncInterval, double 
 	RT64_CATCH_EXCEPTION();
 }
 
-// DLEXPORT void RT64VK_SetSceneInspector(RT64_DEVICE* devicePtr, RT64_SCENE_DESC* sceneDesc) {
-//     assert(devicePtr != nullptr);
-// 	RT64::Device* device = (RT64::Device*)(devicePtr);
-//     RT64::Inspector& inspector = device->getInspector();
-//     inspector.setSceneDescription(sceneDesc);
-// }
-
-// DLEXPORT void RT64VK_SetMaterialInspector(RT64_DEVICE* devicePtr, RT64_MATERIAL* material, const char* materialName) {
-//     assert(devicePtr != nullptr);
-// 	RT64::Device* device = (RT64::Device*)(devicePtr);
-//     RT64::Inspector& inspector = device->getInspector();
-//     inspector.setMaterial(material, std::string(materialName));
-// }
-
-// DLEXPORT void RT64VK_SetLightsInspector(RT64_DEVICE* devicePtr, RT64_LIGHT* lights, int* lightCount, int maxLightCount) {
-//     assert(devicePtr != nullptr);
-// 	RT64::Device* device = (RT64::Device*)(devicePtr);
-//     RT64::Inspector& inspector = device->getInspector();
-//     inspector.setLights(lights, lightCount, maxLightCount);
-// }
-
-// DLEXPORT void RT64VK_PrintClearInspector(RT64_DEVICE* devicePtr) {
-//     assert(devicePtr != nullptr);
-// 	RT64::Device* device = (RT64::Device*)(devicePtr);
-//     RT64::Inspector& inspector = device->getInspector();
-//     inspector.printClear();
-// }
-
-// DLEXPORT void RT64VK_PrintMessageInspector(RT64_DEVICE* devicePtr, const char* message) {
-//     assert(devicePtr != nullptr);
-// 	RT64::Device* device = (RT64::Device*)(devicePtr);
-//     RT64::Inspector& inspector = device->getInspector();
-//     std::string messageStr(message);
-//     inspector.printMessage(messageStr);
-// }
-
-// DLEXPORT void RT64VK_SetInspectorVisibility(RT64_DEVICE* devicePtr, bool showInspector) {
-//     assert(devicePtr != nullptr);
-// 	RT64::Device* device = (RT64::Device*)(devicePtr);
-//     device->setInspectorVisibility(showInspector);
-// }
-
 #endif
