@@ -15,6 +15,10 @@ if (UNIX)
     # Vulkan and GLFW
     set(VULKAN_LIBRARY vulkan)
     set(GLFW_LIBRARY glfw)
+    target_link_libraries(sample PRIVATE
+        vulkan
+        glfw
+    )
 else()
     file(GLOB VULKAN_LIBRARY ${VK_SDK_PATH}\\Lib/*.lib)
     target_link_libraries(sample 
@@ -26,11 +30,12 @@ target_include_directories(sample PRIVATE
     ${SAMPLE_DIR}/contrib/tinygltf
     ${LIBRT64VK_DIR}/public
 )
-target_link_libraries(sample PRIVATE
-    ${VULKAN_LIBRARY}
-    ${GLFW_LIBRARY}
-)
 # Copy the res files into the build folder
-file(COPY ${SAMPLE_DIR}/res DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+if (UNIX)
+    file(COPY ${SAMPLE_DIR}/res DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+else()
+    file(COPY ${SAMPLE_DIR}/res DESTINATION ${CMAKE_BINARY_DIR}/Debug)
+    file(COPY ${SAMPLE_DIR}/res DESTINATION ${CMAKE_BINARY_DIR}/Release)
+endif()
 
 set_property(TARGET sample PROPERTY CXX_STANDARD 20)

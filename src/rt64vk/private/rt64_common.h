@@ -5,6 +5,10 @@
 #ifndef __RT64COMMON
 #define __RT64COMMON
 
+#ifdef _WIN32 && !__WIN32__
+	#define __WIN32__
+#endif
+
 #ifdef __WIN32__
 	#define NOMINMAX
 	#define VK_USE_PLATFORM_WIN32_KHR

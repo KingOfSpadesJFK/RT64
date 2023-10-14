@@ -6,7 +6,7 @@
 #include "rt64_common.h"
 #include "rt64_device.h"
 
-#ifdef __WIN32__
+#ifdef false
 #include <DLSS/include/nvsdk_ngx_helpers.h>
 #include <DLSS/include/nvsdk_ngx_helpers_vk.h>
 

@@ -86,6 +86,7 @@ struct {
 	RT64_INSTANCE *instance = nullptr;
 	std::vector<VERTEX> objVertices;
 	std::vector<unsigned int> objIndices;
+	bool init = false;
 } RT64;
 
 struct {
@@ -168,7 +169,9 @@ void mouseButtonCallBack(GLFWwindow* window, int button, int action, int mods) {
 
 // Process drawing 
 void draw() {
-	
+	if (!RT64.init) {
+		return;
+	}
     auto currentTime = std::chrono::high_resolution_clock::now();
     float time = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - Sample.startTime).count() / 4.0f;
 
@@ -281,7 +284,7 @@ void draw() {
 
 #ifdef __WIN32__
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
-	if (RT64.device != nullptr && RT64.lib.HandleMessageInspector2(RT64.device, message, wParam, lParam)) {
+	if (RT64.inspector != nullptr && RT64.lib.HandleMessageInspector(RT64.inspector, message, wParam, lParam)) {
 		return true;
 	}
 
@@ -304,7 +307,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 		switch (wParam) {
 		case VK_F1:
 			RT64.showInspector = !RT64.showInspector;
-			RT64.lib.SetInspectorVisibility2(RT64.device, RT64.showInspector);
 			break;
 		case VK_F3:
 			Sample.daylightTime = 0.0f;
@@ -820,12 +822,19 @@ int main(int argc, char *argv[]) {
 #define LOOP_CASE	msg.message != WM_QUIT
 #endif
 
+	RT64.init = true;
 	// Window loop.
 	while (LOOP_CASE) {
 		// Process any poll evenets.
 #ifndef __WIN32__
         glfwPollEvents();
-
+		draw();
+#else
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
+#endif
 		// Do not be a dumbass and do this inside a glfw callback like I was doing the past few months (as of october 2023)
 		if (!RT64.showInspector && RT64.inspector != nullptr) {
 			RT64.lib.DestroyInspector(RT64.inspector);
@@ -833,9 +842,6 @@ int main(int argc, char *argv[]) {
 		} else if ((RT64.showInspector && RT64.inspector == nullptr)) {
 			RT64.inspector = RT64.lib.CreateInspector(RT64.device);
 		}
-
-		draw();
-#endif
 	}
 
 	destroyRT64();

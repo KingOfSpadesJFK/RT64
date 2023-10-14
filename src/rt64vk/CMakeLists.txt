@@ -22,12 +22,15 @@ if(UNIX)
 else() 
     # Vulkan
     set(VK_SDK_HEADERS ${VK_SDK_PATH}\\Include) 
-    file(GLOB VULKAN_LIBRARY ${VK_SDK_PATH}\\Lib/*.lib)
+    add_compile_options(-DENABLE_SPIRV_CODEGEN)
+    set(ENV{VULKAN_SDK} ${VK_SDK_PATH})
+    find_package(Vulkan REQUIRED)
+    set(VULKAN_LIBRARY ${Vulkan_LIBRARIES})
     # DXC
     set(DXC_INCLUDE ${DXC_DIR}/include/win)
     file(GLOB DXC_LIBRARY ${DXC_DIR}/lib/win-x64/dxcompiler.lib)
     # DLSS
-    if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
+    if("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
         list(APPEND DLSS_LIBRARY ${DLSS_DIR}/lib/Windows_x86_64/x86_64/nvsdk_ngx_d_dbg.lib)   
     else()
         list(APPEND DLSS_LIBRARY ${DLSS_DIR}/lib/Windows_x86_64/x86_64/nvsdk_ngx_d.lib)
@@ -40,7 +43,6 @@ else()
     list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp)
     list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_win32.cpp)
 endif()
-message("${DLSS_LIBRARY}")
 
 include_directories(
     ${LIBRT64VK_DIR}/public/
@@ -84,7 +86,6 @@ add_library(rt64vk SHARED
     ${IMGUI_SOURCES}
 )
 target_include_directories(rt64vk PRIVATE 
-    ${MINGW64_INCLUDE}
     ${VK_SDK_HEADERS}
     ${GLFW_INCLUDE}
     ${LIBRT64VK_DIR}
@@ -115,13 +116,11 @@ if(UNIX)
     endif()
 else()
     # Copy the DLSS .dll files into the build folder
-    if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
-        file(COPY ${DLSS_DIR}/lib/Windows_x86_64/dev/nvngx_dlss.dll DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
-    else()
-        file(COPY ${DLSS_DIR}/lib/Windows_x86_64/rel/nvngx_dlss.dll DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
-    endif()
+    file(COPY ${DLSS_DIR}/lib/Windows_x86_64/dev/nvngx_dlss.dll DESTINATION ${CMAKE_BINARY_DIR}/Debug)
+    file(COPY ${DLSS_DIR}/lib/Windows_x86_64/rel/nvngx_dlss.dll DESTINATION ${CMAKE_BINARY_DIR}/Release)
     # Copy the FSR .dll files into the build folder
-    file(COPY ${FSR_DIR}/lib/ffx_fsr2_api_x64.dll ${FSR_DIR}/lib/ffx_fsr2_api_vk_x64.dll DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
+    file(COPY ${FSR_DIR}/lib/ffx_fsr2_api_x64.dll ${FSR_DIR}/lib/ffx_fsr2_api_vk_x64.dll DESTINATION ${CMAKE_BINARY_DIR}/Debug)
+    file(COPY ${FSR_DIR}/lib/ffx_fsr2_api_x64.dll ${FSR_DIR}/lib/ffx_fsr2_api_vk_x64.dll DESTINATION ${CMAKE_BINARY_DIR}/Release)
 endif()
 
 set_property(TARGET rt64vk PROPERTY CXX_STANDARD 20)

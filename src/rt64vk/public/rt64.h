@@ -6,6 +6,10 @@
 #ifndef RT64_H_INCLUDED
 #define RT64_H_INCLUDED
 
+#ifdef _WIN32 && !__WIN32__
+	#define __WIN32__
+#endif
+
 #ifdef __WIN32__
 	#include <iostream>
 	#include <Windows.h>
@@ -293,7 +297,7 @@ inline void RT64_ApplyMaterialAttributes(RT64_MATERIAL *dst, RT64_MATERIAL *src)
 typedef const char *(*GetLastErrorPtr)();
 typedef RT64_DEVICE* (*CreateDevicePtr)(void* window);
 typedef void (*DestroyDevicePtr)(RT64_DEVICE* device);
-typedef void (*DrawDevicePtr)(RT64_DEVICE *device, int vsyncInterval, double delta);
+typedef void (*DrawDevicePtr)(RT64_DEVICE *device, int vsyncInterval, float delta);
 typedef RT64_VIEW* (*CreateViewPtr)(RT64_SCENE* scenePtr);
 typedef void (*SetViewPerspectivePtr)(RT64_VIEW *viewPtr, RT64_MATRIX4 viewMatrix, float fovRadians, float nearDist, float farDist, bool canReproject);
 typedef void (*SetViewDescriptionPtr)(RT64_VIEW *viewPtr, RT64_VIEW_DESC viewDesc);
@@ -380,13 +384,9 @@ typedef struct {
 } RT64_LIBRARY;
 
 #ifdef __WIN32__
-inline FARPROC RT64_GetProcAddress(HMODULE libHandle, const char* procName) {
-	return GetProcAddress(libHandle, procName);
-}
+#define RT64_GetProcAddress GetProcAddress
 #else
-inline void* RT64_GetProcAddress(void* libHandle, const char* procName) {
-    return dlsym(libHandle, procName);
-}
+#define RT64_GetProcAddress dlsym
 #endif
 
 
@@ -443,7 +443,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 		lib.DestroyTexture = (DestroyTexturePtr)(RT64_GetProcAddress(lib.handle, "RT64_DestroyTexture"));
 		lib.CreateInspector = (CreateInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_CreateInspector"));
 	#ifdef __WIN32__
-		lib.HandleMessageInspector = (HandleMessageInspectorPtr)(GetProcAddress(lib.handle, "RT64_HandleMessageInspector"));
+		lib.HandleMessageInspector = (HandleMessageInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_HandleMessageInspector"));
 	#endif
 		lib.SetSceneInspector = (SetSceneInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetSceneInspector"));
 		lib.SetMaterialInspector = (SetMaterialInspectorPtr)(RT64_GetProcAddress(lib.handle, "RT64_SetMaterialInspector"));
@@ -460,6 +460,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 #ifdef __WIN32__
 		char errorMessage[256];
 		FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), errorMessage, sizeof(errorMessage), NULL);
+		fprintf(stderr, "Error when loading library: %s\n", errorMessage);
 #else
 		fprintf(stderr, "Error when loading library: %s\n", dlerror());
 #endif
@@ -470,7 +471,7 @@ inline RT64_LIBRARY RT64_LoadLibrary() {
 
 inline void RT64_UnloadLibrary(RT64_LIBRARY lib) {
 #ifdef __WIN32__
-	FreeLibrary((HMODULE)(lib.handle));
+	FreeLibrary(lib.handle);
 #else
 	dlclose(lib.handle);
 #endif

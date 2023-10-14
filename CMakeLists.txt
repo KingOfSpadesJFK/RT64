@@ -64,7 +64,6 @@ set_target_properties( rt64vk sample
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}"
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}"
 )
-message("${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}")
 
 ##########################################################
 

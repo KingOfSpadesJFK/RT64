@@ -132,9 +132,9 @@ namespace RT64 {
 	}
 
 	void Inspector::destroy() {
-		ImGui_ImplGlfw_RestoreCallbacks(device->getWindow());
 		ImGui_ImplVulkan_Shutdown();
 #ifndef __WIN32__
+		ImGui_ImplGlfw_RestoreCallbacks(device->getWindow());
 		ImGui_ImplGlfw_Shutdown();
 #else
 		ImGui_ImplWin32_Shutdown();
@@ -643,10 +643,10 @@ namespace RT64 {
 	Device* Inspector::getDevice() { return device; }
 
 #ifdef __WIN32__
-	extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	// extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 	bool Inspector::handleMessage(UINT msg, WPARAM wParam, LPARAM lParam) {
-		return ImGui_ImplWin32_WndProcHandler(device->getHwnd(), msg, wParam, lParam);
+		return (bool)ImGui_ImplWin32_WndProcHandler(device->getWindow(), msg, wParam, lParam);
 	}
 #endif
 };
@@ -663,7 +663,7 @@ DLEXPORT RT64_INSPECTOR* RT64_CreateInspector(RT64_DEVICE* devicePtr) {
 }
 
 #ifdef __WIN32__
-DLLEXPORT bool RT64_HandleMessageInspector(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam) {
+DLEXPORT bool RT64_HandleMessageInspector(RT64_INSPECTOR* inspectorPtr, UINT msg, WPARAM wParam, LPARAM lParam) {
     assert(inspectorPtr != nullptr);
     RT64::Inspector* inspector = (RT64::Inspector*)(inspectorPtr);
     return inspector->handleMessage(msg, wParam, lParam);

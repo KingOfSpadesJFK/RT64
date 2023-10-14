@@ -88,7 +88,7 @@ namespace RT64
     }
 
     void Device::createVkInstanceNV() {
-        nvvk::ContextCreateInfo contextInfo;
+        nvvk::ContextCreateInfo contextInfo = {};
         contextInfo.setVersion(1, 3);               
 
         // Vulkan required extensions
@@ -110,9 +110,9 @@ namespace RT64
         contextInfo.addDeviceExtension(VK_KHR_SWAPCHAIN_EXTENSION_NAME);            // Enabling ability to present rendering
 
         // #VKRay: Activate the ray tracing extension
-        VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
+        VkPhysicalDeviceAccelerationStructureFeaturesKHR accelFeature = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ACCELERATION_STRUCTURE_FEATURES_KHR};
         contextInfo.addDeviceExtension(VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME, false, &accelFeature);  // To build acceleration structures
-        VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature{VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
+        VkPhysicalDeviceRayTracingPipelineFeaturesKHR rtPipelineFeature = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PIPELINE_FEATURES_KHR};
         contextInfo.addDeviceExtension(VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME, false, &rtPipelineFeature);  // To use vkCmdTraceRaysKHR
         contextInfo.addDeviceExtension(VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME);  // Required by ray tracing pipeline
         contextInfo.addDeviceExtension(VK_KHR_RAY_QUERY_EXTENSION_NAME);  // Required by ray tracing pipeline
@@ -140,7 +140,7 @@ namespace RT64
 
 #ifndef RT64_MINIMAL
         createSurface();
-        VkBool32 supportsPresent;
+        VkBool32 supportsPresent = {};
         vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, presentQueue.familyIndex, vkSurface, &supportsPresent);
         assert(supportsPresent);
 #endif
@@ -2225,7 +2225,7 @@ DLEXPORT void RT64_DestroyDevice(RT64_DEVICE* devicePtr) {
 
 #ifndef RT64_MINIMAL
 
-DLEXPORT void RT64_DrawDevice(RT64_DEVICE* devicePtr, int vsyncInterval, double delta) {
+DLEXPORT void RT64_DrawDevice(RT64_DEVICE* devicePtr, int vsyncInterval, float delta) {
 	assert(devicePtr != nullptr);
 	try {
 		RT64::Device* device = (RT64::Device*)(devicePtr);

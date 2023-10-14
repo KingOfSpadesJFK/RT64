@@ -17,4 +17,5 @@
 *.idb
 *.hlsl.h
 *.bat
+*log_nvprosample.txt
 imgui.ini
