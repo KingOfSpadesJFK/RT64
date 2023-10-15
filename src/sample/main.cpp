@@ -302,6 +302,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) 
 	}
 	case WM_PAINT: {
 		draw();
+		break;
 	}
 	case WM_KEYDOWN: {
 		switch (wParam) {
@@ -830,7 +831,7 @@ int main(int argc, char *argv[]) {
         glfwPollEvents();
 		draw();
 #else
-		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE)) {
+		if (GetMessage(&msg, NULL, 0, 0)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}

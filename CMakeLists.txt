@@ -20,7 +20,6 @@ set(NVPRO_DIR ${CONTRIB_DIR}/nvpro_core)
 set(IM3D_DIR ${CONTRIB_DIR}/im3d)
 set(DLSS_DIR ${CONTRIB_DIR}/DLSS)
 set(FSR_DIR ${CONTRIB_DIR}/fsr)
-
 # DX12 Register shift variables
 #   These map the different dx12 registers to binding values on Vulkan
 #   DO NOT CHANGE THESE UNLESS YOU KNOW WHAT YOU ARE DOING!!!!!!
@@ -58,7 +57,7 @@ endif()
 add_subdirectory(${LIBRT64VK_DIR})
 add_subdirectory(${SAMPLE_DIR})
 
-set_target_properties( rt64vk sample
+set_target_properties(rt64vk sample
     PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}"
     LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE}"

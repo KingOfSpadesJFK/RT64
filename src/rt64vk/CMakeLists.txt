@@ -41,7 +41,7 @@ else()
     set(PLATFORM ${VK_SDK_PATH}\\Include\\glm\\simd)
     # ImGui
     list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_vulkan.cpp)
-    list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_win32.cpp)
+    list(APPEND IMGUI_SOURCES ${IMGUI_DIR}/backends/imgui_impl_win32.cpp)    
 endif()
 
 include_directories(
@@ -107,6 +107,7 @@ target_link_libraries(rt64vk PRIVATE
     ${FSR_LIBRARY}
 )
 
+# Copy the .dll's/.so's into the build folder
 if(UNIX)
     # Copy the DLSS .so files into the build folder
     if(${CMAKE_BUILD_TYPE} STREQUAL Debug)
@@ -115,10 +116,15 @@ if(UNIX)
         file(COPY ${DLSS_DIR}/lib/Linux_x86_64/rel/libnvidia-ngx-dlss.so.${DLSS_VERSION} DESTINATION ${CMAKE_BINARY_DIR}/${CMAKE_BUILD_TYPE})
     endif()
 else()
-    # Copy the DLSS .dll files into the build folder
+    #DXC
+    file(COPY ${DXC_DIR}/bin/win-x64/dxcompiler.dll DESTINATION ${CMAKE_BINARY_DIR}/Debug)
+    file(COPY ${DXC_DIR}/bin/win-x64/dxil.dll DESTINATION ${CMAKE_BINARY_DIR}/Debug)
+    file(COPY ${DXC_DIR}/bin/win-x64/dxcompiler.dll DESTINATION ${CMAKE_BINARY_DIR}/Release)
+    file(COPY ${DXC_DIR}/bin/win-x64/dxil.dll DESTINATION ${CMAKE_BINARY_DIR}/Release)
+    # DLSS
     file(COPY ${DLSS_DIR}/lib/Windows_x86_64/dev/nvngx_dlss.dll DESTINATION ${CMAKE_BINARY_DIR}/Debug)
     file(COPY ${DLSS_DIR}/lib/Windows_x86_64/rel/nvngx_dlss.dll DESTINATION ${CMAKE_BINARY_DIR}/Release)
-    # Copy the FSR .dll files into the build folder
+    # FSR
     file(COPY ${FSR_DIR}/lib/ffx_fsr2_api_x64.dll ${FSR_DIR}/lib/ffx_fsr2_api_vk_x64.dll DESTINATION ${CMAKE_BINARY_DIR}/Debug)
     file(COPY ${FSR_DIR}/lib/ffx_fsr2_api_x64.dll ${FSR_DIR}/lib/ffx_fsr2_api_vk_x64.dll DESTINATION ${CMAKE_BINARY_DIR}/Release)
 endif()

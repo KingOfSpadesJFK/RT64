@@ -6,7 +6,7 @@
 #ifndef RT64_H_INCLUDED
 #define RT64_H_INCLUDED
 
-#ifdef _WIN32 && !__WIN32__
+#if defined(_WIN32) && !defined(__WIN32__)
 	#define __WIN32__
 #endif
 

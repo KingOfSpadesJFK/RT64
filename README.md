@@ -10,7 +10,7 @@ The library is not meant to be used in the traditional way by linking it as an s
 
 This project is a port of RT64 from DX12 to Vulkan. It should do everything as mentioned above, with real-time raytracing in a library form... but with Vulkan!
 
-This port is still very much a work-in-progress, only having been tested on Windows 11 and Fedora 37 with an RTX 3060Ti. Some features from RT64 DX12 are still missing (3D Debug interfaces, DLSS and XESS, frame dumping).
+This port is still very much a work-in-progress, only having been tested on Windows 11 and Fedora 37 with an RTX 3060Ti. Some features from RT64 DX12 are still missing (DLSS and XESS, frame dumping).
 
 Also, no this still isn't the emulator version
 
@@ -25,10 +25,13 @@ Also, no this still isn't the emulator version
 * Support for Vulkan 1.3
 * [DLSS SDK 3.1.0 or newer](https://developer.nvidia.com/dlss) if you wish to build with DLSS support.
 ## Windows Reqirements
-* Visual Studio 2022 and Windows SDK >=10.0.22000
+* [Windows SDK](https://developer.microsoft.com/en-us/windows/downloads/windows-sdk/) >=10.0.22000
+    * Includes CMake and MSVC compiler
+* [Visual Studio 2022 Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2022)
 * [Vulkan SDK](https://vulkan.lunarg.com/)
     * Includes GLM headers
 ## Linux Requirements
+* Clang, my recommended C++ compiler
 * Vulkan packages
 * GLFW packages
 * GLM packages
@@ -48,13 +51,31 @@ On Fedora, Nobara, and other Red Hat derivatives:
 On Arch Linux and derivatives such as Manjaro, Endeavour, SteamOS:
 
         sudo pacman -S vulkan-devel
-        sudo pacman -S glfw-wayland # glfw-x11 if you want to build on X11
+        sudo pacman -S glfw-[x11|wayland]
         sudo pacman -S glm
 
 ## Building
-On Windows, it can be as easy as running Visual Studio 2022 and clicking on Build -> Build All like you would any Visual Studio project.
+CMake was used to build this port during development, so I recommend using that. First, you generate the build files. On Windows, you can type:
 
-On Linux, you can build in the terminal. First, you can generate the build files with `cmake --no-warn-unused-cli -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DCMAKE_BUILD_TYPE:STRING=Release|MinSizeRel|RelWithDebInfo|Debug -DCMAKE_C_COMPILER:FILEPATH=gcc|clang -DCMAKE_CXX_COMPILER:FILEPATH=g++|clang++ -S ./ -B ./build -G Ninja` and then type `cmake --build ./build --config Debug|Release --target all|rt64vk|sample --` to fully build the target.
+        [C:\Path\To\cmake.exe] --no-warn-unused-cli -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DCMAKE_BUILD_TYPE:STRING=[Release|MinSizeRel|RelWithDebInfo|Debug] -S[C:/Path/To/RT64VK] -B[c:/Path/To/RT64VK]/build -G "Visual Studio 17 2022" -T host=x86 -A x64
+
+On Linux: 
+
+        cmake --no-warn-unused-cli -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DCMAKE_BUILD_TYPE:STRING=[Release|MinSizeRel|RelWithDebInfo|Debug] -DCMAKE_C_COMPILER:FILEPATH=gcc|clang -DCMAKE_CXX_COMPILER:FILEPATH=g++|clang++ -S ./ -B ./build -G Ninja 
+
+Then, build the shaders using cmake:
+
+        [/path/to/cmake] --build [/path/to/build] --config [Debug|Release] --target shaders --
+
+All that remains is to build the whole project:
+
+Windows:
+
+        [C:\Path\To\cmake.exe] --build [C:Path/To/RT64VK]/build --config [Debug|Release] --target [ALL_BUILD|rt64vk|sample|shaders] -j 14 --
+
+Linux:
+
+        cmake --build ./build --config [Debug|Release] --target [all|rt64vk|sample|shaders] --
 
 ## Screenshots
 ![Sample screenshot 1](/images/Screenshot_20230220_042451.jpg?raw=true)
